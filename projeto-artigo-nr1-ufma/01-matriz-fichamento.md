@@ -122,6 +122,65 @@ Neste ambiente de execução, a ferramenta de leitura direta de páginas/PDFs (W
 
 ---
 
+## Bloco D — Fontes acadêmicas fornecidas pelo autor (lidas integralmente, citações verificadas)
+
+### D1. Lucca & Magalhães (2024) — Editorial RBMT
+- **Referência ABNT:** LUCCA, Sergio Roberto de; MAGALHÃES, Andrea Franco Amoras. A relevância dos fatores de risco psicossociais no trabalho no Programa de Gerenciamento de Riscos da NR-1. *Revista Brasileira de Medicina do Trabalho*, v. 22, n. 4, e2024224, 2024. DOI: 10.47626/1679-4435-2024-224.
+- **Tipo:** Editorial de periódico científico (SciELO), não é pesquisa empírica.
+- **Tese central:** A gestão obrigatória dos fatores de risco psicossociais a partir de maio de 2025 (Portaria MTE 1.419/2024) é um avanço necessário, mas a própria NR-1 "não trata os fatores psicossociais em detalhe" — a operacionalização depende de instrumentos técnicos complementares.
+- **Achados-chave e citações literais (com página confirmada):**
+  - "Although the NR-1 itself does not deal with psychosocial factors in detail, the diagnosis and management of these factors are essential to ensure a healthier work environment..." (p. 2)
+  - Definição OMS/OIT (1984) de fatores psicossociais no trabalho, citada literalmente (p. 1): "interactions between work, the work environment, job satisfaction, organizational conditions and the worker's capabilities, needs, culture, personal situation outside of work, perceptions, and experiences that can influence health, performance, and job satisfaction."
+  - Quadro 1 (p. 2, fonte: Leka & Cok, 2008 — European Framework for Psychosocial Risk Management) lista 8 categorias de fatores psicossociais: conteúdo do trabalho, carga e ritmo, jornada, controle, ambiente/equipamentos, cultura organizacional, relações interpessoais, papel na organização, desenvolvimento de carreira, interface trabalho-casa.
+  - Recomenda instrumentos de autorrelato validados em português, complementados por grupos focais/entrevistas individuais (p. 3).
+- **Relação com o tema:** Fonte primária de alta qualidade para os objetivos 1 e 2 — dá base teórica sólida e citável com página para a definição de "fatores psicossociais" e reconhece formalmente a lacuna operacional que o objetivo 4 do projeto (especificidades de implantação) pode explorar.
+
+### D2. Corno (2026) — Avaliação e Gestão de Riscos Psicossociais em Conformidade com a NR 1
+- **Referência ABNT:** CORNO, Antonio Francisco. Avaliação e gestão de riscos psicossociais em conformidade com a NR 1. *Revista DCS*, v. 23, n. 86, p. 1-19, 2026. DOI: 10.54899/dcs.v23i86.4362.
+- **Tipo:** Artigo de revisão (Google Acadêmico + SciELO), autor único, doutorando em Engenharia de Produção (UFF) — **não é da área de Direito, Psicologia ou Saúde Ocupacional**; usar como fonte técnica/metodológica, não como autoridade jurídica ou clínica.
+- **Achado mais valioso — números de item da NR-1 confirmados (o que a pesquisa web anterior não conseguiu confirmar):**
+  - Item 1.5.4.4.2: nível de risco ocupacional = combinação de severidade × probabilidade (p. 3).
+  - Item 1.5.4.4.5.3: probabilidade para fatores ergonômicos/psicossociais (p. 3).
+  - Item 1.5.4.4.4: severidade, considerando potencial de transtornos mentais (burnout, depressão, ansiedade) (p. 3-4).
+  - Item 1.4.1.1 "a", "b", "c": regras de conduta sobre assédio, canais de denúncia com sigilo/anonimato, capacitação anual (p. 12).
+  - Item 1.5.4.1: vínculo do Código de Ética ao PGR (p. 12).
+  - Item 1.5.3.1: identificação de perigos deve considerar agravos de natureza mental mesmo sem listagem explícita (p. 12).
+  - Item 1.5.1.1: definição de responsabilidades institucionais (p. 13).
+  - Item 1.5.7: caráter dinâmico/contínuo do GRO (p. 13).
+- **Achado metodológico central — tabela de conversão (p. 10):** propõe critérios técnicos para converter escores de 5 instrumentos psicométricos validados (COPSOQ III, PROART, HSE-IT, JCQ/Karasek, ERI/Siegrist) em categorias de probabilidade da matriz de risco da NR-1 (Baixa/Média/Alta/Crítica), com PROART e HSE-IT classificados "Alto" grau de conformidade com a NR-1, COPSOQ III "Muito Alto", JCQ "Parcial" e ERI "Complementar".
+- **Metodologia:** Revisão bibliográfica e documental (Google Acadêmico + SciELO, descritores "NR 1", "Riscos Psicossociais", "PGR", "Saúde Mental no Trabalho", estudos 2005-2024).
+- **Limitações reconhecidas pelo próprio autor:** "a validação empírica futura é essencial, especialmente por meio de estudos de caso organizacionais" (p. 13) — ou seja, o próprio Corno reconhece que seu quadro conceitual ainda não foi testado em campo, o que é exatamente o que o estudo de caso da UFMA poderia fazer.
+- **Relação com o tema — ACHADO QUE PODE RESOLVER A TENSÃO DO BLOCO C1:** Este artigo fornece a ponte metodológica que faltava entre um PGR de governança corporativa (como o da Portaria 1121/2023 da UFMA, baseado em matriz Probabilidade × Impacto da ISO 31000) e o PGR ocupacional da NR-1: ambos usam a mesma lógica de matriz de risco (probabilidade × severidade/impacto). Isso torna tecnicamente plausível argumentar que a UFMA poderia **estender** sua matriz de risco institucional já existente para incorporar riscos psicossociais, em vez de criar um sistema paralelo do zero — um argumento concreto para a leitura 2 da questão em aberto no Bloco C1.
+
+### D3. Taibi, Metzler, Bellingrath, Neuhaus & Müller (2022) — Applying risk matrices for assessing the risk of psychosocial hazards at work
+- **Referência ABNT:** TAIBI, Yacine; METZLER, Yannick A.; BELLINGRATH, Silja; NEUHAUS, Ciel A.; MÜLLER, Andreas. Applying risk matrices for assessing the risk of psychosocial hazards at work. *Frontiers in Public Health*, v. 10, e965262, 2022. DOI: 10.3389/fpubh.2022.965262.
+- **Tipo:** Artigo científico internacional (Alemanha, Universidade de Duisburg-Essen), revisão metodológica + proposta teórica.
+- **Tese central:** Propõe adaptar a Risk Matrix Approach (RMA) — tradicionalmente usada para riscos físicos — para riscos psicossociais, usando razões de chance (odds ratios) entre a extensão/frequência do fator de risco (hazard) e o dano à saúde (harm) para calcular objetivamente probabilidade × severidade numa matriz 3×3.
+- **Achados-chave e citações literais (com página confirmada):**
+  - Crítica a 4 abordagens existentes (uniform cut-off, value-based cut-off, reference value, Clark & Cooper) — nenhuma cumpre plenamente os critérios de validade de critério, completude e clareza simultaneamente (Tabela 1, p. 4).
+  - Tabela 2 (p. 8): mapeia modelos teóricos consolidados (Job Demands-Resources, Job Demands-Control, Effort-Reward Imbalance, etc.) a hazards e harms específicos, com referências.
+  - Tabela 3 (p. 10): classifica desfechos de saúde em severidade marginal (fadiga, monotonia), moderada (burnout, sintomas psicossomáticos) e crítica (depressão, ansiedade, doença cardiovascular).
+  - Figura 4 (p. 11): exemplo de matriz de risco com odds ratios fictícios entre hazards ("lack of social support", "job demands") e categorias de dano.
+- **Limitações reconhecidas:** proposta é teórica, "not yet been calculated using existing data" (p. 11); requer dados longitudinais organizacionais que raramente existem fora de grandes empresas.
+- **Relação com o tema:** Referência internacional de altíssima qualidade metodológica para o objetivo 4 e para a Metodologia do artigo do autor — e reforça, de forma independente e internacional, a mesma lógica de matriz de risco que Corno (D2) usa e que a Portaria UFMA 1121/2023 (C1) já emprega para riscos corporativos. As três fontes convergem tecnicamente.
+
+---
+
+## Bloco E — Documento de terceiros com problema de rastreabilidade (usar com cautela extrema)
+
+### E1. "Riscos Psicossociais e Informalidade Estrutural: os limites de eficácia da NR-1 no mercado de trabalho – Recorte Territorial Maranhão (MA)"
+- **ATENÇÃO — este documento não deve ser citado diretamente no artigo final.** Ele é uma revisão de literatura de autoria não identificada no próprio arquivo, e **o documento contém uma nota de revisão interna (comentário "[W1]") admitindo que suas próprias referências estão incompletas**: chamadas numéricas [1] a [26] aparecem no corpo do texto, mas apenas 5 referências completas constam na lista final; uma das "obras consultadas" (o estudo sobre mercado de trabalho rural no Maranhão) não tem autoria, ano nem veículo de publicação informados.
+- **Consequência prática:** afirmações específicas sobre municípios do Maranhão — uberização em Imperatriz, extrativismo informal em São José de Ribamar, trabalho doméstico com informalidade >90%, trabalho escravo contemporâneo em Codó/Pastos Bons/Imperatriz/Santa Luzia — estão referenciadas a números de nota que **não correspondem a nenhuma entrada verificável na lista de referências**. Não são necessariamente falsas, mas **não são citáveis como estão**.
+- **O que É aproveitável:** os 5 resumos completos e rastreáveis no Apêndice A, com DOI:
+  - SILVEIRA, A. D. da; BARBOSA, N. de L.; NUNES, E. M. Impacto da NR-1 na gestão dos riscos psicossociais: uma análise da saúde mental no trabalho. *Revista FT*, 2025. DOI: 10.69849/revistaft/dt10202512240845.
+  - COLNAGO, L. de M. R. Importância da Norma Regulamentar n.º 1 para o Gerenciamento dos Riscos Ocupacionais no Brasil. *Revista Trabalho, Direito e Justiça*, v. 3, n. 3, e138, 2025. DOI: 10.37497/revistatdj.3.2025.138.
+  - CORTÊZ, P. A. Fatores de riscos psicossociais no trabalho: definições, modelos teóricos e aplicações na Norma Regulamentadora nº 1 (NR-1). [Periódico não informado no documento], v. 2, n. 4, p. 36-56, 2025. DOI: 10.35168/2966-3466.utp.ijfp.y.vol2.n4.pp36-56.
+  - **XAVIER, V. P. A nova fronteira da NR-1: gestão de riscos psicossociais e a governança corporativa de SST. Zenodo, 2026. DOI: 10.5281/zenodo.18135734 — ACHADO POTENCIALMENTE MUITO RELEVANTE:** pelo resumo, este relatório trata exatamente da convergência entre gestão de riscos psicossociais e governança corporativa de SST (ESG, ISO 45003) — o mesmo nó conceitual identificado no Bloco C1 (PGR institucional × PGR ocupacional). **Recomendo fortemente que você baixe e leia este documento diretamente antes de decidir a tese do objetivo 4.**
+  - BARREIRA, J. B. R.; JÚNIOR, C. M. D. Trabalho escravo no Maranhão: uma análise do pacto estadual de enfrentamento ao trabalho escravo contemporâneo. Zenodo, 2022. DOI: 10.5281/zenodo.7293183.
+- **Relação com o tema:** Nenhuma citação direta deste documento deve ir para o artigo. Os 5 DOIs acima devem ser verificados e, se confirmados, fichados individualmente a partir do texto original — especialmente Xavier (2026).
+
+---
+
 ## Observações gerais e lacunas que só o autor pode preencher
 
 1. **Dados primários da UFMA** (entrevistas/questionários com técnicos em assuntos estudantis) — inexistentes nesta pesquisa; são o núcleo empírico do projeto e não podem ser substituídos por literatura de outras instituições.
@@ -134,3 +193,5 @@ Neste ambiente de execução, a ferramenta de leitura direta de páginas/PDFs (W
 ## Decisão pendente do autor antes da Etapa 2
 
 A tensão conceitual identificada no item C1 (PGR institucional/governança vs. PGR ocupacional/NR-1) precisa ser resolvida antes de o Agente Sintetizador construir o Debate Teórico — ela muda o argumento central do objetivo 4.
+
+**Atualização após Bloco D:** agora há uma base técnica real para a leitura 2 (integração) — Corno (D2) e Taibi et al. (D3) mostram, de forma metodologicamente convergente e independente, que tanto o PGR de governança (ISO 31000, usado pela UFMA) quanto o PGR ocupacional (NR-1) operam com a mesma lógica de matriz risco = probabilidade × severidade/impacto, o que torna tecnicamente defensável propor a extensão da matriz já existente da UFMA para psicossociais, em vez de tratá-los como sistemas incompatíveis. Isso não decide a questão por você, mas muda o ônus da argumentação: a leitura 1 (instrumentos que não conversam) agora precisa explicar por que, apesar dessa convergência metodológica, a UFMA não fez essa integração — o que também pode ser um argumento válido (e talvez mais interessante), mas exige evidência de que isso de fato não ocorreu (dado que não temos relatório de execução do PGR da UFMA pós-2023). Além disso, o documento do Bloco E aponta uma pista (Xavier, 2026, DOI 10.5281/zenodo.18135734) que trata exatamente desse nó — vale a pena verificar antes de fechar a tese.
