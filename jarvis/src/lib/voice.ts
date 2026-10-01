@@ -78,7 +78,7 @@ const WAKE_DEBOUNCE = 1500
  * indication why. Better a rare false wake than a name that does not answer.
  */
 const WAKE =
-  /\b(?:hey|hi|ok|okay|yo)?\s*(?:jarvis|jarvys|jervis|jarvis's|travis|jarviss|java's|jarv)\b(?!'s)/i
+  /\b(?:hey|ei|ey|oi|ola|e ai|ok|okay|ô|o)?\s*(?:jarvis|jarvys|jervis|jarvis's|travis|jarviss|java's|jarv|jarves|garvis|jarbis|jarvi|zarvis|ja vis|javis)\b(?!'s)/i
 
 /** Everything after the wake phrase, which is usually the actual command. */
 function afterWake(text: string): string {
@@ -254,8 +254,12 @@ function makeAssembler(h: {
 // Hearing himself
 // ---------------------------------------------------------------------------
 
+/** Strips accents so "não" and "nao" compare equal — recognisers are
+ *  inconsistent about them and \b does not treat é or ã as word characters. */
+const plain = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
 const norm = (s: string) =>
-  s
+  plain(s)
     .toLowerCase()
     .replace(/[^a-z0-9' ]+/g, ' ')
     .replace(/\s+/g, ' ')
@@ -266,8 +270,9 @@ const norm = (s: string) =>
  * he happens to be saying. Suppressing "stop" because he just said "stop"
  * would be the single most infuriating failure this file could have.
  */
-const OVERRIDE =
-  /\b(stop|wait|jarvis|cancel|enough|quiet|hold on|shut up|never ?mind|forget it|no)\b/i
+const OVERRIDE_RE =
+  /\b(pare|parar|espera|espere|aguarda|calma|cancela|cancele|chega|silencio|quieto|cala a boca|esquece|deixa pra la|deixa isso|nao|jarvis|stop)\b/i
+const OVERRIDE = { test: (s: string) => OVERRIDE_RE.test(plain(s)) }
 
 /**
  * Words too common to be evidence of anything.
@@ -279,12 +284,13 @@ const OVERRIDE =
  * Only distinctive words count as proof he is hearing himself.
  */
 const STOP = new Set(
-  ('a an the and or but so of to in on at by for with from is are was were be ' +
-    'it its this that these those i you he she we they me him her them my your ' +
-    'our their what which who how why when where do does did can could would ' +
-    'should will shall not no yes if then than as about into over under out up ' +
-    'down one two three first second third now here there just very really got ' +
-    'get have has had say said tell me okay ok well right').split(' '),
+  ('a o as os um uma uns umas e ou mas de do da dos das em no na nos nas por ' +
+    'para com sem sobre ate ao aos que qual quais quem como porque quando onde ' +
+    'e eh ser sao foi era sera estar esta estao fui tem tinha ter ha eu voce ' +
+    'ele ela nos eles elas me te se lhe meu minha seu sua nosso nossa isso isto ' +
+    'esse essa esses essas aquilo aquele aquela nao sim se entao mais menos ' +
+    'muito muita pouco ja aqui ali la so apenas bem mesmo tambem ainda um dois ' +
+    'tres primeiro segundo terceiro agora fala diz disse ok tudo certo ne').split(' '),
 )
 
 /**
@@ -760,7 +766,7 @@ function startBrowserVoice(h: VoiceHandlers): Voice {
     rec = new Ctor()
     rec.continuous = true
     rec.interimResults = true
-    rec.lang = 'en-GB'
+    rec.lang = 'pt-BR'
     rec.onstart = () => {
       running = true
       diag.running = true

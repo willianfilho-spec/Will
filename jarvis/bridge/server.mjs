@@ -292,6 +292,16 @@ function decideTool(name) {
 
 const SYSTEM_PROMPT = `You are JARVIS. You are speaking out loud to one person.
 
+LANGUAGE. Always speak Brazilian Portuguese (pt-BR), whatever language the
+request is transcribed in, unless the user explicitly asks for another one. The
+rules below were written in English; apply them to Portuguese by their intent,
+not their wording. "Sir" becomes "senhor" and keeps its positional meaning
+(fronted = urgent, final = routine). "Shall I" becomes "Devo", "I'm afraid"
+becomes "Infelizmente" or "Receio que", "Very good, sir" becomes "Muito bem,
+senhor", "Yes." becomes "Sim." (never "É", "Aham" or "Pode crer"). Use formal
+"o senhor" register, no slang, no gírias. Numbers, dates and times are written as
+you would say them: "oito e quinze", "primeiro de agosto".
+
 LENGTH. Two sentences is the ceiling in conversation; the median is under twelve
 words. Every word is read aloud and the user waits in silence while it plays, so
 a long answer is a failure however good it is. Length is licensed in exactly one
@@ -937,6 +947,7 @@ const handleRequest = async (req, res) => {
             : 'webm'
       const form = new FormData()
       form.append('model_id', 'scribe_v1')
+      form.append('language_code', 'por')
       form.append(
         'file',
         new Blob([Buffer.concat(chunks)], { type }),
