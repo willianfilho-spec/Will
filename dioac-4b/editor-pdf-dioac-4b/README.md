@@ -5,6 +5,43 @@ Ferramenta (Tool) do Open WebUI para o modelo `Editor PDF DIOAC 4B`
 a substitui, preservando fonte incorporada, tamanho, cor e posição, com
 backup automático e sem nunca sobrescrever o arquivo original.
 
+## Revisão de bugs (2026-10-22)
+
+Além dos dois problemas de fonte abaixo, uma auditoria do código encontrou e
+corrigiu mais quatro bugs reais, todos reproduzidos com um PDF de teste antes
+da correção:
+
+1. **Fonte não incorporada quebrava com erro genérico.** Se o `/BaseFont` do
+   PDF não tem arquivo embutido (comum em documentos simples gerados sem
+   "incorporar fontes"), `doc.extract_font()` devolve um buffer vazio — e o
+   código tentava montar uma fonte a partir dele, estourando uma exceção
+   Python crua em vez de uma recusa clara. Agora: se for uma das 14 fontes
+   padrão (Helvetica, Times, Courier etc.), a ferramenta usa a fonte
+   embutida do próprio MuPDF diretamente, sem precisar de buffer. Se for
+   outra família (ex.: "Arial", "Calibri" — os nomes mais comuns em PDFs
+   reais do Windows, que o PyMuPDF **não** reconhece como alias de fonte
+   padrão), a ferramenta agora recusa explicitamente, porque não existe
+   arquivo de fonte para garantir a preservação exata do desenho das letras.
+2. **Amostragem de cor de fundo frágil em espaçamento simples.** A versão
+   anterior olhava um único ponto 3pt acima do texto para "adivinhar" a cor
+   de fundo antes de apagar a área antiga. Em texto de espaçamento simples
+   (o mais comum em documentos institucionais), esse ponto cai em cima da
+   linha de cima com frequência, pintando um retângulo com a cor errada por
+   cima do texto editado. Agora a ferramenta testa várias posições ao redor
+   (acima, abaixo, esquerda, direita, com folgas diferentes) e só aceita uma
+   amostra cujos pixels sejam uniformes o bastante para ser fundo de
+   verdade; se nenhuma parecer confiável, cai para branco.
+3. **`texto_original` vazio** não era rejeitado e tinha comportamento
+   indefinido de busca. Agora retorna `STATUS=ERRO` imediato e claro.
+4. **Número de página fora do intervalo do documento** (`pagina=99` num PDF
+   de 3 páginas) derrubava a ferramenta com um `IndexError` cru em vez de
+   uma recusa legível. Agora retorna `STATUS=RECUSADO` informando quantas
+   páginas o documento realmente tem.
+
+Nenhum desses quatro exigia um PDF "estranho" para acontecer — os quatro são
+cenários realistas que um uso normal da ferramenta encontraria mais cedo ou
+mais tarde.
+
 ## O que estava travando a versão anterior
 
 O erro `fonte "/tt3" não suportada` tinha **duas causas**, não uma só. As
@@ -66,6 +103,8 @@ que reproduz a fonte "/TT3": os quatro cenários abaixo foram confirmados.
 | Algum caractere do texto novo não existe (ou não tem contorno) na fonte incorporada | `STATUS=RECUSADO`, lista exatamente quais caracteres |
 | Texto novo mais largo do que o espaço do texto original (com tolerância configurável) | `STATUS=RECUSADO` |
 | Ocorrência atravessa dois trechos com tipografias diferentes | ignorada na contagem (nunca "adivinha" qual usar) |
+| Fonte não incorporada e não é uma das 14 fontes padrão | `STATUS=RECUSADO` |
+| `texto_original` vazio ou `pagina` fora do intervalo do documento | `STATUS=ERRO`/`RECUSADO` imediato, claro |
 | Qualquer falha inesperada | `STATUS=ERRO`, backup preservado |
 
 Em nenhum desses casos o arquivo original é alterado — a ferramenta
@@ -135,10 +174,15 @@ O retorno deve ser o bloco `STATUS=SUCESSO` com os caminhos de `BACKUP` e
   algum lugar do PDF original (ver explicação acima). Isso é uma limitação
   de segurança deliberada, não um bug: não existe forma de "inventar" o
   desenho de um glifo que a fonte subsetada não contém.
-- A cor de fundo da área apagada é estimada por amostragem de pixel logo
-  acima do texto; para a grande maioria dos documentos institucionais
-  (fundo branco) isso é irrelevante, mas em fundos texturizados/coloridos a
-  correspondência pode não ser perfeita.
+- A cor de fundo da área apagada é estimada por amostragem de pixel em
+  várias posições ao redor do texto, aceitando só amostras uniformes; para a
+  grande maioria dos documentos institucionais (fundo branco) isso é
+  irrelevante, mas em fundos texturizados/com gradiente a correspondência
+  pode não ser perfeita.
+- Fontes não incorporadas que não sejam uma das 14 fontes padrão (ex.:
+  "Arial"/"Calibri" sem embedding, muito comuns em PDFs simples do Windows)
+  são recusadas, não aproximadas — usar outra família mudaria o desenho das
+  letras.
 - A localização da ocorrência exige tipografia uniforme (mesma fonte,
   tamanho e cor) do começo ao fim do trecho buscado; se o texto atravessar
   uma mudança de formatação no meio, essa ocorrência é ignorada em vez de

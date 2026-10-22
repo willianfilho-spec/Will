@@ -1,7 +1,7 @@
 """
 title: Manipulador PDF DIOAC
 author: DIOAC
-version: 4.1.1
+version: 4.1.2
 description: >
     Localiza uma ocorrência exata de texto em um PDF e a substitui, preservando
     fonte incorporada, tamanho, cor e posição. Gera backup automático do
@@ -204,17 +204,63 @@ def _cor_int_para_rgb(cor_int: int):
     return (r, g, b)
 
 
-def _detectar_cor_fundo(page, rect: "fitz.Rect"):
-    """Amostra um pixel logo acima do texto para estimar a cor de fundo local."""
+_FONTES_BASE14_CONHECIDAS = {
+    "helvetica", "helvetica-bold", "helvetica-oblique", "helvetica-boldoblique",
+    "courier", "courier-bold", "courier-oblique", "courier-boldoblique",
+    "times-roman", "times-bold", "times-italic", "times-bolditalic",
+    "symbol", "zapfdingbats",
+    "helv", "hebo", "heit", "hebi", "cour", "cobo", "coit", "cobi",
+    "tiro", "tibo", "tiit", "tibi", "symb", "zadb",
+}
+
+
+def _amostra_uniforme(page, rect: "fitz.Rect"):
+    """
+    Renderiza um pequeno retângulo e devolve sua cor média, mas só se os
+    pixels forem razoavelmente uniformes (baixo desvio) — ou seja, se não
+    houver indício de que a amostra caiu em cima de tinta (texto/traço) em
+    vez de fundo puro.
+    """
+    if rect.width < 1 or rect.height < 1 or rect.x0 < 0 or rect.y0 < 0:
+        return None
     try:
-        amostra = fitz.Rect(rect.x0, max(0, rect.y0 - 3), rect.x0 + 2, rect.y0 - 1)
-        pix = page.get_pixmap(clip=amostra, dpi=72)
-        if pix.n >= 3 and pix.width > 0 and pix.height > 0:
-            px = pix.pixel(0, 0)
-            return (px[0] / 255.0, px[1] / 255.0, px[2] / 255.0)
+        pix = page.get_pixmap(clip=rect, dpi=72)
     except Exception:
-        pass
-    return (1, 1, 1)  # branco como padrão seguro
+        return None
+    if pix.n < 3 or pix.width == 0 or pix.height == 0:
+        return None
+    pixels = pix.samples
+    n = pix.n
+    canais = [pixels[i::n][: pix.width * pix.height] for i in range(3)]
+    medias = [sum(c) / len(c) for c in canais]
+    desvio_max = max(
+        max(abs(v - m) for v in c) for c, m in zip(canais, medias)
+    )
+    if desvio_max > 12:  # pixels variam demais: provável texto/traço na amostra
+        return None
+    return tuple(m / 255.0 for m in medias)
+
+
+def _detectar_cor_fundo(page, rect: "fitz.Rect"):
+    """
+    Estima a cor de fundo local testando várias posições candidatas ao redor
+    do texto (acima, abaixo, à esquerda, à direita), com folgas diferentes,
+    e usando a primeira amostra que pareça realmente uniforme. Um único
+    ponto fixo "3pt acima" falha com frequência em documentos de
+    espaçamento simples, onde isso cai em cima da linha anterior.
+    """
+    candidatos = [
+        fitz.Rect(rect.x0, rect.y0 - 4, rect.x0 + 3, rect.y0 - 1),
+        fitz.Rect(max(0, rect.x0 - 4), rect.y0, rect.x0 - 1, rect.y1),
+        fitz.Rect(rect.x1 + 1, rect.y0, rect.x1 + 4, rect.y1),
+        fitz.Rect(rect.x0, rect.y1 + 1, rect.x0 + 3, rect.y1 + 4),
+        fitz.Rect(rect.x0, rect.y0 - 8, rect.x0 + 3, rect.y0 - 5),
+    ]
+    for candidata in candidatos:
+        cor = _amostra_uniforme(page, candidata)
+        if cor is not None:
+            return cor
+    return (1, 1, 1)  # branco como padrão seguro se nada parecer confiável
 
 
 class Tools:
@@ -286,6 +332,8 @@ class Tools:
 
         if not os.path.isfile(caminho_pdf):
             return _falha("ERRO", "arquivo PDF não encontrado")
+        if not texto_original:
+            return _falha("ERRO", "texto_original não pode ser vazio")
 
         os.makedirs(self.valves.BACKUP_DIR, exist_ok=True)
         os.makedirs(self.valves.OUTPUT_DIR, exist_ok=True)
@@ -305,6 +353,10 @@ class Tools:
             return _falha("ERRO", f"não foi possível abrir o PDF: {e}", {"BACKUP": caminho_backup})
 
         try:
+            if pagina is not None and not (1 <= pagina <= len(doc)):
+                raise EdicaoRecusada(
+                    f"página {pagina} não existe; o documento tem {len(doc)} página(s)"
+                )
             achado = _find_ocorrencia(doc, texto_original, ocorrencia, pagina)
             if achado is None:
                 raise EdicaoRecusada(
@@ -331,12 +383,42 @@ class Tools:
                 )
 
             basefont, ext, ftype, raw_buf = doc.extract_font(xref_fonte)
+            fonte_nao_embutida = not raw_buf or ext in ("", "n/a", None)
 
-            if ftype == "Type0":
+            if fonte_nao_embutida:
+                # Fonte referenciada mas não incorporada no PDF (comum em
+                # documentos simples). Só é seguro prosseguir se for
+                # literalmente uma das 14 fontes padrão que o próprio MuPDF
+                # sabe desenhar — não há arquivo de fonte para extrair nem
+                # para comparar, então não dá pra "aproximar" com outra
+                # família (ex.: usar Helvetica no lugar de Calibri muda o
+                # desenho das letras) sem violar a preservação de tipografia.
+                chave = basefont.strip().lower().replace(" ", "")
+                if chave not in _FONTES_BASE14_CONHECIDAS:
+                    raise EdicaoRecusada(
+                        f"a fonte \"{basefont}\" não está incorporada neste PDF e "
+                        "não é uma das 14 fontes padrão; sem o arquivo da fonte "
+                        "original não é possível garantir a preservação exata da "
+                        "tipografia"
+                    )
+                try:
+                    font_para_medir = fitz.Font(fontname=basefont.strip())
+                except Exception as e:
+                    raise EdicaoRecusada(
+                        f"não foi possível carregar a fonte padrão \"{basefont}\": {e}"
+                    )
+                tt = None
+                glyph_order = None
+
+                def gid_de(ch):
+                    return font_para_medir.has_glyph(ord(ch)) or None
+
+            elif ftype == "Type0":
                 uni2gid = _get_uni2gid(doc, xref_fonte)
                 buffer_para_inserir = _repair_font_buffer(raw_buf, uni2gid)
                 tt = TTFont(io.BytesIO(raw_buf))
                 glyph_order = tt.getGlyphOrder()
+                font_para_medir = fitz.Font(fontbuffer=buffer_para_inserir)
 
                 def gid_de(ch):
                     return uni2gid.get(ord(ch))
@@ -347,10 +429,10 @@ class Tools:
                 buffer_para_inserir = raw_buf
                 tt = TTFont(io.BytesIO(raw_buf))
                 glyph_order = tt.getGlyphOrder()
-                font_simples = fitz.Font(fontbuffer=raw_buf)
+                font_para_medir = fitz.Font(fontbuffer=raw_buf)
 
                 def gid_de(ch):
-                    return font_simples.has_glyph(ord(ch)) or None
+                    return font_para_medir.has_glyph(ord(ch)) or None
 
             ausentes = []
             for ch in dict.fromkeys(texto_novo):  # únicos, preserva ordem
@@ -363,18 +445,17 @@ class Tools:
                 if gid is None or gid == 0:
                     ausentes.append(repr(ch))
                     continue
-                nome_glifo = glyph_order[gid] if gid < len(glyph_order) else None
-                if not nome_glifo or not _glyph_has_outline(tt, nome_glifo):
-                    ausentes.append(f"{ch!r} (sem desenho na fonte incorporada)")
+                if tt is not None:  # só aplicável a fontes incorporadas
+                    nome_glifo = glyph_order[gid] if gid < len(glyph_order) else None
+                    if not nome_glifo or not _glyph_has_outline(tt, nome_glifo):
+                        ausentes.append(f"{ch!r} (sem desenho na fonte incorporada)")
 
             if ausentes:
                 raise EdicaoRecusada(
-                    "a fonte incorporada não contém todos os caracteres do "
-                    "texto novo com garantia de renderização correta: "
-                    + ", ".join(ausentes)
+                    "a fonte não contém todos os caracteres do texto novo com "
+                    "garantia de renderização correta: " + ", ".join(ausentes)
                 )
 
-            font_para_medir = fitz.Font(fontbuffer=buffer_para_inserir)
             largura_nova = font_para_medir.text_length(texto_novo, fontsize=fontsize)
             largura_disponivel = rect.width * self.valves.TOLERANCIA_LARGURA
             if largura_nova > largura_disponivel:
@@ -388,11 +469,17 @@ class Tools:
             page.add_redact_annot(rect, fill=cor_fundo)
             page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE, graphics=fitz.PDF_REDACT_LINE_ART_NONE)
 
-            alias = "DIOAC_" + hashlib.md5(fonte_original_nome.encode()).hexdigest()[:8]
-            page.insert_font(fontname=alias, fontbuffer=buffer_para_inserir)
-            page.insert_text(
-                achado["origem"], texto_novo, fontname=alias, fontsize=fontsize, color=cor_rgb
-            )
+            if fonte_nao_embutida:
+                page.insert_text(
+                    achado["origem"], texto_novo, fontname=basefont.strip(),
+                    fontsize=fontsize, color=cor_rgb,
+                )
+            else:
+                alias = "DIOAC_" + hashlib.md5(fonte_original_nome.encode()).hexdigest()[:8]
+                page.insert_font(fontname=alias, fontbuffer=buffer_para_inserir)
+                page.insert_text(
+                    achado["origem"], texto_novo, fontname=alias, fontsize=fontsize, color=cor_rgb
+                )
 
             nome_saida = f"{stem}_{timestamp}_editado.pdf"
             caminho_saida = os.path.join(self.valves.OUTPUT_DIR, nome_saida)
