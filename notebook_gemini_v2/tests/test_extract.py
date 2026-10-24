@@ -63,3 +63,23 @@ def test_arquivo_texto_vazio():
 def test_extensao_nao_suportada():
     with pytest.raises(ExtractionError):
         extract(b"abc", ".exe")
+
+
+def test_ligaturas_viram_letras_comuns_mas_ordinais_sao_preservados():
+    doc = extract("Art. 2º: diﬁculdades, ﬂuxos e eﬃciência, Nº 5ª".encode("utf-8"), ".txt")
+    assert doc.pages[0].text == "Art. 2º: dificuldades, fluxos e efficiência, Nº 5ª"
+
+
+def test_tab_vira_espaco_e_espacos_repetidos_sao_reduzidos():
+    doc = extract("Instrução\tNormativa\tnº\t1731344/2025   publicada\n  segunda\tlinha".encode("utf-8"), ".txt")
+    assert doc.pages[0].text == "Instrução Normativa nº 1731344/2025 publicada\nsegunda linha"
+
+
+def test_marcador_de_lista_del_vira_bullet_e_controles_sao_removidos():
+    doc = extract("Fontes:\x7fPró-Reitoria de Ensino\x00 e outras\x0c".encode("utf-8"), ".txt")
+    assert doc.pages[0].text == "Fontes:•Pró-Reitoria de Ensino e outras"
+
+
+def test_quebra_de_paragrafo_e_preservada():
+    doc = extract("Primeiro parágrafo longo.\n\nSegundo parágrafo longo.".encode("utf-8"), ".txt")
+    assert doc.pages[0].text == "Primeiro parágrafo longo.\n\nSegundo parágrafo longo."

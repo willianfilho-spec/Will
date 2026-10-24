@@ -5,6 +5,7 @@ diferir do número impresso na folha. Formatos sem paginação própria (DOCX, T
 MD, CSV) viram uma única unidade com page_number = None.
 """
 import io
+import re
 import unicodedata
 from dataclasses import dataclass, field
 
@@ -44,8 +45,22 @@ class ExtractedDocument:
         return [p.number for p in self.pages if p.number is not None and not p.has_text]
 
 
+# Ligaturas tipográficas (U+FB00..FB06) viram letras comuns, senão "diﬁculdade" não casa com
+# "dificuldade" na busca. NFKC não serve: converteria também "º" em "o" (Art. 2º -> Art. 2o).
+_LIGATURES = str.maketrans({
+    "\ufb00": "ff", "\ufb01": "fi", "\ufb02": "fl", "\ufb03": "ffi", "\ufb04": "ffl",
+    "\ufb05": "st", "\ufb06": "st",
+})
+# Alguns PDFs gravam o marcador de lista como DEL (0x7F); o pdfium lê isso como "•".
+_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f\ufffe\uffff]")
+
+
 def _clean(text: str) -> str:
-    text = text.replace("\x00", "").replace("\r\n", "\n").replace("\r", "\n")
+    text = text.replace("\r\n", "\n").replace("\r", "\n").replace("\x7f", "•")
+    text = _CONTROL_CHARS.sub("", text).translate(_LIGATURES)
+    # Alguns PDFs separam palavras com TAB em vez de espaço.
+    text = re.sub(r"[ \t\u00a0]+", " ", text)
+    text = re.sub(r" ?\n ?", "\n", text)
     return unicodedata.normalize("NFC", text).strip()
 
 
