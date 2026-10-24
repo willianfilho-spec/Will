@@ -28,11 +28,11 @@ class Settings:
 
 
 def _max_upload_bytes() -> int:
-    raw = os.getenv("MAX_UPLOAD_MB", "20").strip()
+    raw = os.getenv("MAX_UPLOAD_MB", "50").strip()
     try:
         mb = float(raw)
     except ValueError:
-        mb = 20.0
+        mb = 50.0
     return int(max(mb, 0.1) * 1024 * 1024)
 
 

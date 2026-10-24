@@ -14,12 +14,22 @@ A chave só é necessária para a aba "Perguntar ao Gemini". Importar e conferir
 ## O que já funciona
 
 - Criar notebooks (persistem após reiniciar).
-- Importar PDF, DOCX, TXT, MD e CSV, com limite de tamanho (`MAX_UPLOAD_MB`, padrão 20).
+- Importar PDF, DOCX, TXT, MD e CSV, com limite de tamanho (`MAX_UPLOAD_MB`, padrão 50).
 - Guardar o texto **por página** (PDF). A página é a posição física no arquivo (1 = primeira folha), que pode ser diferente do número impresso na folha.
 - Recusar duplicados (mesmo conteúdo no mesmo notebook, mesmo com outro nome).
 - Detectar PDF sem texto (digitalizado). Se for inteiro, é recusado com orientação de OCR. Se só algumas páginas estiverem sem texto, o arquivo entra com aviso listando quais.
 - Pré-visualizar o texto extraído de cada página, para você conferir com o original.
 - Corrigir texto embaralhado de títulos com sombra/contorno (letras repetidas), relendo a página com um segundo extrator.
+
+## Importar vários arquivos de uma vez (sem abrir o navegador)
+
+No terminal, dentro da pasta do projeto, com o ambiente ativado (`.venv\Scripts\activate`):
+
+```
+python importar.py "Normas da Graduação" "C:\pasta\base.md" "C:\pasta\guia.pdf"
+```
+
+Se o notebook já existir, os arquivos entram nele. Arquivos repetidos são ignorados.
 
 ## Como preparar PDFs digitalizados
 

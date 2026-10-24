@@ -47,3 +47,9 @@ def list_messages(conn: sqlite3.Connection, notebook_id: str, limit: int = 50) -
         "SELECT role, content, created_at FROM messages WHERE notebook_id = ? ORDER BY id DESC LIMIT ?",
         (notebook_id, limit),
     ).fetchall()
+
+
+def find_notebook_by_name(conn: sqlite3.Connection, name: str) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT id, name, created_at FROM notebooks WHERE name = ? ORDER BY rowid LIMIT 1", (name.strip(),)
+    ).fetchone()
