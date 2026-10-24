@@ -83,3 +83,25 @@ def test_marcador_de_lista_del_vira_bullet_e_controles_sao_removidos():
 def test_quebra_de_paragrafo_e_preservada():
     doc = extract("Primeiro parágrafo longo.\n\nSegundo parágrafo longo.".encode("utf-8"), ".txt")
     assert doc.pages[0].text == "Primeiro parágrafo longo.\n\nSegundo parágrafo longo."
+
+
+def test_pdf_com_letras_sobrepostas_e_relido_por_segundo_extrator():
+    from tests.conftest import make_shadow_pdf
+
+    doc = extract(make_shadow_pdf("PONTO DE PARTIDA PARA COMECAR"), ".pdf")
+    assert doc.pages[0].text == "PONTO DE PARTIDA PARA COMECAR"
+    assert any("letras repetidas" in w for w in doc.warnings)
+
+
+def test_texto_normal_com_poucas_palavras_curtas_nao_aciona_fallback():
+    doc = extract(make_pdf(["Art. 1 O aluno deve entregar a documentacao e o historico no prazo"]), ".pdf")
+    assert not any("letras repetidas" in w for w in doc.warnings)
+
+
+def test_titulo_embaralhado_no_meio_de_texto_normal_tambem_aciona_fallback():
+    from tests.conftest import make_shadow_pdf  # noqa: F401  (apenas garante o módulo)
+    from nb.extract import _looks_garbled
+
+    texto = "VISÃO GERAL\nN N NÃ Ã ÃO O O V V VA A AC C CI I IL LLE E E\nMade with Manus\nrodapé do documento aqui"
+    assert _looks_garbled(texto)
+    assert not _looks_garbled("Art. 5º O aluno deve solicitar a revisão no prazo de três dias úteis.\nA nota é a média final.")

@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from docx import Document
 from docx.table import Table
 from docx.text.paragraph import Paragraph
+import pypdfium2 as pdfium
 from pypdf import PdfReader
 from pypdf.errors import PyPdfError
 
@@ -64,6 +65,24 @@ def _clean(text: str) -> str:
     return unicodedata.normalize("NFC", text).strip()
 
 
+def _looks_garbled(text: str) -> bool:
+    """Texto com glifos sobrepostos (sombra/contorno) sai do pypdf como 'P P PO O ON N NT...' ou uma
+    letra por linha. Assinatura: a mesma letra isolada repetida em sequência ('P P', 'O O'), o que
+    não ocorre em português normal; 'a o e' sozinhos existem, mas nunca duas vezes seguidas."""
+    tokens = text.split()
+    repeated = sum(1 for a, b in zip(tokens, tokens[1:]) if len(a) == 1 and a.isalpha() and a == b)
+    return repeated >= 3
+
+
+def _pdfium_pages(data: bytes, numbers: list[int]) -> dict[int, str]:
+    """Texto dessas páginas (1-based) pelo pdfium; vazio se ele não conseguir abrir o arquivo."""
+    try:
+        pdf = pdfium.PdfDocument(data)
+        return {n: _clean(pdf[n - 1].get_textpage().get_text_range()) for n in numbers}
+    except Exception:  # o pdfium levanta tipos próprios; aqui qualquer falha significa "sem alternativa"
+        return {}
+
+
 def extract_pdf(data: bytes) -> ExtractedDocument:
     try:
         reader = PdfReader(io.BytesIO(data))
@@ -80,6 +99,23 @@ def extract_pdf(data: bytes) -> ExtractedDocument:
 
     pages = [ExtractedPage(i, _clean(t)) for i, t in enumerate(raw_pages, start=1)]
     doc = ExtractedDocument("pdf", True, pages)
+
+    garbled = [p.number for p in pages if _looks_garbled(p.text)]
+    if garbled:
+        alt = _pdfium_pages(data, garbled)
+        fixed = [n for n in garbled if alt.get(n) and not _looks_garbled(alt[n])]
+        for n in fixed:
+            pages[n - 1].text = alt[n]
+        if fixed:
+            doc.warnings.append(
+                f"Página(s) {_format_pages(fixed)}: o texto original vinha com letras repetidas "
+                "(efeito de sombra/contorno) e foi relido por um segundo extrator. Confira na pré-visualização."
+            )
+        unfixed = [n for n in garbled if n not in fixed]
+        if unfixed:
+            doc.warnings.append(
+                f"Página(s) {_format_pages(unfixed)}: texto possivelmente embaralhado e sem alternativa de leitura."
+            )
     empty = doc.empty_pages
     if len(empty) == len(pages):
         raise ExtractionError(

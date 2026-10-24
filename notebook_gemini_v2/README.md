@@ -19,6 +19,7 @@ A chave só é necessária para a aba "Perguntar ao Gemini". Importar e conferir
 - Recusar duplicados (mesmo conteúdo no mesmo notebook, mesmo com outro nome).
 - Detectar PDF sem texto (digitalizado). Se for inteiro, é recusado com orientação de OCR. Se só algumas páginas estiverem sem texto, o arquivo entra com aviso listando quais.
 - Pré-visualizar o texto extraído de cada página, para você conferir com o original.
+- Corrigir texto embaralhado de títulos com sombra/contorno (letras repetidas), relendo a página com um segundo extrator.
 
 ## Como preparar PDFs digitalizados
 
@@ -47,6 +48,8 @@ python -m pytest
 
 ## Limitações atuais
 
+- **PDF que parece ter texto mas não tem todo o texto não é detectado.** Se a maior parte do conteúdo estiver desenhada como imagem ou contorno (ex.: PDFs impressos de páginas web), só os títulos e rodapés entram, e o app não avisa. Confira sempre a pré-visualização. Uma checagem de cobertura está prevista na fase de OCR.
+- PPTX (PowerPoint) ainda não é suportado; exporte para PDF.
 - **Não há login.** Qualquer pessoa que abrir o app vê todos os notebooks. Use só no seu computador.
 - A aba "Perguntar ao Gemini" ainda é a consulta simples da v1: envia o início de cada documento ao modelo. **As citações dela não são verificadas.**
 - Não foi testada com a API real do Gemini.

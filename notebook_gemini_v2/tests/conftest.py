@@ -60,3 +60,18 @@ def nid(conn):
 @pytest.fixture
 def docs_dir(tmp_path):
     return tmp_path / "documents"
+
+
+def make_shadow_pdf(text: str, copies: int = 3) -> bytes:
+    """Cada letra desenhada várias vezes quase no mesmo lugar (sombra/contorno de título)."""
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf)
+    c.setFont("Helvetica-Bold", 20)
+    x = 72
+    for ch in text:
+        for k in range(copies):
+            c.drawString(x + k * 0.4, 700, ch)
+        x += c.stringWidth(ch, "Helvetica-Bold", 20)
+    c.showPage()
+    c.save()
+    return buf.getvalue()
