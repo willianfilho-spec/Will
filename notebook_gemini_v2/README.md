@@ -59,6 +59,7 @@ python -m pytest
 ## Limitações atuais
 
 - **PDF que parece ter texto mas não tem todo o texto não é detectado.** Se a maior parte do conteúdo estiver desenhada como imagem ou contorno (ex.: PDFs impressos de páginas web), só os títulos e rodapés entram, e o app não avisa. Confira sempre a pré-visualização. Uma checagem de cobertura está prevista na fase de OCR.
+- Alguns PDFs (ex.: a Resolução 1.892/2019, cerca de 190 casos em 74 páginas) saem com espaços indevidos no meio de palavras ("efeti vada") por causa do espaçamento do arquivo. Para conferir uma citação, compare ignorando espaços.
 - PPTX (PowerPoint) ainda não é suportado; exporte para PDF.
 - **Não há login.** Qualquer pessoa que abrir o app vê todos os notebooks. Use só no seu computador.
 - A aba "Perguntar ao Gemini" ainda é a consulta simples da v1: envia o início de cada documento ao modelo. **As citações dela não são verificadas.**
