@@ -33,3 +33,12 @@ def test_chaves_estrangeiras_ativas(conn):
         conn.execute(
             "INSERT INTO messages (notebook_id, role, content, created_at) VALUES ('inexistente','user','x','y')"
         )
+
+
+def test_mensagem_guarda_metadados_de_verificacao(conn, nid):
+    from nb import repo
+
+    repo.add_message(conn, nid, "assistant", "resposta", metadata='{"a": 1}')
+    repo.add_message(conn, nid, "user", "pergunta")
+    rows = repo.list_messages(conn, nid)
+    assert [(r["role"], r["metadata"]) for r in rows] == [("user", None), ("assistant", '{"a": 1}')]

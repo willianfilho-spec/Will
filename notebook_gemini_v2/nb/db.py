@@ -69,6 +69,14 @@ MIGRATIONS = [
         CREATE INDEX idx_chunks_document ON chunks(document_id, chunk_index);
         """,
     ),
+    (
+        3,
+        """
+        -- JSON com os trechos recuperados e o resultado da verificação de cada citação,
+        -- para auditar a resposta depois sem reexecutar o modelo.
+        ALTER TABLE messages ADD COLUMN metadata TEXT;
+        """,
+    ),
 ]
 
 

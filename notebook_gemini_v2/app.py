@@ -1,6 +1,8 @@
+import json
+
 import streamlit as st
 
-from nb import answer, rag, repo
+from nb import answer, citations, pageview, rag, repo
 from nb.config import SUPPORTED_EXTENSIONS, load_settings
 from nb.db import connect
 from nb.embeddings import EmbeddingError, gemini_embedder
@@ -10,7 +12,7 @@ settings = load_settings()
 
 st.set_page_config(page_title="Notebook de Pesquisa com Gemini", page_icon="📚", layout="wide")
 st.title("Notebook de Pesquisa com Gemini")
-st.caption("Versão 2 em desenvolvimento · fases 0 a 2: importação com páginas e busca semântica. Citações verificadas, login e auditoria ainda não foram implementados.")
+st.caption("Versão 2 em desenvolvimento · fases 0 a 3: importação, busca semântica e citações conferidas. Login e auditoria ainda não foram implementados.")
 
 
 def main(conn):
@@ -141,7 +143,7 @@ def render_chat(conn, nid):
     pending = rag.pending_documents(conn, nid, embedder)
     if pending:
         st.warning(f"{len(pending)} documento(s) sem índice com o modelo atual; eles não entram na busca. Indexe na aba Documentos.")
-    st.info("A busca traz os trechos mais parecidos com a pergunta e só eles vão ao Gemini. Os marcadores [F1], [F2]... da resposta ainda NÃO são validados automaticamente (fase 3): confira cada um no trecho e no documento original.")
+    st.info("A busca traz os trechos mais parecidos com a pergunta e só eles vão ao Gemini. O programa confere se cada citação literal da resposta existe no trecho indicado; isso não prova que o trecho sustenta a conclusão. Confira no documento original.")
     by_id = {d["id"]: d["name"] for d in docs}
     chosen = st.multiselect("Fontes usadas nesta pergunta", list(by_id), default=list(by_id), format_func=by_id.get)
     top_k = st.slider("Quantidade de trechos recuperados", 1, 30, settings.top_k)
@@ -162,15 +164,21 @@ def render_chat(conn, nid):
     if not only_search:
         try:
             with st.spinner("Consultando o Gemini..."):
-                text = answer.ask(settings.gemini_api_key, model.strip(), answer.build_prompt(question, hits))
+                raw = answer.ask(settings.gemini_api_key, model.strip(), answer.build_prompt(question, hits))
         except Exception as exc:
             st.error(f"Erro na chamada da API Gemini: {exc}")
-            text = None
-        if text:
+            raw = None
+        if raw is not None:
+            parsed = citations.parse_response(raw)
+            checks = citations.verify(parsed, hits) if parsed.ok else []
+            record = citations.to_json(parsed, checks, hits)
             repo.add_message(conn, nid, "user", question)
-            repo.add_message(conn, nid, "assistant", text)
-            st.markdown("### Resposta")
-            st.markdown(text)
+            repo.add_message(conn, nid, "assistant", raw, metadata=record)
+            st.markdown("### Resposta verificada")
+            render_verification(conn, json.loads(record), "novo")
+            if not parsed.ok:
+                st.markdown("**Resposta bruta do modelo (NÃO verificada):**")
+                st.write(raw)
     st.markdown("### Trechos recuperados")
     st.caption("Pontuação = similaridade de cosseno com a pergunta. Pontuação alta não prova que o trecho responde.")
     for i, h in enumerate(hits, start=1):
@@ -178,13 +186,73 @@ def render_chat(conn, nid):
             st.write(h.text)
 
 
+ICONS = {"confirmada": "✅", "outro_trecho": "⚠️", "nao_confirmada": "❌", "sem_fonte": "⛔",
+         "inferencia": "💡", "recomendacao": "📌", "formato_invalido": "❓"}
+TIPOS = {"documentada": "Documentada", "inferencia": "Inferência", "recomendacao": "Recomendação"}
+
+
+def render_verification(conn, data, prefix):
+    parsed, summary = data["parsed"], data["summary"]
+    if not parsed["ok"]:
+        st.error(parsed["error"])
+        return
+    if parsed["evidencia_suficiente"] is False:
+        st.warning("O modelo declarou que as fontes recuperadas NÃO são suficientes para responder com segurança.")
+    if summary["nenhuma_confirmada"]:
+        st.error("Nenhuma afirmação documentada teve a citação literal confirmada nos trechos. Não use esta resposta como está.")
+    elif summary["documentadas"]:
+        st.caption(f"{summary['confirmadas']} de {summary['documentadas']} afirmações documentadas com citação literal confirmada · {summary['problemas']} com problema · {summary['alertas']} alerta(s).")
+    if not data["checks"]:
+        st.info("O modelo não apresentou afirmações.")
+    hits = {h["label"]: h for h in data["hits"]}
+    for i, ck in enumerate(data["checks"]):
+        claim = ck["claim"]
+        st.markdown(f"{ICONS.get(ck['status'], '❓')} **{TIPOS.get(citations.fold(claim['tipo']), 'Tipo inválido')}** — {claim['texto']}")
+        st.caption(citations.STATUS_LABEL[ck["status"]])
+        for note in ck["notes"]:
+            st.caption(f"⚠️ {note}")
+        if claim["trecho"]:
+            st.markdown("> " + claim["trecho"].replace("\n", " "))
+        for src in ck["sources"]:
+            where = f"página {src['page_number']}" if src["page_number"] is not None else "sem página"
+            with st.expander(f"Conferir {src['label']} — {src['document_name']}, {where}"):
+                st.write(hits[src["label"]]["text"])
+                render_original(conn, src, f"{prefix}_{i}_{src['label']}")
+    if parsed["divergencias"]:
+        st.markdown("**Divergências apontadas pelo modelo:** " + "; ".join(parsed["divergencias"]))
+    if parsed["lacunas"]:
+        st.markdown(f"**Lacunas apontadas pelo modelo:** {parsed['lacunas']}")
+    st.caption("Leitura automática dos documentos enviados; não é posicionamento oficial da instituição. A verificação confirma que a citação existe no trecho, não que o trecho sustente a conclusão.")
+
+
+def render_original(conn, src, key):
+    doc = pageview.original_file(conn, src["document_id"])
+    if not doc:
+        st.caption("Documento original não está mais no notebook.")
+        return
+    if doc["kind"] == "pdf" and src["page_number"] is not None and st.toggle("Mostrar a página original", key=f"pg_{key}"):
+        png = pageview.render_pdf_page(doc["stored_path"], src["page_number"])
+        if png:
+            st.image(png, caption=f"{doc['name']}, página {src['page_number']} (numeração física do PDF)")
+        else:
+            st.caption("Não foi possível renderizar a página.")
+    try:
+        with open(doc["stored_path"], "rb") as fh:
+            st.download_button("Baixar o documento original", fh.read(), file_name=doc["name"], key=f"dl_{key}")
+    except OSError:
+        st.caption("Arquivo original indisponível no disco.")
+
+
 def render_history(conn, nid):
     history = repo.list_messages(conn, nid)
     if not history:
         st.info("Ainda não há perguntas registradas.")
-    for m in history:
+    for n, m in enumerate(history):
         with st.expander(f"{'Você' if m['role'] == 'user' else 'Gemini'} · {m['created_at']}"):
-            st.markdown(m["content"])
+            if m["metadata"]:
+                render_verification(conn, json.loads(m["metadata"]), f"h{n}")
+            else:
+                st.markdown(m["content"])
 
 
 _conn = connect(settings.db_path)

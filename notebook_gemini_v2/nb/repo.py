@@ -34,17 +34,17 @@ def get_pages(conn: sqlite3.Connection, document_id: str) -> list[sqlite3.Row]:
     ).fetchall()
 
 
-def add_message(conn: sqlite3.Connection, notebook_id: str, role: str, content: str) -> None:
+def add_message(conn: sqlite3.Connection, notebook_id: str, role: str, content: str, metadata: str | None = None) -> None:
     conn.execute(
-        "INSERT INTO messages (notebook_id, role, content, created_at) VALUES (?, ?, ?, ?)",
-        (notebook_id, role, content, now()),
+        "INSERT INTO messages (notebook_id, role, content, created_at, metadata) VALUES (?, ?, ?, ?, ?)",
+        (notebook_id, role, content, now(), metadata),
     )
     conn.commit()
 
 
 def list_messages(conn: sqlite3.Connection, notebook_id: str, limit: int = 50) -> list[sqlite3.Row]:
     return conn.execute(
-        "SELECT role, content, created_at FROM messages WHERE notebook_id = ? ORDER BY id DESC LIMIT ?",
+        "SELECT role, content, created_at, metadata FROM messages WHERE notebook_id = ? ORDER BY id DESC LIMIT ?",
         (notebook_id, limit),
     ).fetchall()
 
