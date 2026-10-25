@@ -91,9 +91,10 @@ def render_documents(conn, nid):
                 results = rag.index_pending(conn, embedder, nid)
             for name, outcome in results.items():
                 (st.success if isinstance(outcome, int) else st.error)(f"{name}: {outcome} trecho(s) indexado(s)" if isinstance(outcome, int) else f"{name}: {outcome}")
-            st.rerun() if all(isinstance(v, int) for v in results.values()) else None
+            if all(isinstance(v, int) for v in results.values()):
+                st.rerun()
         if embedder is None:
-            st.caption("Configure GEMINI_API_KEY no arquivo .env para indexar.")
+            st.caption("Falta a chave: coloque GEMINI_API_KEY=suachave no arquivo .env e reinicie o programa.")
     for d in docs:
         label = f"{d['name']} · {d['page_count']} {'página(s)' if d['paginated'] else 'unidade'}"
         if d["empty_page_count"]:

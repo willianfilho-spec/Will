@@ -47,12 +47,18 @@ def _int_env(name: str, default: int, low: int, high: int) -> int:
     return min(max(value, low), high)
 
 
+def _clean_key(raw: str) -> str:
+    """Remove aspas e espaços colados por engano; o texto de exemplo do .env.example conta como ausente."""
+    key = raw.strip().strip("\"'").strip()
+    return "" if key.lower().startswith("cole_") else key
+
+
 def load_settings() -> Settings:
     data_dir = Path(os.getenv("DATA_DIR") or PROJECT_DIR / "data")
     return Settings(
         data_dir=data_dir,
         max_upload_bytes=_max_upload_bytes(),
-        gemini_api_key=os.getenv("GEMINI_API_KEY", "").strip(),
+        gemini_api_key=_clean_key(os.getenv("GEMINI_API_KEY", "")),
         gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip(),
         embedding_model=os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001").strip(),
         embedding_dim=_int_env("EMBEDDING_DIM", 768, 32, 3072),

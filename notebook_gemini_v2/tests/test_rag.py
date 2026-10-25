@@ -145,3 +145,48 @@ def test_gemini_embedder_desiste_com_mensagem_clara_e_valida_dimensao():
         GeminiEmbedder(_Client(falhas=9), "m", 4, sleep=lambda s: None).embed_query("x")
     with pytest.raises(EmbeddingError, match="dimensões"):
         GeminiEmbedder(_Client(dim=3), "m", 4, sleep=lambda s: None).embed_query("x")
+
+
+class _ErroApi(Exception):
+    def __init__(self, msg, code=None):
+        super().__init__(msg)
+        self.code = code
+
+
+class _ClienteComErro:
+    def __init__(self, exc):
+        self.exc, self.calls, self.models = exc, 0, self
+
+    def embed_content(self, model, contents, config):
+        self.calls += 1
+        raise self.exc
+
+
+def test_chave_invalida_vira_mensagem_clara_e_nao_repete_tentativas():
+    erro = _ErroApi("400 INVALID_ARGUMENT. {'message': 'API key not valid. Please pass a valid API key.', 'reason': 'API_KEY_INVALID'}", 400)
+    client = _ClienteComErro(erro)
+    with pytest.raises(EmbeddingError, match="recusou a chave") as info:
+        GeminiEmbedder(client, "m", 4, sleep=lambda s: None).embed_query("x")
+    assert client.calls == 1 and "run.bat" in str(info.value)
+
+
+def test_modelo_inexistente_e_permissao_negada_tem_mensagem_propria():
+    with pytest.raises(EmbeddingError, match="GEMINI_EMBEDDING_MODEL"):
+        GeminiEmbedder(_ClienteComErro(_ErroApi("404 NOT_FOUND models/xyz", 404)), "xyz", 4).embed_query("x")
+    with pytest.raises(EmbeddingError, match="negou o acesso"):
+        GeminiEmbedder(_ClienteComErro(_ErroApi("403 PERMISSION_DENIED", 403)), "m", 4).embed_query("x")
+
+
+def test_erro_passageiro_continua_com_tentativas():
+    client = _ClienteComErro(_ErroApi("503 UNAVAILABLE", 503))
+    with pytest.raises(EmbeddingError, match="3 tentativas"):
+        GeminiEmbedder(client, "m", 4, sleep=lambda s: None).embed_query("x")
+    assert client.calls == 3
+
+
+@pytest.mark.parametrize("bruto,esperado", [("cole_sua_chave_aqui", ""), ('"AIzaABC"', "AIzaABC"), ("  AIzaABC \n", "AIzaABC"), ("", "")])
+def test_chave_do_env_e_limpa_e_o_texto_de_exemplo_conta_como_ausente(monkeypatch, bruto, esperado):
+    from nb.config import load_settings
+
+    monkeypatch.setenv("GEMINI_API_KEY", bruto)
+    assert load_settings().gemini_api_key == esperado

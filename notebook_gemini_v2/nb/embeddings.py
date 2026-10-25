@@ -13,6 +13,23 @@ class EmbeddingError(Exception):
     """Falha ao gerar embeddings; a mensagem pode ser exibida ao usuário."""
 
 
+def explain_api_error(exc: Exception, model: str = "") -> str | None:
+    """Mensagem em português para erros permanentes da API; None se o erro pode ser passageiro."""
+    text = str(exc)
+    code = getattr(exc, "code", None)
+    if "API_KEY_INVALID" in text or "API key not valid" in text:
+        return ("O Google recusou a chave da API (chave inválida). Abra o arquivo .env, confira se a linha é "
+                "GEMINI_API_KEY=suachave, sem espaços nem aspas, salve, feche a janela preta e abra o run.bat de novo.")
+    if code in (401, 403) or "PERMISSION_DENIED" in text:
+        return "O Google negou o acesso com esta chave. Confira se a chave é do Google AI Studio e se a API Gemini está liberada para ela."
+    if code == 404 or "NOT_FOUND" in text:
+        return (f"O modelo \"{model}\" não foi encontrado na sua conta. Troque GEMINI_EMBEDDING_MODEL no arquivo .env "
+                "por um nome de modelo de embeddings disponível para você e reinicie o programa.")
+    if code == 400:
+        return f"O Google recusou o pedido (erro 400): {text[:300]}"
+    return None
+
+
 class Embedder(Protocol):
     model: str
     dim: int
@@ -63,6 +80,9 @@ class GeminiEmbedder:
                 raise
             except Exception as exc:  # o SDK levanta tipos próprios (rede, cota, modelo inexistente)
                 last = exc
+                friendly = explain_api_error(exc, self.model)
+                if friendly:  # erro permanente (chave, modelo, permissão): tentar de novo não adianta
+                    raise EmbeddingError(friendly) from exc
                 if attempt < self._retries - 1:
                     self._sleep(2**attempt)
         raise EmbeddingError(f"Falha ao gerar embeddings após {self._retries} tentativas: {last}") from last
