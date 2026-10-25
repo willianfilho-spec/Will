@@ -53,3 +53,12 @@ def find_notebook_by_name(conn: sqlite3.Connection, name: str) -> sqlite3.Row | 
     return conn.execute(
         "SELECT id, name, created_at FROM notebooks WHERE name = ? ORDER BY rowid LIMIT 1", (name.strip(),)
     ).fetchone()
+
+
+def set_doc_type(conn: sqlite3.Connection, document_id: str, doc_type: str) -> None:
+    from .rag import DOC_TYPES
+
+    if doc_type not in DOC_TYPES:
+        raise ValueError("Tipo de documento inválido.")
+    with conn:
+        conn.execute("UPDATE documents SET doc_type = ? WHERE id = ?", (doc_type, document_id))

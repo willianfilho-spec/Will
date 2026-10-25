@@ -1,15 +1,16 @@
 import streamlit as st
 
-from nb import gemini_v1, repo
+from nb import answer, rag, repo
 from nb.config import SUPPORTED_EXTENSIONS, load_settings
 from nb.db import connect
+from nb.embeddings import EmbeddingError, gemini_embedder
 from nb.ingest import IngestError, delete_document, ingest_document
 
 settings = load_settings()
 
 st.set_page_config(page_title="Notebook de Pesquisa com Gemini", page_icon="📚", layout="wide")
 st.title("Notebook de Pesquisa com Gemini")
-st.caption("Versão 2 em desenvolvimento · fases 0 e 1: importação com páginas. Busca semântica, referências verificáveis e login ainda não foram implementados.")
+st.caption("Versão 2 em desenvolvimento · fases 0 a 2: importação com páginas e busca semântica. Citações verificadas, login e auditoria ainda não foram implementados.")
 
 
 def main(conn):
@@ -45,7 +46,7 @@ def main(conn):
 
     notebook = next(n for n in repo.list_notebooks(conn) if n["id"] == nid)
     st.header(notebook["name"])
-    tab_docs, tab_chat, tab_history = st.tabs(["Documentos", "Perguntar ao Gemini", "Histórico"])
+    tab_docs, tab_chat, tab_history = st.tabs(["Documentos", "Perguntar", "Histórico"])
 
     with tab_docs:
         render_documents(conn, nid)
@@ -79,12 +80,36 @@ def render_documents(conn, nid):
     if not docs:
         st.info("Este notebook ainda não tem documentos.")
         return
+    embedder = get_embedder()
+    pending = rag.pending_documents(conn, nid, embedder) if embedder else [d for d in docs if not d["indexed_model"]]
+    if pending:
+        st.warning(f"{len(pending)} documento(s) ainda sem índice de busca.")
+        if st.button("Indexar documentos pendentes", disabled=embedder is None, type="primary"):
+            with st.spinner("Gerando embeddings..."):
+                results = rag.index_pending(conn, embedder, nid)
+            for name, outcome in results.items():
+                (st.success if isinstance(outcome, int) else st.error)(f"{name}: {outcome} trecho(s) indexado(s)" if isinstance(outcome, int) else f"{name}: {outcome}")
+            st.rerun() if all(isinstance(v, int) for v in results.values()) else None
+        if embedder is None:
+            st.caption("Configure GEMINI_API_KEY no arquivo .env para indexar.")
     for d in docs:
         label = f"{d['name']} · {d['page_count']} {'página(s)' if d['paginated'] else 'unidade'}"
         if d["empty_page_count"]:
             label += f" · ⚠️ {d['empty_page_count']} sem texto"
+        current_model = embedder.model if embedder else d["indexed_model"]
+        label += " · indexado" if d["indexed_model"] and d["indexed_model"] == current_model else " · sem índice"
+        if d["doc_type"] != "conteudo":
+            label += f" · tipo: {d['doc_type']}"
         with st.expander(label):
             st.caption(f"Adicionado em {d['added_at']} · {d['size_bytes'] / 1024:.0f} KB · SHA-256 {d['sha256'][:12]}…")
+            current = rag.DOC_TYPES.index(d["doc_type"])
+            new_type = st.selectbox(
+                "Tipo do documento (só 'conteudo' é usado nas respostas)", rag.DOC_TYPES, index=current,
+                key=f"type_{d['id']}", help="conteudo = norma, guia ou texto que sustenta respostas; referencia = lista de links ou bibliografia; material = peças gráficas, formulários etc.",
+            )
+            if new_type != d["doc_type"]:
+                repo.set_doc_type(conn, d["id"], new_type)
+                st.rerun()
             pages = repo.get_pages(conn, d["id"])
             if d["paginated"]:
                 numbers = [p["page_number"] for p in pages]
@@ -100,32 +125,57 @@ def render_documents(conn, nid):
                 st.rerun()
 
 
+def get_embedder():
+    return gemini_embedder(settings.gemini_api_key, settings.embedding_model, settings.embedding_dim)
+
+
 def render_chat(conn, nid):
-    docs = repo.list_documents(conn, nid)
+    docs = [d for d in repo.list_documents(conn, nid) if d["doc_type"] == "conteudo"]
     if not docs:
-        st.warning("Adicione documentos antes de fazer perguntas.")
+        st.warning("Este notebook não tem documentos do tipo 'conteudo'. Importe um documento ou altere o tipo na aba Documentos.")
         return
-    st.info("Consulta simples da v1: envia o início de cada documento ao Gemini. A busca semântica (RAG) e as referências verificáveis entram na fase 2 e 3. Não trate as citações desta aba como verificadas.")
+    embedder = get_embedder()
+    if embedder is None:
+        st.error("Configure GEMINI_API_KEY no arquivo .env para buscar e perguntar.")
+        return
+    pending = rag.pending_documents(conn, nid, embedder)
+    if pending:
+        st.warning(f"{len(pending)} documento(s) sem índice com o modelo atual; eles não entram na busca. Indexe na aba Documentos.")
+    st.info("A busca traz os trechos mais parecidos com a pergunta e só eles vão ao Gemini. Os marcadores [F1], [F2]... da resposta ainda NÃO são validados automaticamente (fase 3): confira cada um no trecho e no documento original.")
     by_id = {d["id"]: d["name"] for d in docs}
     chosen = st.multiselect("Fontes usadas nesta pergunta", list(by_id), default=list(by_id), format_func=by_id.get)
-    per_doc = st.select_slider("Limite aproximado de caracteres por documento", options=[5000, 10000, 20000, 40000], value=10000)
+    top_k = st.slider("Quantidade de trechos recuperados", 1, 30, settings.top_k)
     model = st.text_input("Modelo Gemini", value=settings.gemini_model)
+    only_search = st.checkbox("Só buscar trechos (não pedir resposta ao Gemini)")
     question = st.text_area("Sua pergunta")
-    if st.button("Perguntar", type="primary", disabled=not question.strip() or not chosen):
-        if not settings.gemini_api_key:
-            st.error("Configure GEMINI_API_KEY no arquivo .env.")
-            return
-        payload = [(by_id[i], [(p["page_number"], p["text"]) for p in repo.get_pages(conn, i)]) for i in chosen]
+    if not st.button("Buscar", type="primary", disabled=not question.strip() or not chosen):
+        return
+    try:
+        with st.spinner("Buscando trechos..."):
+            hits = rag.search(conn, embedder, nid, question, top_k=top_k, document_ids=chosen)
+    except EmbeddingError as exc:
+        st.error(str(exc))
+        return
+    if not hits:
+        st.warning("Nenhum trecho encontrado. Verifique se os documentos estão indexados.")
+        return
+    if not only_search:
         try:
             with st.spinner("Consultando o Gemini..."):
-                answer = gemini_v1.ask(settings.gemini_api_key, model.strip(), gemini_v1.build_sources(payload, per_doc), question)
+                text = answer.ask(settings.gemini_api_key, model.strip(), answer.build_prompt(question, hits))
         except Exception as exc:
             st.error(f"Erro na chamada da API Gemini: {exc}")
-            return
-        repo.add_message(conn, nid, "user", question)
-        repo.add_message(conn, nid, "assistant", answer)
-        st.markdown("### Resposta")
-        st.markdown(answer)
+            text = None
+        if text:
+            repo.add_message(conn, nid, "user", question)
+            repo.add_message(conn, nid, "assistant", text)
+            st.markdown("### Resposta")
+            st.markdown(text)
+    st.markdown("### Trechos recuperados")
+    st.caption("Pontuação = similaridade de cosseno com a pergunta. Pontuação alta não prova que o trecho responde.")
+    for i, h in enumerate(hits, start=1):
+        with st.expander(f"[{answer.label(i)}] {answer.describe(h)} · pontuação {h.score:.2f}", expanded=only_search and i <= 3):
+            st.write(h.text)
 
 
 def render_history(conn, nid):

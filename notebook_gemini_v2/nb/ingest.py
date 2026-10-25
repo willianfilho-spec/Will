@@ -42,7 +42,7 @@ def ingest_document(
     name = safe_display_name(filename)
     ext = Path(name).suffix.lower()
     if ext not in SUPPORTED_EXTENSIONS:
-        raise IngestError("Formato não suportado. Use PDF, DOCX, TXT, MD ou CSV.")
+        raise IngestError("Formato não suportado. Use PDF, DOCX, PPTX, TXT, MD ou CSV.")
     if not data:
         raise IngestError("Arquivo vazio.")
     if len(data) > max_bytes:

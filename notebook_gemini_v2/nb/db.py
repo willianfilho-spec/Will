@@ -46,6 +46,29 @@ MIGRATIONS = [
         CREATE INDEX idx_messages_notebook ON messages(notebook_id, id);
         """,
     ),
+    (
+        2,
+        """
+        -- 'conteudo' = norma/guia que sustenta respostas; 'referencia' = lista de links/bibliografia,
+        -- 'material' = peças gráficas etc. Só 'conteudo' entra na busca por padrão.
+        ALTER TABLE documents ADD COLUMN doc_type TEXT NOT NULL DEFAULT 'conteudo';
+        ALTER TABLE documents ADD COLUMN indexed_model TEXT;
+        ALTER TABLE documents ADD COLUMN indexed_at TEXT;
+        CREATE TABLE chunks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+            notebook_id TEXT NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+            chunk_index INTEGER NOT NULL,
+            page_number INTEGER,
+            text TEXT NOT NULL,
+            embedding BLOB NOT NULL,
+            embedding_model TEXT NOT NULL,
+            dim INTEGER NOT NULL
+        );
+        CREATE INDEX idx_chunks_notebook ON chunks(notebook_id, embedding_model);
+        CREATE INDEX idx_chunks_document ON chunks(document_id, chunk_index);
+        """,
+    ),
 ]
 
 

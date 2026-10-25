@@ -32,7 +32,7 @@ def test_reexecutar_nao_duplica_e_reaproveita_o_notebook(conn, docs_dir, tmp_pat
 
 def test_arquivo_inexistente_ou_invalido_vai_para_skipped_sem_interromper(conn, docs_dir, tmp_path):
     pdf, _ = _arquivos(tmp_path)
-    ruim = tmp_path / "x.pptx"
+    ruim = tmp_path / "x.exe"
     ruim.write_bytes(b"abc")
     r = import_files(conn, docs_dir, "Normas", [tmp_path / "nao_existe.pdf", ruim, pdf], MAX)
     assert len(r.imported) == 1 and len(r.skipped) == 2

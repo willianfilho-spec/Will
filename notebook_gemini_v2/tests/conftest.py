@@ -75,3 +75,25 @@ def make_shadow_pdf(text: str, copies: int = 3) -> bytes:
     c.showPage()
     c.save()
     return buf.getvalue()
+
+
+def make_pptx(slides: list[list[str] | None], notes: dict[int, str] | None = None) -> bytes:
+    """Cada item é a lista de linhas de um slide; None = slide só com forma (sem texto)."""
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    prs = Presentation()
+    for i, lines in enumerate(slides, start=1):
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        if lines is None:
+            slide.shapes.add_shape(1, Inches(1), Inches(1), Inches(2), Inches(2))
+        else:
+            box = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(6), Inches(3))
+            box.text_frame.text = lines[0]
+            for line in lines[1:]:
+                box.text_frame.add_paragraph().text = line
+        if notes and i in notes:
+            slide.notes_slide.notes_text_frame.text = notes[i]
+    buf = io.BytesIO()
+    prs.save(buf)
+    return buf.getvalue()

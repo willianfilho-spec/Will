@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(PROJECT_DIR / ".env")
 
-SUPPORTED_EXTENSIONS = (".pdf", ".docx", ".txt", ".md", ".csv")
+SUPPORTED_EXTENSIONS = (".pdf", ".docx", ".pptx", ".txt", ".md", ".csv")
 
 
 @dataclass(frozen=True)
@@ -17,6 +17,9 @@ class Settings:
     max_upload_bytes: int
     gemini_api_key: str
     gemini_model: str
+    embedding_model: str
+    embedding_dim: int
+    top_k: int
 
     @property
     def db_path(self) -> Path:
@@ -36,6 +39,14 @@ def _max_upload_bytes() -> int:
     return int(max(mb, 0.1) * 1024 * 1024)
 
 
+def _int_env(name: str, default: int, low: int, high: int) -> int:
+    try:
+        value = int(os.getenv(name, "").strip() or default)
+    except ValueError:
+        return default
+    return min(max(value, low), high)
+
+
 def load_settings() -> Settings:
     data_dir = Path(os.getenv("DATA_DIR") or PROJECT_DIR / "data")
     return Settings(
@@ -43,4 +54,7 @@ def load_settings() -> Settings:
         max_upload_bytes=_max_upload_bytes(),
         gemini_api_key=os.getenv("GEMINI_API_KEY", "").strip(),
         gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip(),
+        embedding_model=os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001").strip(),
+        embedding_dim=_int_env("EMBEDDING_DIM", 768, 32, 3072),
+        top_k=_int_env("TOP_K", 6, 1, 30),
     )

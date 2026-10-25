@@ -10,6 +10,7 @@ import unicodedata
 from dataclasses import dataclass, field
 
 from docx import Document
+from pptx import Presentation
 from docx.table import Table
 from docx.text.paragraph import Paragraph
 import pypdfium2 as pdfium
@@ -170,6 +171,50 @@ def extract_docx(data: bytes) -> ExtractedDocument:
     return doc
 
 
+def _pptx_shape_lines(shape) -> list[str]:
+    lines: list[str] = []
+    if getattr(shape, "has_text_frame", False) and shape.has_text_frame:
+        lines += [" ".join(p.text.split()) for p in shape.text_frame.paragraphs if p.text.strip()]
+    if getattr(shape, "has_table", False) and shape.has_table:
+        for row in shape.table.rows:
+            cells = [" ".join(c.text.split()) for c in row.cells]
+            if any(cells):
+                lines.append(" | ".join(cells))
+    for child in getattr(shape, "shapes", []):  # grupos de formas
+        lines += _pptx_shape_lines(child)
+    return lines
+
+
+def extract_pptx(data: bytes) -> ExtractedDocument:
+    """Cada slide vira uma página (numeração = ordem dos slides)."""
+    try:
+        presentation = Presentation(io.BytesIO(data))
+    except Exception as exc:  # python-pptx levanta tipos variados (zipfile, KeyError, lxml)
+        raise ExtractionError(f"PPTX inválido ou corrompido ({type(exc).__name__}).") from exc
+    pages: list[ExtractedPage] = []
+    for number, slide in enumerate(presentation.slides, start=1):
+        lines: list[str] = []
+        for shape in slide.shapes:
+            lines += _pptx_shape_lines(shape)
+        if slide.has_notes_slide:
+            notes = " ".join(slide.notes_slide.notes_text_frame.text.split())
+            if notes:
+                lines.append(f"Notas do apresentador: {notes}")
+        pages.append(ExtractedPage(number, _clean("\n".join(lines))))
+    if not pages:
+        raise ExtractionError("A apresentação não tem slides.")
+    doc = ExtractedDocument("pptx", True, pages)
+    empty = doc.empty_pages
+    if len(empty) == len(pages):
+        raise ExtractionError("Nenhum texto extraível nos slides (provavelmente só imagens). Exporte para PDF com texto ou aplique OCR.")
+    if empty:
+        doc.warnings.append(
+            f"{len(empty)} de {len(pages)} slide(s) sem texto: {_format_pages(empty)}. "
+            "Texto dentro de imagens não é lido."
+        )
+    return doc
+
+
 def extract_text_file(data: bytes, kind: str) -> ExtractedDocument:
     warnings: list[str] = []
     try:
@@ -189,9 +234,11 @@ def extract(data: bytes, extension: str) -> ExtractedDocument:
         return extract_pdf(data)
     if ext == ".docx":
         return extract_docx(data)
+    if ext == ".pptx":
+        return extract_pptx(data)
     if ext in (".txt", ".md", ".csv"):
         return extract_text_file(data, ext.lstrip("."))
-    raise ExtractionError("Formato não suportado. Use PDF, DOCX, TXT, MD ou CSV.")
+    raise ExtractionError("Formato não suportado. Use PDF, DOCX, PPTX, TXT, MD ou CSV.")
 
 
 def _format_pages(numbers: list[int]) -> str:

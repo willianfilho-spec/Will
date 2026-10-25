@@ -105,3 +105,24 @@ def test_titulo_embaralhado_no_meio_de_texto_normal_tambem_aciona_fallback():
     texto = "VISÃO GERAL\nN N NÃ Ã ÃO O O V V VA A AC C CI I IL LLE E E\nMade with Manus\nrodapé do documento aqui"
     assert _looks_garbled(texto)
     assert not _looks_garbled("Art. 5º O aluno deve solicitar a revisão no prazo de três dias úteis.\nA nota é a média final.")
+
+
+def test_pptx_slide_vira_pagina_com_notas_e_aviso_de_slide_sem_texto():
+    from tests.conftest import make_pptx
+
+    data = make_pptx([["Aproveitamento de estudos", "Discente"], None, ["Documentos necessários para solicitação"]],
+                     notes={3: "Lembrar do histórico"})
+    doc = extract(data, ".pptx")
+    assert doc.paginated and [p.number for p in doc.pages] == [1, 2, 3]
+    assert "Aproveitamento de estudos\nDiscente" == doc.pages[0].text
+    assert "Notas do apresentador: Lembrar do histórico" in doc.pages[2].text
+    assert doc.empty_pages == [2] and "2" in doc.warnings[0]
+
+
+def test_pptx_so_com_imagens_e_recusado_e_invalido_gera_erro():
+    from tests.conftest import make_pptx
+
+    with pytest.raises(ExtractionError, match="só imagens"):
+        extract(make_pptx([None, None]), ".pptx")
+    with pytest.raises(ExtractionError):
+        extract(b"nao e pptx", ".pptx")
