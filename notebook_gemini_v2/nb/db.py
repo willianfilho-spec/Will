@@ -1,5 +1,6 @@
 """Conexão SQLite e migrações versionadas (PRAGMA user_version)."""
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 
 # Cada item é (versão, script). Nunca edite uma migração já publicada:
@@ -78,6 +79,27 @@ MIGRATIONS = [
         """,
     ),
 ]
+
+
+def backup_legacy_database(path: Path) -> Path | None:
+    """O banco da v1 usa os mesmos nomes de tabela, mas sem versão e com outra estrutura.
+    Em vez de falhar ou misturar, ele é guardado ao lado como cópia e um banco novo é criado.
+    Devolve o caminho da cópia, ou None se não havia banco da v1."""
+    path = Path(path)
+    if not path.exists() or path.stat().st_size == 0:
+        return None
+    probe = sqlite3.connect(path)
+    try:
+        version = probe.execute("PRAGMA user_version").fetchone()[0]
+        has_notebooks = probe.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='notebooks'").fetchone()
+    finally:
+        probe.close()
+    if version != 0 or not has_notebooks:
+        return None
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup = path.with_name(f"{path.stem}.v1-backup-{stamp}{path.suffix}")
+    path.rename(backup)
+    return backup
 
 
 def connect(path: Path) -> sqlite3.Connection:

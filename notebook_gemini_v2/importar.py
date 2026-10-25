@@ -12,7 +12,7 @@ from pathlib import Path
 from nb.bulk import import_files
 from nb.config import load_settings
 from nb import rag
-from nb.db import connect
+from nb.db import backup_legacy_database, connect
 from nb.embeddings import gemini_embedder
 
 
@@ -23,6 +23,9 @@ def main(argv: list[str]) -> int:
         print(__doc__)
         return 2
     settings = load_settings()
+    legacy = backup_legacy_database(settings.db_path)
+    if legacy:
+        print(f"Banco da versão antiga guardado como {legacy.name}; um banco novo foi criado.")
     conn = connect(settings.db_path)
     try:
         report = import_files(conn, settings.documents_dir, argv[1], [Path(a) for a in argv[2:]], settings.max_upload_bytes)

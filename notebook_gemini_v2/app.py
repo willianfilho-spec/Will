@@ -4,7 +4,7 @@ import streamlit as st
 
 from nb import answer, citations, pageview, rag, repo
 from nb.config import SUPPORTED_EXTENSIONS, load_settings
-from nb.db import connect
+from nb.db import backup_legacy_database, connect
 from nb.embeddings import EmbeddingError, gemini_embedder
 from nb.ingest import IngestError, delete_document, ingest_document
 
@@ -255,7 +255,10 @@ def render_history(conn, nid):
                 st.markdown(m["content"])
 
 
+_legacy_backup = backup_legacy_database(settings.db_path)
 _conn = connect(settings.db_path)
+if _legacy_backup:
+    st.warning(f"Foi encontrado um banco de dados da versão antiga. Ele foi guardado como \"{_legacy_backup.name}\" (pasta data) e um banco novo foi criado. Reimporte os documentos.")
 try:
     main(_conn)
 finally:
