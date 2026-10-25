@@ -5,6 +5,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from . import settings_store
+
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(PROJECT_DIR / ".env")
 
@@ -20,6 +22,7 @@ class Settings:
     embedding_model: str
     embedding_dim: int
     top_k: int
+    key_source: str = ""  # "tela", ".env" ou "" (ausente)
 
     @property
     def db_path(self) -> Path:
@@ -55,12 +58,16 @@ def _clean_key(raw: str) -> str:
 
 def load_settings() -> Settings:
     data_dir = Path(os.getenv("DATA_DIR") or PROJECT_DIR / "data")
+    saved = settings_store.load(data_dir)  # o que foi salvo pela tela vale mais que o .env
+    env_key = _clean_key(os.getenv("GEMINI_API_KEY", ""))
+    saved_key = _clean_key(saved.get("api_key", ""))
     return Settings(
         data_dir=data_dir,
         max_upload_bytes=_max_upload_bytes(),
-        gemini_api_key=_clean_key(os.getenv("GEMINI_API_KEY", "")),
-        gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip(),
-        embedding_model=os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001").strip(),
+        gemini_api_key=saved_key or env_key,
+        gemini_model=saved.get("gemini_model") or os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip(),
+        embedding_model=saved.get("embedding_model") or os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001").strip(),
         embedding_dim=_int_env("EMBEDDING_DIM", 768, 32, 3072),
         top_k=_int_env("TOP_K", 6, 1, 30),
+        key_source="tela" if saved_key else (".env" if env_key else ""),
     )

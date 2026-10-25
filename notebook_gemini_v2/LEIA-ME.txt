@@ -1,0 +1,15 @@
+NOTEBOOK DE PESQUISA COM GEMINI  -  como usar
+
+1. Dê dois cliques em  Iniciar.bat
+   (na primeira vez ele instala tudo e pode levar alguns minutos.
+    Se pedir para instalar o Python, siga o que a janela explicar.)
+
+2. O navegador abre sozinho. Cole sua chave do Gemini na caixa da tela.
+   Para criar a chave: https://aistudio.google.com/apikey  ->  Create API key  ->  copiar.
+
+3. Crie um notebook, escolha os PDFs e clique em Importar. Depois use a aba "Perguntar".
+
+Para fechar: feche a janela preta.
+Seus documentos e a chave ficam só neste computador, na pasta "data".
+Não use documentos internos da instituição sem autorização: os trechos usados
+nas perguntas são enviados ao Google.

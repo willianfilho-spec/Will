@@ -1,0 +1,10 @@
+[browser]
+gatherUsageStats = false
+
+[server]
+headless = true
+address = "localhost"
+port = 8765
+
+[client]
+toolbarMode = "minimal"

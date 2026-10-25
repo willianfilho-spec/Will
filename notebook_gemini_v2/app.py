@@ -1,8 +1,9 @@
 import json
 
 import streamlit as st
+import streamlit.components.v1 as components
 
-from nb import answer, citations, pageview, rag, repo
+from nb import answer, citations, connection, pageview, rag, repo, settings_store
 from nb.config import SUPPORTED_EXTENSIONS, load_settings
 from nb.db import backup_legacy_database, connect
 from nb.embeddings import EmbeddingError, gemini_embedder
@@ -11,13 +12,65 @@ from nb.ingest import IngestError, delete_document, ingest_document
 settings = load_settings()
 
 st.set_page_config(page_title="Notebook de Pesquisa com Gemini", page_icon="📚", layout="wide")
+# O Streamlit declara a página como inglês e o Chrome oferece traduzir, o que embaralha os títulos.
+# Isto avisa o navegador de que o texto já está em português (melhor esforço).
+try:
+    components.html(
+        "<script>try{const d=window.parent.document;d.documentElement.lang='pt-BR';"
+        "d.documentElement.setAttribute('translate','no');let m=d.querySelector('meta[name=google]');"
+        "if(!m){m=d.createElement('meta');m.name='google';d.head.appendChild(m);}m.content='notranslate';}catch(e){}</script>",
+        height=0,
+    )
+except Exception:  # versões novas do Streamlit podem remover esta função; o resto do app não depende dela
+    pass
 st.title("Notebook de Pesquisa com Gemini")
 st.caption("Versão 2 em desenvolvimento · fases 0 a 3: importação, busca semântica e citações conferidas. Login e auditoria ainda não foram implementados.")
+
+
+def connect_form(trocar: bool = False):
+    """Cola da chave dentro da própria tela; o programa testa, descobre os modelos e salva."""
+    with st.form("connect_form", clear_on_submit=False):
+        key = st.text_input("Chave da API do Gemini", type="password", placeholder="Cole aqui (começa com AIza…)")
+        if st.form_submit_button("Conectar" if not trocar else "Trocar chave", type="primary"):
+            key = key.strip().strip("\"'").strip()
+            with st.spinner("Testando a chave no Google..."):
+                result = connection.check_key(key)
+            if not result.ok:
+                st.error(result.message)
+                return
+            embedding = connection.pick_embedding(result.embedding_models, settings.embedding_model)
+            generation = connection.pick_generation(result.generation_models, settings.gemini_model)
+            updates = {"api_key": key, "embedding_model": embedding}
+            if generation:
+                updates["gemini_model"] = generation
+            settings_store.save(settings.data_dir, **updates)
+            st.rerun()
+
+
+def render_connection_gate() -> bool:
+    """Devolve True quando já há chave. Sem chave, mostra o passo 1 e para por aqui."""
+    if settings.gemini_api_key:
+        with st.sidebar.expander("Conexão com o Gemini ✅"):
+            st.caption(f"Chave: {settings_store.mask_key(settings.gemini_api_key)} (origem: {settings.key_source})")
+            st.caption(f"Modelo de resposta: {settings.gemini_model}")
+            st.caption(f"Modelo de busca: {settings.embedding_model}")
+            connect_form(trocar=True)
+        return True
+    st.subheader("Passo 1 de 3 · Conectar ao Gemini")
+    st.markdown(
+        "1. Abra **https://aistudio.google.com/apikey** e entre com a sua conta Google.\n"
+        "2. Clique em **Create API key** e depois no ícone de **copiar**.\n"
+        "3. Cole a chave abaixo e clique em **Conectar**. Ela fica guardada só neste computador."
+    )
+    connect_form()
+    return False
 
 
 def main(conn):
     if "selected_notebook" not in st.session_state:
         st.session_state.selected_notebook = None
+    if not render_connection_gate():
+        return
 
     with st.sidebar:
         st.subheader("Notebooks")
@@ -39,11 +92,19 @@ def main(conn):
                 except ValueError as exc:
                     st.warning(str(exc))
         st.divider()
-        st.caption("A chave da API é lida do arquivo .env. Não a compartilhe.")
+        st.caption("A chave fica guardada só neste computador. Não a compartilhe.")
 
     nid = st.session_state.selected_notebook
     if not nid:
-        st.info("Crie um notebook na barra lateral para começar.")
+        st.subheader("Passo 2 de 3 · Criar um notebook")
+        with st.form("first_notebook"):
+            name = st.text_input("Dê um nome (por exemplo, o assunto dos documentos)", value="Normas da Graduação")
+            if st.form_submit_button("Criar notebook", type="primary"):
+                try:
+                    st.session_state.selected_notebook = repo.create_notebook(conn, name)
+                    st.rerun()
+                except ValueError as exc:
+                    st.warning(str(exc))
         return
 
     notebook = next(n for n in repo.list_notebooks(conn) if n["id"] == nid)
@@ -59,24 +120,36 @@ def main(conn):
 
 
 def render_documents(conn, nid):
-    st.subheader("Adicionar fontes")
+    st.subheader("Passo 3 de 3 · Enviar documentos")
+    for kind, text in st.session_state.pop("import_log", []):
+        {"ok": st.success, "warn": st.warning, "err": st.error}[kind](text)
     limit_mb = settings.max_upload_bytes / 1024 / 1024
+    uploader_key = f"uploader_{st.session_state.get('uploader_n', 0)}"
     uploaded = st.file_uploader(
-        f"Envie documentos (até {limit_mb:.0f} MB cada)",
+        f"Escolha os arquivos (até {limit_mb:.0f} MB cada). Depois clique em Importar.",
         type=[e.lstrip(".") for e in SUPPORTED_EXTENSIONS],
         accept_multiple_files=True,
+        key=uploader_key,
     )
-    if st.button("Importar documentos", disabled=not uploaded):
+    if st.button("Importar documentos", disabled=not uploaded, type="primary"):
+        log = []
         for f in uploaded:
             try:
                 result = ingest_document(conn, settings.documents_dir, nid, f.name, f.getvalue(), settings.max_upload_bytes)
-                st.success(f"{result.name}: {result.page_count} unidade(s) de texto importada(s).")
-                for w in result.warnings:
-                    st.warning(f"{result.name}: {w}")
+                log.append(("ok", f"{result.name}: {result.page_count} unidade(s) de texto importada(s)."))
+                log += [("warn", f"{result.name}: {w}") for w in result.warnings]
             except IngestError as exc:
-                st.error(f"{f.name}: {exc}")
+                log.append(("err", f"{f.name}: {exc}"))
             except Exception as exc:  # erro inesperado não deve derrubar a tela
-                st.error(f"{f.name}: erro inesperado ({type(exc).__name__}).")
+                log.append(("err", f"{f.name}: erro inesperado ({type(exc).__name__})."))
+        embedder = get_embedder()
+        if embedder and rag.pending_documents(conn, nid, embedder):
+            with st.spinner("Preparando a busca nos documentos (pode levar alguns minutos)..."):
+                for name, outcome in rag.index_pending(conn, embedder, nid).items():
+                    log.append(("ok", f"{name}: busca preparada ({outcome} trechos).") if isinstance(outcome, int) else ("err", f"{name}: {outcome}"))
+        st.session_state["import_log"] = log
+        st.session_state["uploader_n"] = st.session_state.get("uploader_n", 0) + 1  # esvazia a caixa de envio
+        st.rerun()
 
     docs = repo.list_documents(conn, nid)
     if not docs:
@@ -85,7 +158,7 @@ def render_documents(conn, nid):
     embedder = get_embedder()
     pending = rag.pending_documents(conn, nid, embedder) if embedder else [d for d in docs if not d["indexed_model"]]
     if pending:
-        st.warning(f"{len(pending)} documento(s) ainda sem índice de busca.")
+        st.warning(f"{len(pending)} documento(s) ainda sem índice de busca (isso costuma acontecer se a indexação automática falhou).")
         if st.button("Indexar documentos pendentes", disabled=embedder is None, type="primary"):
             with st.spinner("Gerando embeddings..."):
                 results = rag.index_pending(conn, embedder, nid)
@@ -93,8 +166,6 @@ def render_documents(conn, nid):
                 (st.success if isinstance(outcome, int) else st.error)(f"{name}: {outcome} trecho(s) indexado(s)" if isinstance(outcome, int) else f"{name}: {outcome}")
             if all(isinstance(v, int) for v in results.values()):
                 st.rerun()
-        if embedder is None:
-            st.caption("Falta a chave: coloque GEMINI_API_KEY=suachave no arquivo .env e reinicie o programa.")
     for d in docs:
         label = f"{d['name']} · {d['page_count']} {'página(s)' if d['paginated'] else 'unidade'}"
         if d["empty_page_count"]:

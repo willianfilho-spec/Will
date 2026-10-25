@@ -167,11 +167,11 @@ def test_chave_invalida_vira_mensagem_clara_e_nao_repete_tentativas():
     client = _ClienteComErro(erro)
     with pytest.raises(EmbeddingError, match="recusou a chave") as info:
         GeminiEmbedder(client, "m", 4, sleep=lambda s: None).embed_query("x")
-    assert client.calls == 1 and "run.bat" in str(info.value)
+    assert client.calls == 1 and "cole de novo" in str(info.value)
 
 
 def test_modelo_inexistente_e_permissao_negada_tem_mensagem_propria():
-    with pytest.raises(EmbeddingError, match="GEMINI_EMBEDDING_MODEL"):
+    with pytest.raises(EmbeddingError, match="Trocar chave"):
         GeminiEmbedder(_ClienteComErro(_ErroApi("404 NOT_FOUND models/xyz", 404)), "xyz", 4).embed_query("x")
     with pytest.raises(EmbeddingError, match="negou o acesso"):
         GeminiEmbedder(_ClienteComErro(_ErroApi("403 PERMISSION_DENIED", 403)), "m", 4).embed_query("x")

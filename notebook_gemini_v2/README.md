@@ -4,14 +4,15 @@ Estado: **fases 0 a 3 de 10**. Veja a tabela de estado no final.
 
 ## Instalar e abrir (Windows 11)
 
-1. Instale o Python 3.11 ou mais novo em https://www.python.org/downloads/ e marque **Add python.exe to PATH**.
-2. Dê dois cliques em `run.bat`. Na primeira vez ele cria o ambiente, instala as dependências e cria o arquivo `.env`.
-3. Abra o `.env` no Bloco de Notas e troque `cole_sua_chave_aqui` pela sua chave (https://aistudio.google.com/apikey). Nunca compartilhe esse arquivo.
-4. O navegador abre sozinho. Se não abrir, acesse http://localhost:8501.
+1. Dê dois cliques em **`Iniciar.bat`**. Na primeira vez ele instala tudo (alguns minutos). Se faltar o Python, a janela explica como instalar.
+2. O navegador abre sozinho em `http://localhost:8765`. **Cole a sua chave do Gemini na caixa da tela** (https://aistudio.google.com/apikey). O programa testa a chave, descobre quais modelos a sua conta tem e guarda tudo em `data/config.json`.
+3. Crie um notebook, envie os documentos (a busca é preparada automaticamente) e use a aba **Perguntar**.
 
-A chave é necessária para indexar e perguntar. Importar e conferir documentos funciona sem ela.
+O arquivo `.env` continua funcionando, mas não é mais necessário. O que for salvo pela tela vale mais que o `.env`.
 
-O modelo de embeddings (`GEMINI_EMBEDDING_MODEL`) vem com um valor padrão **não verificado** por este projeto. Confirme o nome na documentação do Google e no catálogo da sua conta antes de usar. Se mudar o modelo ou `EMBEDDING_DIM`, reindexe (o app avisa).
+Sem a chave a tela não avança do passo 1: a busca é preparada na importação e depende do Gemini.
+
+Os modelos são escolhidos automaticamente entre os que a sua conta realmente tem (a lista vem do Google ao conectar). Se trocar a chave, o modelo ou `EMBEDDING_DIM`, os documentos precisam ser reindexados e o app avisa.
 
 ## O que já funciona
 
@@ -75,7 +76,7 @@ python -m pytest
 - A qualidade da busca com o Gemini real não foi medida. Nos testes offline, só a coincidência de palavras foi avaliada.
 - Não há busca por palavra exata (ex.: "Art. 151") combinada com a semântica; está nos planos futuros.
 - Um artigo que continua na página seguinte vira trechos separados por página.
-- Nenhuma chamada real à API do Gemini foi feita (sem chave neste ambiente), nem para embeddings, nem para respostas.
-- O `run.bat` não foi testado em Windows (só em Linux).
+- Nenhuma chamada **com chave válida** à API do Gemini foi feita (sem chave neste ambiente). Só foi observada a resposta real do Google a uma chave inválida.
+- O `Iniciar.bat` não foi testado em Windows (só leitura e revisão; o app em si foi testado em Linux, inclusive em navegador).
 - Um DOCX malicioso muito compactado pode consumir memória; não envie arquivos de origem desconhecida.
 - O texto enviado ao Gemini sai do seu computador. Não use documentos institucionais sem autorização e avaliação de proteção de dados.
