@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor do Guia SIGAA</title>
+<style>
+:root{
+  /* Cores extraídas do PPTX do guia: vinho #7A1238, dourado #DDA544, bege #E2DACD. Variáveis mantêm o nome antigo (--navy) só por compatibilidade. */
+  --navy:#7A1238; --navy-900:#560c26; --navy-700:#9a2150; --navy-300:#8c6b76; --navy-100:#eadfd6; --navy-50:#f8f3ee;
+  --bg:#fbf9f7; --ink:#1a1a1a; --muted:#6b6b6b; --line:#e2dacd; --white:#fff;
+  --gold:#dda544; --warn:#8a5d0a; --warn-bg:#fbf1dc; --err:#b42318;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;color:var(--ink);background:var(--bg);height:100vh;display:flex;flex-direction:column}
+button,input,select,textarea{font:inherit;color:inherit}
+header.top{background:var(--navy);border-bottom:3px solid var(--gold);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header.top .brand{font-size:11px;letter-spacing:.14em;font-weight:700;opacity:.85}
+header.top h1{font-size:18px;margin:0;font-weight:700}
+header.top .sp{flex:1}
+.btn{background:var(--white);color:var(--navy);border:1px solid var(--navy);border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:600;font-size:13px}
+.btn:hover{background:var(--navy-100)}
+.btn.primary{background:var(--navy);color:#fff}
+.btn.primary:hover{background:var(--navy-700)}
+header.top .btn{border-color:#fff}
+header.top .btn.primary{background:#fff;color:var(--navy)}
+.btn.sm{padding:3px 8px;font-size:12px}
+.btn.danger{color:var(--err);border-color:var(--err)}
+#err{display:none;background:var(--err);color:#fff;padding:8px 16px;font-size:13px;align-items:center;gap:12px}
+#err.on{display:flex}
+main{flex:1;display:grid;grid-template-columns:250px minmax(340px,1fr) minmax(420px,860px);min-height:0}
+aside,section.editor,section.preview{overflow:auto;min-height:0}
+aside{background:#fff;border-right:1px solid var(--line);padding:12px}
+aside h2,section.editor h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--navy);margin:0 0 8px}
+.ficha-item{display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid transparent;border-radius:6px;cursor:pointer;font-size:13px}
+.ficha-item:hover{background:var(--navy-50)}
+.ficha-item.on{background:var(--navy-100);border-color:var(--navy)}
+.ficha-item .n{background:var(--navy);color:#fff;border-radius:4px;min-width:24px;text-align:center;font-size:11px;padding:2px 0;font-weight:700}
+.ficha-item .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ficha-item .mv{display:none;gap:2px}
+.ficha-item:hover .mv,.ficha-item.on .mv{display:flex}
+.mv button{border:1px solid var(--line);background:#fff;border-radius:4px;cursor:pointer;font-size:11px;padding:0 4px;color:var(--navy)}
+section.editor{padding:14px;border-right:1px solid var(--line)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
+.field{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);margin-bottom:8px}
+.field input,.field textarea,.field select{border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;color:var(--ink);font-size:13px}
+.field textarea{min-height:70px;resize:vertical}
+.field input:focus,.field textarea:focus,.field select:focus{outline:2px solid var(--navy-300);border-color:var(--navy)}
+.blk{border:1px solid var(--line);border-left:4px solid var(--navy);border-radius:8px;background:#fff;padding:10px;margin-bottom:10px}
+.blk .bh{display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.06em}
+.blk .bh .sp{flex:1}
+.blk .bh label{font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);display:flex;gap:4px;align-items:center}
+.hint{font-size:12px;color:var(--muted)}
+.empty{color:var(--muted);padding:24px;text-align:center;border:1px dashed var(--line);border-radius:8px}
+section.preview{background:#ece6df;padding:16px;display:flex;flex-direction:column;align-items:center;gap:16px}
+.zoomwrap{transform-origin:top center}
+
+/* ===== Folha A4 (usada na prévia e no PDF) ===== */
+.page{width:210mm;height:297mm;background:#fff;position:relative;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 2px 12px rgba(86,12,38,.25);font-size:10.5pt;line-height:1.4;color:var(--ink)}
+.p-top{background:var(--navy);border-bottom:1.2mm solid var(--gold);color:#fff;padding:7mm 12mm 6mm;display:flex;align-items:center;gap:6mm}
+.p-top .org{font-size:8pt;letter-spacing:.14em;font-weight:700;flex:1}
+.p-top .org small{display:block;font-weight:400;opacity:.8;letter-spacing:.08em;margin-top:1mm}
+.p-top .logo{max-height:11mm;max-width:30mm}
+.p-seal{background:#fff;color:var(--navy);border-radius:2mm;font-weight:800;font-size:13pt;padding:1mm 3mm}
+.p-body{flex:1;padding:8mm 12mm 4mm;display:grid;grid-template-columns:1fr 1fr;gap:3.5mm 5mm;align-content:start}
+.p-body>*{grid-column:1/3}
+.p-body>.half{grid-column:auto}
+.p-foot{border-top:.6mm solid var(--navy);margin:0 12mm;padding:2.5mm 0 5mm;display:flex;justify-content:space-between;font-size:8pt;color:var(--navy-300)}
+.b-titulo{font-size:21pt;font-weight:800;color:var(--navy);line-height:1.15;margin:0}
+.b-titulo small{display:block;font-size:9pt;letter-spacing:.14em;text-transform:uppercase;color:var(--navy-300);font-weight:700;margin-bottom:1mm}
+.b-secao{font-size:10pt;font-weight:800;color:var(--navy);letter-spacing:.1em;text-transform:uppercase;border-bottom:.5mm solid var(--navy);padding-bottom:1mm;margin:0}
+.b-caminho{background:var(--navy-50);border:.3mm solid var(--navy-100);border-left:1.5mm solid var(--navy);border-radius:1.5mm;padding:2.5mm 3.5mm}
+.b-caminho .lb{font-size:7.5pt;font-weight:800;letter-spacing:.12em;color:var(--navy-300)}
+.b-caminho .tr{font-weight:700;color:var(--navy)}
+.b-caminho .tr i{font-style:normal;color:var(--navy-300);margin:0 1.5mm}
+.b-passos .lb,.b-flux .lb{font-size:7.5pt;font-weight:800;letter-spacing:.12em;color:var(--navy-300);margin-bottom:1.5mm}
+.b-passos ol{list-style:none;margin:0;padding:0;counter-reset:s}
+.b-passos li{counter-increment:s;display:flex;gap:2.5mm;margin-bottom:1.8mm}
+.b-passos li:before{content:counter(s);background:var(--navy);color:#fff;width:5.5mm;height:5.5mm;flex:none;border-radius:50%;font-size:8pt;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:.4mm}
+.b-quadro{border-radius:1.5mm;padding:2.5mm 3.5mm;border:.3mm solid var(--navy-100);background:var(--navy-50)}
+.b-quadro .lb{font-size:7.5pt;font-weight:800;letter-spacing:.12em;margin-bottom:.8mm;color:var(--navy)}
+.b-quadro.atencao{background:var(--warn-bg);border-color:#e8c98a}
+.b-quadro.atencao .lb{color:var(--warn)}
+.b-img{margin:0;text-align:center}
+.b-img .ph{background:var(--navy-50);border:.3mm dashed var(--navy-300);color:var(--navy-300);padding:14mm 0;font-size:9pt}
+.b-img .tag{font-size:7.5pt;font-weight:800;letter-spacing:.12em;color:var(--navy-300);text-align:left;margin-bottom:1mm}
+.b-img img{max-width:100%;border:.3mm solid var(--navy-100);border-radius:1mm}
+.b-img figcaption{font-size:8pt;color:var(--navy-300);margin-top:1mm;font-style:italic}
+.b-tab table{width:100%;border-collapse:collapse;font-size:9.5pt}
+.b-tab th{background:var(--navy);color:#fff;text-align:left;padding:1.6mm 2.4mm;font-weight:700}
+.b-tab td{padding:1.6mm 2.4mm;border-bottom:.3mm solid var(--navy-100)}
+.b-tab tr:nth-child(even) td{background:var(--navy-50)}
+.b-lista ul{margin:0;padding-left:5mm}
+.b-flux .steps{display:flex;gap:2mm;flex-wrap:wrap}
+.b-flux .st{flex:1;min-width:30mm;border:.3mm solid var(--navy);border-radius:1.5mm;padding:2mm;font-size:9.5pt;position:relative}
+.b-flux .st b{display:block;color:var(--navy);font-size:8pt;letter-spacing:.08em}
+.b-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(40mm,1fr));gap:2.5mm}
+.b-cards .cd{border:.3mm solid var(--navy-100);border-top:1.2mm solid var(--navy);border-radius:1.5mm;padding:2.5mm;background:#fff}
+.b-cards .cd b{display:block;color:var(--navy);margin-bottom:.8mm}
+.b-div{border:0;border-top:.3mm solid var(--navy-100);margin:0;width:100%}
+.mark{background:#fff3b0;padding:0 .6mm;border-radius:.6mm}
+.b-txt{white-space:pre-wrap}
+
+@media print{
+  @page{size:A4 portrait;margin:0}
+  html,body{background:#fff;height:auto;display:block}
+  header.top,#err,aside,section.editor,.toolbar-prev{display:none!important}
+  main{display:block}
+  section.preview{background:#fff;padding:0;display:block!important;overflow:visible}
+  .zoomwrap{transform:none!important;width:auto!important;margin:0!important}
+  main,section.preview{height:auto!important;overflow:visible!important}
+  .page{box-shadow:none;break-after:page;page-break-after:always;margin:0!important}
+  .page:last-child{break-after:auto;page-break-after:auto}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+@media screen and (max-width:1100px){main{grid-template-columns:200px 1fr}section.preview{display:none}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div><div class="brand">DIOAC | PROEN | UFMA</div><h1>Editor do Guia SIGAA</h1></div>
+  <div class="sp"></div>
+  <button class="btn" id="bBackup">Backup</button>
+  <button class="btn" id="bRestore">Restaurar</button>
+  <button class="btn" id="bSet">Ajustes</button>
+  <button class="btn primary" id="bPdf">Gerar PDF</button>
+  <input type="file" id="fRestore" accept="application/json" hidden>
+</header>
+<div id="err"><span id="errMsg"></span><button class="btn sm" id="errCopy">Copiar</button><button class="btn sm" id="errClose">Fechar</button></div>
+<main>
+  <aside>
+    <h2>Fichas</h2>
+    <div class="row"><button class="btn sm primary" id="bNew">+ Nova</button><button class="btn sm" id="bDup">Duplicar</button><button class="btn sm danger" id="bDel">Excluir</button></div>
+    <div id="list"></div>
+  </aside>
+  <section class="editor" id="editor"></section>
+  <section class="preview"><div class="zoomwrap" id="zoom"><div id="pages"></div></div></section>
+</main>
+
+<script>
+(function(){
+'use strict';
+const KEY='guia-sigaa-editor-v1';
+const uid=()=>Math.random().toString(36).slice(2,9);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// negrito **x** e marcador [[a confirmar]]
+const fmt=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\[\[(.+?)\]\]/g,'<span class="mark">[[$1]]</span>');
+const $=id=>document.getElementById(id);
+
+const TIPOS={
+  titulo:{nome:'Título',novo:()=>({texto:'Título da ficha',secao:'Seção'})},
+  secao:{nome:'Seção',novo:()=>({texto:'Subtítulo'})},
+  caminho:{nome:'Caminho no SIGAA',novo:()=>({texto:'Menu > Item > Subitem'})},
+  passos:{nome:'Passos (Como fazer)',novo:()=>({rotulo:'COMO FAZER',itens:'Primeiro passo\nSegundo passo'})},
+  quadro:{nome:'Quadro',novo:()=>({variante:'atencao',texto:'Texto do quadro.'})},
+  texto:{nome:'Texto',novo:()=>({texto:'Escreva aqui. Use **negrito** e [[a confirmar]].'})},
+  imagem:{nome:'Imagem (print)',novo:()=>({src:'',legenda:'',fonte:'Fonte: SIGAA, 2026',largura:100,rotulo:'TELA DO SIGAA'})},
+  tabela:{nome:'Tabela',novo:()=>({csv:'Coluna A;Coluna B\nvalor 1;valor 2'})},
+  lista:{nome:'Lista',novo:()=>({itens:'Item um\nItem dois'})},
+  fluxo:{nome:'Etapas em fluxo',novo:()=>({itens:'Solicitar;Cadastrar\nAnalisar;Coordenação\nConcluir;Registro'})},
+  cartoes:{nome:'Cartões',novo:()=>({itens:'Título;Descrição curta\nOutro título;Outra descrição'})},
+  divisor:{nome:'Divisor',novo:()=>({})}
+};
+const QUADROS={atencao:'ATENÇÃO',observacao:'OBSERVAÇÃO',quando:'QUANDO USAR'};
+
+const padrao=()=>({
+  cfg:{sigla:'GUIA SIGAA',org:'DIOAC | PROEN | UFMA',rodape:'Guia SIGAA — Coordenação de Curso · DIOAC/PROEN/UFMA',ano:'2026',logo:''},
+  fichas:[novaFicha('Ficha de exemplo')],sel:null
+});
+function novaFicha(t){return{id:uid(),nome:t||'Nova ficha',blocos:[
+  mk('titulo',{texto:t||'Nova ficha',secao:'Seção'}),mk('caminho'),mk('passos'),mk('quadro'),mk('imagem')]}}
+function mk(tipo,over){return Object.assign({id:uid(),tipo,meia:false},TIPOS[tipo].novo(),over||{})}
+
+let S=carregar();
+if(!S.sel||!S.fichas.find(f=>f.id===S.sel)) S.sel=S.fichas[0]&&S.fichas[0].id;
+
+function carregar(){
+  try{const r=localStorage.getItem(KEY);if(r){const d=JSON.parse(r);if(d&&d.fichas)return d}}catch(e){}
+  return padrao();
+}
+let saveT;
+function salvar(){clearTimeout(saveT);saveT=setTimeout(()=>{
+  try{localStorage.setItem(KEY,JSON.stringify(S))}
+  catch(e){erro('Não foi possível gravar no navegador (provavelmente prints grandes demais). Faça o Backup agora. Detalhe: '+e.message)}
+},250)}
+function erro(m){$('errMsg').textContent=m;$('err').classList.add('on')}
+$('errClose').onclick=()=>$('err').classList.remove('on');
+$('errCopy').onclick=()=>navigator.clipboard&&navigator.clipboard.writeText($('errMsg').textContent);
+window.addEventListener('error',e=>erro('Erro: '+e.message));
+
+const ficha=()=>S.fichas.find(f=>f.id===S.sel);
+
+// ===== Lista de fichas =====
+function renderLista(){
+  const L=$('list');L.innerHTML='';
+  S.fichas.forEach((f,i)=>{
+    const d=document.createElement('div');d.className='ficha-item'+(f.id===S.sel?' on':'');
+    d.innerHTML=`<span class="n">${String(i+1).padStart(2,'0')}</span><span class="t">${esc(f.nome)}</span><span class="mv"><button data-a="up">↑</button><button data-a="dn">↓</button></span>`;
+    d.onclick=e=>{
+      const a=e.target.dataset&&e.target.dataset.a;
+      if(a){mover(S.fichas,i,a==='up'?-1:1);S.sel=f.id}else S.sel=f.id;
+      salvar();renderTudo();
+    };
+    L.appendChild(d);
+  });
+}
+function mover(arr,i,d){const j=i+d;if(j<0||j>=arr.length)return;[arr[i],arr[j]]=[arr[j],arr[i]]}
+$('bNew').onclick=()=>{const f=novaFicha();S.fichas.push(f);S.sel=f.id;salvar();renderTudo()};
+$('bDup').onclick=()=>{const f=ficha();if(!f)return;const c=JSON.parse(JSON.stringify(f));c.id=uid();c.nome+=' (cópia)';c.blocos.forEach(b=>b.id=uid());
+  S.fichas.splice(S.fichas.indexOf(f)+1,0,c);S.sel=c.id;salvar();renderTudo()};
+$('bDel').onclick=()=>{const f=ficha();if(!f||!confirm('Excluir a ficha "'+f.nome+'"?'))return;
+  const i=S.fichas.indexOf(f);S.fichas.splice(i,1);S.sel=(S.fichas[Math.max(0,i-1)]||{}).id;salvar();renderTudo()};
+
+// ===== Editor =====
+function campo(b,k,rotulo,tipo){
+  const w=document.createElement('label');w.className='field';w.append(rotulo);
+  const el=document.createElement(tipo==='area'?'textarea':'input');
+  if(tipo==='num'){el.type='number';el.min=20;el.max=100}
+  el.value=b[k];
+  el.oninput=()=>{b[k]=tipo==='num'?Number(el.value):el.value;salvar();renderPreview()};
+  w.append(el);return w;
+}
+function renderEditor(){
+  const E=$('editor'),f=ficha();E.innerHTML='';
+  if(!f){E.innerHTML='<div class="empty">Crie uma ficha para começar.</div>';return}
+  const h=document.createElement('h2');h.textContent='Editando ficha';E.append(h);
+  const nome=document.createElement('label');nome.className='field';nome.append('Nome da ficha (aparece no índice)');
+  const ni=document.createElement('input');ni.value=f.nome;ni.oninput=()=>{f.nome=ni.value;salvar();renderLista()};nome.append(ni);E.append(nome);
+
+  f.blocos.forEach((b,i)=>{
+    const d=document.createElement('div');d.className='blk';
+    const bh=document.createElement('div');bh.className='bh';
+    bh.innerHTML=`<span>${TIPOS[b.tipo].nome}</span><span class="sp"></span>`;
+    const lm=document.createElement('label');const cm=document.createElement('input');cm.type='checkbox';cm.checked=b.meia;
+    cm.onchange=()=>{b.meia=cm.checked;salvar();renderPreview()};lm.append(cm,'meia largura');bh.append(lm);
+    [['↑',()=>mover(f.blocos,i,-1)],['↓',()=>mover(f.blocos,i,1)],['✕',()=>f.blocos.splice(i,1)]].forEach(([t,fn])=>{
+      const x=document.createElement('button');x.className='btn sm';x.textContent=t;x.onclick=()=>{fn();salvar();renderEditor();renderPreview()};bh.append(x)});
+    d.append(bh);
+    switch(b.tipo){
+      case 'titulo':d.append(campo(b,'secao','Nome da seção'),campo(b,'texto','Título'));break;
+      case 'secao':case 'caminho':d.append(campo(b,'texto',b.tipo==='caminho'?'Caminho (separe com >)':'Texto'));break;
+      case 'passos':d.append(campo(b,'rotulo','Rótulo'),campo(b,'itens','Um passo por linha','area'));break;
+      case 'quadro':{const w=document.createElement('label');w.className='field';w.append('Tipo');
+        const s=document.createElement('select');Object.entries(QUADROS).forEach(([v,t])=>s.add(new Option(t,v)));s.value=b.variante;
+        s.onchange=()=>{b.variante=s.value;salvar();renderPreview()};w.append(s);d.append(w,campo(b,'texto','Texto','area'));break}
+      case 'texto':d.append(campo(b,'texto','Texto','area'));break;
+      case 'imagem':{
+        const bt=document.createElement('div');bt.className='row';
+        const up=document.createElement('input');up.type='file';up.accept='image/*';up.hidden=true;
+        up.onchange=()=>lerImg(up.files[0],b);
+        const bu=document.createElement('button');bu.className='btn sm';bu.textContent=b.src?'Trocar imagem':'Enviar imagem';bu.onclick=()=>up.click();
+        const hp=document.createElement('span');hp.className='hint';hp.textContent='ou cole com Ctrl+V (Win+Shift+S) com este bloco selecionado';
+        bt.append(bu,up,hp);d.append(bt);
+        d.addEventListener('paste',e=>{const it=[...(e.clipboardData||{}).items||[]].find(x=>x.type.startsWith('image/'));if(it){e.preventDefault();lerImg(it.getAsFile(),b)}});
+        d.tabIndex=0;
+        d.append(campo(b,'rotulo','Rótulo'),campo(b,'legenda','Legenda'),campo(b,'fonte','Fonte'),campo(b,'largura','Largura (%)','num'));break}
+      case 'tabela':d.append(campo(b,'csv','Uma linha por linha; colunas separadas por ; (1ª linha = cabeçalho)','area'));break;
+      case 'lista':d.append(campo(b,'itens','Um item por linha','area'));break;
+      case 'fluxo':d.append(campo(b,'itens','Uma etapa por linha: título;descrição','area'));break;
+      case 'cartoes':d.append(campo(b,'itens','Um cartão por linha: título;descrição','area'));break;
+    }
+    E.append(d);
+  });
+  const add=document.createElement('div');add.className='row';
+  const s=document.createElement('select');s.className='btn';Object.entries(TIPOS).forEach(([v,t])=>s.add(new Option(t.nome,v)));
+  const ba=document.createElement('button');ba.className='btn primary';ba.textContent='+ Adicionar bloco';
+  ba.onclick=()=>{f.blocos.push(mk(s.value));salvar();renderEditor();renderPreview()};
+  add.append(s,ba);E.append(add);
+}
+function lerImg(file,b){
+  if(!file)return;const r=new FileReader();
+  r.onload=()=>{b.src=r.result;salvar();renderEditor();renderPreview()};
+  r.onerror=()=>erro('Falha ao ler a imagem.');r.readAsDataURL(file);
+}
+
+// ===== Prévia / PDF =====
+const linhas=s=>String(s||'').split('\n').map(x=>x.trim()).filter(Boolean);
+function bloco(b){
+  const c=b.meia?' half':'';
+  switch(b.tipo){
+    case 'titulo':return `<h1 class="b-titulo${c}"><small>${esc(b.secao)}</small>${fmt(b.texto)}</h1>`;
+    case 'secao':return `<h2 class="b-secao${c}">${fmt(b.texto)}</h2>`;
+    case 'caminho':return `<div class="b-caminho${c}"><div class="lb">CAMINHO NO SIGAA</div><div class="tr">${b.texto.split('>').map(x=>esc(x.trim())).join('<i>›</i>')}</div></div>`;
+    case 'passos':return `<div class="b-passos${c}"><div class="lb">${esc(b.rotulo)}</div><ol>${linhas(b.itens).map(x=>`<li><span>${fmt(x)}</span></li>`).join('')}</ol></div>`;
+    case 'quadro':return `<div class="b-quadro ${b.variante}${c}"><div class="lb">${QUADROS[b.variante]}</div>${fmt(b.texto)}</div>`;
+    case 'texto':return `<div class="b-txt${c}">${fmt(b.texto)}</div>`;
+    case 'imagem':return `<figure class="b-img${c}"><div class="tag">${esc(b.rotulo)}</div>${b.src?`<img src="${b.src}" style="width:${b.largura||100}%">`:'<div class="ph">[ imagem não enviada ]</div>'}${(b.legenda||b.fonte)?`<figcaption>${esc([b.legenda,b.fonte].filter(Boolean).join(' — '))}</figcaption>`:''}</figure>`;
+    case 'tabela':{const r=linhas(b.csv).map(l=>l.split(';'));if(!r.length)return '';
+      return `<div class="b-tab${c}"><table><tr>${r[0].map(x=>`<th>${fmt(x)}</th>`).join('')}</tr>${r.slice(1).map(l=>`<tr>${l.map(x=>`<td>${fmt(x)}</td>`).join('')}</tr>`).join('')}</table></div>`}
+    case 'lista':return `<div class="b-lista${c}"><ul>${linhas(b.itens).map(x=>`<li>${fmt(x)}</li>`).join('')}</ul></div>`;
+    case 'fluxo':return `<div class="b-flux${c}"><div class="steps">${linhas(b.itens).map((x,i)=>{const [t,d]=x.split(';');return `<div class="st"><b>${i+1}. ${esc(t)}</b>${fmt(d||'')}</div>`}).join('')}</div></div>`;
+    case 'cartoes':return `<div class="b-cards${c}">${linhas(b.itens).map(x=>{const [t,d]=x.split(';');return `<div class="cd"><b>${esc(t)}</b>${fmt(d||'')}</div>`}).join('')}</div>`;
+    case 'divisor':return '<hr class="b-div">';
+  }
+  return '';
+}
+function renderPreview(){
+  const c=S.cfg,tot=S.fichas.length;
+  $('pages').innerHTML=S.fichas.map((f,i)=>`<div class="page" style="margin-bottom:16px">
+    <div class="p-top"><div class="org">${esc(c.sigla)}<small>${esc(c.org)}</small></div>${c.logo?`<img class="logo" src="${c.logo}">`:''}<div class="p-seal">${String(i+1).padStart(2,'0')}</div></div>
+    <div class="p-body">${f.blocos.map(bloco).join('')}</div>
+    <div class="p-foot"><span>${esc(c.rodape)}</span><span>${esc(c.ano)} · ${i+1}/${tot}</span></div></div>`).join('');
+  escala();
+}
+function escala(){
+  const pv=document.querySelector('section.preview');if(!pv||getComputedStyle(pv).display==='none')return;
+  const w=pv.clientWidth-32,pw=794,k=Math.min(1,w/pw);
+  $('zoom').style.transform=`scale(${k})`;$('zoom').style.width=pw+'px';
+  $('zoom').style.marginBottom=(-(1-k)*$('pages').offsetHeight)+'px';
+}
+window.addEventListener('resize',escala);
+$('bPdf').onclick=()=>{renderPreview();alert('Na janela de impressão escolha "Salvar como PDF", papel A4, margens "Nenhuma" e marque "Gráficos de segundo plano".');window.print()};
+
+// ===== Ajustes / backup =====
+$('bSet').onclick=()=>{
+  const c=S.cfg;const v=(k,t)=>{const n=prompt(t,c[k]);if(n!==null)c[k]=n};
+  v('sigla','Título da faixa de topo');v('org','Instituição (linha pequena)');v('rodape','Texto do rodapé');v('ano','Ano');
+  if(confirm('Trocar a logo? (OK escolhe um arquivo; Cancelar mantém a atual)')){
+    const i=document.createElement('input');i.type='file';i.accept='image/*';
+    i.onchange=()=>{const r=new FileReader();r.onload=()=>{c.logo=r.result;salvar();renderPreview()};r.readAsDataURL(i.files[0])};i.click();
+  }
+  salvar();renderPreview();
+};
+$('bBackup').onclick=()=>{
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:'application/json'}));
+  a.download='guia-sigaa-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();
+};
+$('bRestore').onclick=()=>$('fRestore').click();
+$('fRestore').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.fichas)throw new Error('arquivo não é um backup do guia');
+    if(!confirm('Substituir o guia atual pelo backup? (Faça um backup do atual antes, se precisar.)'))return;
+    S=d;S.sel=(S.fichas[0]||{}).id;salvar();renderTudo()}catch(x){erro('Falha ao restaurar: '+x.message)}};
+  r.readAsText(f);e.target.value='';
+};
+
+function renderTudo(){renderLista();renderEditor();renderPreview()}
+renderTudo();
+})();
+</script>
+</body>
+</html>
