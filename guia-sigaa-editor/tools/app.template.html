@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor do Guia SIGAA</title>
+<style>
+:root{
+  /* Cores medidas no PPTX do guia */
+  --vinho:#7A1238; --vinho-esc:#5E0E2B; --vinho-claro:#B33A4B; --dourado:#DDA544; --teal:#12A3A6;
+  --bege:#F4F1EB; --bege-borda:#DDD8CF; --rosa:#F8E9EC; --teal-claro:#E9F6F6; --creme:#FFF8EC;
+  --texto:#1A1A1A; --cinza:#6B6B6B; --linha:#E2DACD; --fundo:#FBF9F7; --err:#B42318;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;color:var(--texto);background:var(--fundo);height:100vh;display:flex;flex-direction:column}
+button,input,select,textarea{font:inherit;color:inherit}
+header.top{background:var(--vinho);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:3px solid var(--dourado)}
+header.top .brand{font-size:11px;letter-spacing:.14em;font-weight:700;opacity:.9}
+header.top h1{font-size:18px;margin:0}
+header.top .sp{flex:1}
+.btn{background:#fff;color:var(--vinho);border:1px solid var(--vinho);border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:700;font-size:13px}
+.btn:hover{background:var(--rosa)}
+.btn.primary{background:var(--vinho);color:#fff}
+.btn.primary:hover{background:var(--vinho-esc)}
+header.top .btn{border-color:#fff}
+header.top .btn.primary{background:var(--dourado);color:var(--vinho-esc);border-color:var(--dourado)}
+.btn.sm{padding:3px 8px;font-size:12px}
+.btn.danger{color:var(--err);border-color:var(--err)}
+#err{display:none;background:var(--err);color:#fff;padding:8px 16px;font-size:13px;align-items:center;gap:12px}
+#err.on{display:flex}
+#err span{flex:1}
+main{flex:1;display:grid;grid-template-columns:260px minmax(340px,1fr) minmax(420px,860px);min-height:0}
+aside,section.editor,section.preview{overflow:auto;min-height:0}
+aside{background:#fff;border-right:1px solid var(--linha);padding:12px}
+aside h2,section.editor h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--vinho);margin:0 0 8px}
+.ficha-item{display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid transparent;border-radius:6px;cursor:pointer;font-size:13px}
+.ficha-item:hover{background:var(--bege)}
+.ficha-item.on{background:var(--rosa);border-color:var(--vinho)}
+.ficha-item .n{background:var(--vinho);color:#fff;border-radius:4px;min-width:24px;text-align:center;font-size:11px;padding:2px 0;font-weight:700}
+.ficha-item .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ficha-item .mv{display:none;gap:2px}
+.ficha-item:hover .mv,.ficha-item.on .mv{display:flex}
+.mv button{border:1px solid var(--linha);background:#fff;border-radius:4px;cursor:pointer;font-size:11px;padding:0 4px;color:var(--vinho)}
+section.editor{padding:14px;border-right:1px solid var(--linha)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
+.field{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--cinza);margin-bottom:8px}
+.field input,.field textarea,.field select{border:1px solid var(--linha);border-radius:6px;padding:6px 8px;background:#fff;color:var(--texto);font-size:13px}
+.field textarea{min-height:70px;resize:vertical}
+.field input:focus,.field textarea:focus,.field select:focus{outline:2px solid var(--dourado);border-color:var(--vinho)}
+.blk{border:1px solid var(--linha);border-left:4px solid var(--vinho);border-radius:8px;background:#fff;padding:10px;margin-bottom:10px}
+.blk .bh{display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;font-weight:700;color:var(--vinho);text-transform:uppercase;letter-spacing:.06em}
+.blk .bh .sp{flex:1}
+.blk .bh label{font-weight:400;text-transform:none;letter-spacing:0;color:var(--cinza);display:flex;gap:4px;align-items:center}
+.hint{font-size:12px;color:var(--cinza)}
+.thumb{max-height:60px;border:1px solid var(--linha);border-radius:4px}
+.empty{color:var(--cinza);padding:24px;text-align:center;border:1px dashed var(--linha);border-radius:8px}
+section.preview{background:#ece6df;padding:16px;display:flex;flex-direction:column;align-items:center}
+.zoomwrap{transform-origin:top center}
+
+/* ===== Folha A4 (prévia e PDF) ===== */
+.page{width:210mm;height:297mm;background:#fff;position:relative;overflow:hidden;font-size:10pt;line-height:1.35;color:var(--texto);box-shadow:0 2px 12px rgba(94,14,43,.3);margin-bottom:16px}
+.st{position:absolute;left:0;height:2mm}
+.st.a{top:0;width:100%;background:var(--dourado)}
+.st.b{top:2mm;width:67%;background:var(--vinho)}
+.st.c{top:4mm;width:56%;background:var(--teal)}
+.p-guia{position:absolute;left:13mm;top:9.5mm;font-size:8.5pt;font-weight:700;color:var(--cinza);letter-spacing:.04em}
+.p-logo{position:absolute;right:12mm;top:8mm;height:17mm}
+.p-body{position:absolute;left:13mm;right:13mm;top:20mm;bottom:12mm;overflow:hidden}
+.fit{display:grid;grid-template-columns:1fr 1fr;gap:0 5mm;align-content:start;align-items:start;transform-origin:0 0}
+.fit>*{grid-column:1/3;min-width:0}
+.fit>.half{grid-column:auto}
+.p-foot{position:absolute;left:0;right:0;bottom:0;height:8.5mm;background:var(--vinho-esc);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 13mm;font-size:9pt;font-weight:700}
+.p-foot .num{color:var(--dourado)}
+.b-titulo{margin:0 0 1mm}
+.b-titulo .sc{font-size:10pt;font-weight:700;color:var(--vinho);text-transform:uppercase;letter-spacing:.02em;margin-bottom:3mm}
+.b-titulo h1{margin:0;font-size:24pt;line-height:1.12;font-weight:700;color:var(--texto)}
+.b-secao{font-size:8.5pt;font-weight:700;color:var(--cinza);text-transform:uppercase;margin-top:1mm}
+.b-caminho{background:var(--bege);border:.3mm solid var(--bege-borda);border-radius:2.5mm;box-shadow:0 .6mm 1.2mm rgba(0,0,0,.18);padding:3mm 5mm;display:flex;gap:6mm;align-items:center}
+.b-caminho .lb{font-size:7.5pt;font-weight:700;letter-spacing:.08em;color:var(--cinza);white-space:nowrap}
+.b-caminho .tr{font-weight:700;color:var(--vinho);font-size:10.5pt;line-height:1.6}
+.b-caminho .tr i{font-style:normal;margin:0 1.5mm;font-weight:400}
+.b-passos .lb{font-size:8.5pt;font-weight:700;color:var(--cinza);letter-spacing:.04em;margin-bottom:2mm}
+.b-passos .grid{display:grid;gap:3.5mm 5mm;align-items:start}
+.b-passos .ps{display:flex;gap:3mm}
+.b-passos .ps .nn{flex:none;width:8mm;height:8mm;border-radius:50%;background:var(--vinho);color:#fff;font-weight:700;font-size:10pt;display:flex;align-items:center;justify-content:center}
+.b-passos .ps .tt{font-weight:700;font-size:11pt}
+.b-passos .ps .dd{color:var(--cinza);font-size:10pt;margin-top:.8mm;white-space:pre-line}
+.b-quadro{border-radius:2mm;padding:3mm 4mm 3mm 5.5mm;position:relative;box-shadow:0 .5mm 1mm rgba(0,0,0,.14);background:var(--bege)}
+.b-quadro:before{content:"";position:absolute;left:0;top:0;bottom:0;width:1.6mm;border-radius:2mm 0 0 2mm;background:var(--vinho)}
+.b-quadro .lb{font-size:8pt;font-weight:700;letter-spacing:.06em;margin-bottom:1mm;color:var(--vinho);text-transform:uppercase}
+.b-quadro .tx{white-space:pre-line;font-size:10pt}
+.b-quadro.atencao{background:var(--rosa)}
+.b-quadro.atencao:before{background:var(--vinho-claro)}
+.b-quadro.atencao .lb{color:var(--vinho-claro)}
+.b-quadro.observacao{background:var(--creme)}
+.b-quadro.observacao:before{background:var(--dourado)}
+.b-quadro.regulamentacao{background:var(--teal-claro)}
+.b-quadro.regulamentacao:before{background:var(--teal)}
+.b-quadro.regulamentacao .lb{color:#0b7476}
+.b-cards{display:grid;gap:3.5mm}
+.b-cards .cd{background:#fff;border-radius:2mm;box-shadow:0 .5mm 1.4mm rgba(0,0,0,.25);padding:3mm 3mm 3mm 5mm;position:relative;min-width:0}
+.b-cards .cd:before{content:"";position:absolute;left:0;top:0;bottom:0;width:1.6mm;border-radius:2mm 0 0 2mm;background:var(--c)}
+.b-cards .cd b{display:block;font-size:9.5pt;margin-bottom:2mm}
+.b-cards .cd span{display:block;color:var(--cinza);font-size:9.5pt;white-space:pre-line}
+.b-cards .cd:nth-child(4n+1){--c:var(--teal)}
+.b-cards .cd:nth-child(4n+2){--c:var(--vinho)}
+.b-cards .cd:nth-child(4n+3){--c:var(--vinho-claro)}
+.b-cards .cd:nth-child(4n){--c:var(--dourado)}
+.b-cards.topo .cd{padding:4.5mm 3mm 3mm 4mm}
+.b-cards.topo .cd:before{left:0;right:0;top:0;bottom:auto;height:1.6mm;width:auto;border-radius:2mm 2mm 0 0}
+.b-cards.topo .cd:nth-child(6n+1){--c:var(--vinho)}
+.b-cards.topo .cd:nth-child(6n+2){--c:var(--teal)}
+.b-cards.topo .cd:nth-child(6n+3){--c:var(--dourado)}
+.b-cards.topo .cd:nth-child(6n+4){--c:#2F7D5C}
+.b-cards.topo .cd:nth-child(6n+5){--c:var(--vinho-claro)}
+.b-cards.topo .cd:nth-child(6n){--c:var(--cinza)}
+.b-cards.topo .cd b{color:var(--vinho)}
+.b-cards .cd ul{margin:0;padding-left:4mm;color:var(--texto)}
+.b-cards .cd li{font-size:9.5pt}
+.b-fluxo .cd:before{display:none}
+.b-fluxo .cd{border:.3mm solid var(--bege-borda);padding:3mm}
+.b-fluxo .cd:not(:last-child):after{content:">";position:absolute;right:-4.2mm;top:50%;transform:translateY(-50%);color:var(--dourado);font-weight:700;font-size:13pt}
+.b-img{margin:0}
+.b-img .tag{font-size:8pt;font-weight:700;color:var(--cinza);letter-spacing:.04em;margin-bottom:1.5mm}
+.b-img .ph{background:var(--bege);border:.3mm dashed var(--cinza);color:var(--cinza);padding:14mm 0;font-size:9pt;text-align:center}
+.b-img img{display:block;margin:0 auto;max-width:100%}
+.b-img figcaption{font-size:9pt;color:var(--cinza);margin-top:1.5mm}
+.b-tab table{width:100%;border-collapse:collapse;font-size:9.5pt}
+.b-tab th{background:var(--vinho);color:#fff;text-align:left;padding:2mm 3mm;font-weight:700}
+.b-tab td{padding:2mm 3mm;border-bottom:.3mm solid var(--bege-borda)}
+.b-tab tr:nth-child(even) td{background:var(--bege)}
+.b-lista ul{margin:0;padding-left:5mm}
+.b-div{border:0;border-top:.3mm solid var(--bege-borda);margin:0;width:100%}
+.mark{background:#fff3b0;padding:0 .6mm;border-radius:.6mm}
+.b-txt{white-space:pre-line;font-size:10pt}
+/* capa */
+.page.capa{background:var(--vinho);color:#fff}
+.capa .lg{position:absolute;left:55mm;top:20mm;width:98mm}
+.capa h1{position:absolute;left:0;right:0;top:118mm;margin:0;text-align:center;font-size:32pt;font-weight:700}
+.capa .pl{position:absolute;left:49mm;width:112mm;top:139mm;height:11mm;border-radius:6mm;background:var(--dourado);color:var(--vinho-esc);font-weight:700;font-size:14pt;display:flex;align-items:center;justify-content:center;text-align:center}
+.capa .sb{position:absolute;left:0;right:0;top:157mm;text-align:center;font-size:18pt;padding:0 12mm}
+.capa .rd{position:absolute;left:0;right:0;bottom:12mm;text-align:center;font-size:9pt;font-weight:700;white-space:pre-line}
+
+@media print{
+  @page{size:A4 portrait;margin:0}
+  html,body{background:#fff;height:auto;display:block}
+  header.top,#err,aside,section.editor{display:none!important}
+  main{display:block;height:auto!important}
+  section.preview{background:#fff;padding:0;display:block!important;overflow:visible!important;height:auto!important}
+  .zoomwrap{transform:none!important;width:auto!important;margin:0!important}
+  .page{box-shadow:none;break-after:page;page-break-after:always;margin:0!important}
+  .page:last-child{break-after:auto;page-break-after:auto}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+@media screen and (max-width:1100px){main{grid-template-columns:200px 1fr}section.preview{display:none}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div><div class="brand">DIOAC | PROEN | UFMA</div><h1>Editor do Guia SIGAA</h1></div>
+  <div class="sp"></div>
+  <button class="btn" id="bOrig">Guia original</button>
+  <button class="btn" id="bBackup">Backup</button>
+  <button class="btn" id="bRestore">Restaurar</button>
+  <button class="btn" id="bSet">Ajustes</button>
+  <button class="btn primary" id="bPdf">Gerar PDF</button>
+  <input type="file" id="fRestore" accept="application/json" hidden>
+</header>
+<div id="err"><span id="errMsg"></span><button class="btn sm" id="errCopy">Copiar</button><button class="btn sm" id="errClose">Fechar</button></div>
+<main>
+  <aside>
+    <h2>Fichas</h2>
+    <div class="row"><button class="btn sm primary" id="bNew">+ Nova</button><button class="btn sm" id="bDup">Duplicar</button><button class="btn sm danger" id="bDel">Excluir</button></div>
+    <div id="list"></div>
+  </aside>
+  <section class="editor" id="editor"></section>
+  <section class="preview"><div class="zoomwrap" id="zoom"><div id="pages"></div></div></section>
+</main>
+<script type="application/json" id="seed">/*__SEED__*/</script>
+<script>
+(function(){
+'use strict';
+const KEY='guia-sigaa-editor-v2';
+const uid=()=>Math.random().toString(36).slice(2,9);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\[\[(.+?)\]\]/g,'<span class="mark">[[$1]]</span>');
+const $=id=>document.getElementById(id);
+const clone=o=>JSON.parse(JSON.stringify(o));
+
+let SEED={fichas:[],images:{}};
+try{SEED=JSON.parse($('seed').textContent)}catch(e){}
+const imgSrc=s=>!s?'':(s.indexOf('seed:')===0?(SEED.images[s.slice(5)]||''):s);
+
+const TIPOS={
+  titulo:{nome:'Título',novo:()=>({texto:'Título da ficha',secao:'SEÇÃO'})},
+  secao:{nome:'Subtítulo',novo:()=>({texto:'SUBTÍTULO'})},
+  caminho:{nome:'Caminho no SIGAA',novo:()=>({texto:'Menu → Item → Subitem'})},
+  passos:{nome:'Passos (como fazer)',novo:()=>({rotulo:'COMO FAZER',itens:'Primeiro passo\nDetalhe do primeiro passo\n\nSegundo passo\nDetalhe do segundo passo',inicio:1,colunas:1})},
+  quadro:{nome:'Quadro',novo:()=>({variante:'atencao',rotulo:'',texto:'Texto do quadro.'})},
+  texto:{nome:'Texto',novo:()=>({texto:'Escreva aqui. Use **negrito** e [[a confirmar]].'})},
+  imagem:{nome:'Imagem (print)',novo:()=>({src:'',legenda:'',fonte:'Fonte: SIGAA, 2026',largura:100,rotulo:'TELA DO SIGAA'})},
+  tabela:{nome:'Tabela',novo:()=>({csv:'Coluna A;Coluna B\nvalor 1;valor 2'})},
+  lista:{nome:'Lista',novo:()=>({itens:'Item um\nItem dois'})},
+  fluxo:{nome:'Etapas em fluxo',novo:()=>({itens:'01  ETAPA\nDescrição da etapa\n\n02  ETAPA\nDescrição da etapa',colunas:2})},
+  cartoes:{nome:'Cartões',novo:()=>({itens:'TÍTULO\nDescrição\n\nOUTRO TÍTULO\nOutra descrição',colunas:2})},
+  divisor:{nome:'Divisor',novo:()=>({})}
+};
+const QUADROS={atencao:'Atenção',observacao:'Observação',quando:'Quando usar',regulamentacao:'Regulamentação'};
+const mk=(tipo,over)=>Object.assign({id:uid(),tipo,meia:false},TIPOS[tipo].novo(),over||{});
+const novaFicha=t=>({id:uid(),tipo:'ficha',nome:t||'Nova ficha',blocos:[mk('titulo',{texto:t||'Nova ficha',secao:'SEÇÃO'}),mk('caminho'),mk('passos'),mk('quadro'),mk('imagem')]});
+const padrao=()=>({cfg:{rodape:'DIOAC | PROEN | UFMA',guia:'GUIA SIGAA'},fichas:SEED.fichas.length?clone(SEED.fichas):[novaFicha('Ficha de exemplo')],sel:null});
+
+let S=carregar();
+if(!S.sel||!S.fichas.find(f=>f.id===S.sel))S.sel=S.fichas[0]&&S.fichas[0].id;
+function carregar(){try{const r=localStorage.getItem(KEY);if(r){const d=JSON.parse(r);if(d&&d.fichas)return d}}catch(e){}return padrao()}
+let saveT;
+function salvar(){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){erro('Não foi possível gravar no navegador (provavelmente prints grandes demais). Faça o Backup agora. Detalhe: '+e.message)}},250)}
+function erro(m){$('errMsg').textContent=m;$('err').classList.add('on')}
+$('errClose').onclick=()=>$('err').classList.remove('on');
+$('errCopy').onclick=()=>{try{navigator.clipboard.writeText($('errMsg').textContent)}catch(e){}};
+window.addEventListener('error',e=>erro('Erro: '+e.message));
+const ficha=()=>S.fichas.find(f=>f.id===S.sel);
+
+function renderLista(){
+  const L=$('list');L.innerHTML='';
+  S.fichas.forEach((f,i)=>{
+    const d=document.createElement('div');d.className='ficha-item'+(f.id===S.sel?' on':'');
+    d.innerHTML='<span class="n">'+(f.tipo==='capa'?'CP':String(i).padStart(2,'0'))+'</span><span class="t">'+esc(f.nome)+'</span><span class="mv"><button data-a="up">↑</button><button data-a="dn">↓</button></span>';
+    d.onclick=e=>{const a=e.target.dataset&&e.target.dataset.a;if(a){mover(S.fichas,i,a==='up'?-1:1)}S.sel=f.id;salvar();renderTudo()};
+    L.appendChild(d);
+  });
+}
+function mover(arr,i,d){const j=i+d;if(j<0||j>=arr.length)return;const t=arr[i];arr[i]=arr[j];arr[j]=t}
+$('bNew').onclick=()=>{const f=novaFicha();S.fichas.push(f);S.sel=f.id;salvar();renderTudo()};
+$('bDup').onclick=()=>{const f=ficha();if(!f)return;const c=clone(f);c.id=uid();c.nome+=' (cópia)';(c.blocos||[]).forEach(b=>b.id=uid());S.fichas.splice(S.fichas.indexOf(f)+1,0,c);S.sel=c.id;salvar();renderTudo()};
+$('bDel').onclick=()=>{const f=ficha();if(!f||!confirm('Excluir a ficha "'+f.nome+'"?'))return;const i=S.fichas.indexOf(f);S.fichas.splice(i,1);S.sel=(S.fichas[Math.max(0,i-1)]||{}).id;salvar();renderTudo()};
+
+function campo(obj,k,rotulo,tipo,after){
+  const w=document.createElement('label');w.className='field';w.append(rotulo);
+  const el=document.createElement(tipo==='area'?'textarea':(tipo==='sel'?'select':'input'));
+  if(tipo==='num'){el.type='number';el.min=1;el.max=100}
+  if(tipo==='sel'){after.forEach(o=>el.add(new Option(o[1],o[0])))}
+  if(tipo==='area'&&obj[k]&&obj[k].length>240)el.style.minHeight='140px';
+  el.value=obj[k]==null?'':obj[k];
+  const h=()=>{obj[k]=tipo==='num'?Number(el.value):el.value;salvar();renderPreview()};
+  el.oninput=h;el.onchange=h;w.append(el);return w;
+}
+function dica(t){const p=document.createElement('div');p.className='hint';p.style.marginBottom='8px';p.textContent=t;return p}
+function renderEditor(){
+  const E=$('editor'),f=ficha();E.innerHTML='';
+  if(!f){E.innerHTML='<div class="empty">Crie uma ficha para começar.</div>';return}
+  const h=document.createElement('h2');h.textContent='Editando ficha';E.append(h);
+  const nome=document.createElement('label');nome.className='field';nome.append('Nome da ficha (aparece no índice)');
+  const ni=document.createElement('input');ni.value=f.nome;ni.oninput=()=>{f.nome=ni.value;salvar();renderLista()};nome.append(ni);E.append(nome);
+  if(f.tipo==='capa'){
+    const c=f.capa;
+    E.append(campo(c,'titulo','Título'),campo(c,'pilula','Faixa dourada'),campo(c,'sub','Subtítulo'),campo(c,'rodape','Rodapé','area'));
+    return;
+  }
+  f.blocos.forEach((b,i)=>{
+    const d=document.createElement('div');d.className='blk';
+    const bh=document.createElement('div');bh.className='bh';
+    bh.innerHTML='<span>'+TIPOS[b.tipo].nome+'</span><span class="sp"></span>';
+    const lm=document.createElement('label');const cm=document.createElement('input');cm.type='checkbox';cm.checked=!!b.meia;
+    cm.onchange=()=>{b.meia=cm.checked;salvar();renderPreview()};lm.append(cm,'meia largura');bh.append(lm);
+    [['↑',()=>mover(f.blocos,i,-1)],['↓',()=>mover(f.blocos,i,1)],['✕',()=>f.blocos.splice(i,1)]].forEach(([t,fn])=>{
+      const x=document.createElement('button');x.className='btn sm';x.textContent=t;x.onclick=()=>{fn();salvar();renderEditor();renderPreview()};bh.append(x)});
+    d.append(bh);
+    switch(b.tipo){
+      case 'titulo':d.append(campo(b,'secao','Nome da seção (acima do título)'),campo(b,'texto','Título'));break;
+      case 'secao':d.append(campo(b,'texto','Texto'));break;
+      case 'caminho':d.append(campo(b,'texto','Caminho: use → entre os itens; uma linha por caminho','area'));break;
+      case 'passos':d.append(dica('Separe os passos com uma linha em branco. A 1ª linha é o título; as seguintes, o detalhe.'),campo(b,'rotulo','Rótulo (deixe vazio para ocultar)'),campo(b,'itens','Passos','area'),campo(b,'inicio','Número do primeiro passo','num'),campo(b,'colunas','Colunas (1 a 3)','num'));break;
+      case 'quadro':d.append(campo(b,'variante','Estilo','sel',Object.entries(QUADROS)),campo(b,'rotulo','Título do quadro (vazio = usa o estilo)'),campo(b,'texto','Texto','area'));break;
+      case 'texto':d.append(campo(b,'texto','Texto','area'));break;
+      case 'imagem':{
+        const bt=document.createElement('div');bt.className='row';
+        const up=document.createElement('input');up.type='file';up.accept='image/*';up.hidden=true;up.onchange=()=>lerImg(up.files[0],b);
+        const bu=document.createElement('button');bu.className='btn sm';bu.textContent=b.src?'Trocar imagem':'Enviar imagem';bu.onclick=()=>up.click();
+        bt.append(bu,up);
+        const t=imgSrc(b.src);if(t){const im=document.createElement('img');im.className='thumb';im.src=t;bt.append(im)}
+        const hp=document.createElement('span');hp.className='hint';hp.textContent='ou clique neste bloco e cole com Ctrl+V';bt.append(hp);
+        d.append(bt);
+        d.addEventListener('paste',e=>{const it=[...((e.clipboardData||{}).items||[])].find(x=>x.type.indexOf('image/')===0);if(it){e.preventDefault();lerImg(it.getAsFile(),b)}});
+        d.tabIndex=0;
+        d.append(campo(b,'rotulo','Rótulo (vazio = oculto)'),campo(b,'legenda','Legenda'),campo(b,'fonte','Fonte'),campo(b,'largura','Largura (%)','num'));break}
+      case 'tabela':d.append(campo(b,'csv','Uma linha por linha; colunas separadas por ; (1ª linha = cabeçalho)','area'));break;
+      case 'lista':d.append(campo(b,'itens','Um item por linha','area'));break;
+      case 'fluxo':case 'cartoes':d.append(dica('Separe os cartões com uma linha em branco. A 1ª linha é o título; as seguintes, a descrição.'),campo(b,'itens','Cartões','area'),campo(b,'colunas','Colunas (1 a 4)','num'),campo(b,'estilo','Faixa colorida','sel',[['','Na lateral'],['topo','No topo']]),campo(b,'bullets','Descrição como lista','sel',[['',  'Não'],['sim','Sim']]));break;
+    }
+    E.append(d);
+  });
+  const add=document.createElement('div');add.className='row';
+  const s=document.createElement('select');s.className='btn';Object.entries(TIPOS).forEach(([v,t])=>s.add(new Option(t.nome,v)));
+  const ba=document.createElement('button');ba.className='btn primary';ba.textContent='+ Adicionar bloco';
+  ba.onclick=()=>{f.blocos.push(mk(s.value));salvar();renderEditor();renderPreview()};
+  add.append(s,ba);E.append(add);
+}
+function lerImg(file,b){
+  if(!file)return;const r=new FileReader();
+  r.onload=()=>{const im=new Image();im.onload=()=>{
+    const m=1400,k=Math.min(1,m/im.width),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);
+    c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+    let url;try{url=c.toDataURL('image/webp',.8);if(url.indexOf('image/webp')<0)url=c.toDataURL('image/jpeg',.82)}catch(e){url=r.result}
+    b.src=url;salvar();renderEditor();renderPreview()};im.onerror=()=>erro('Não foi possível abrir a imagem.');im.src=r.result};
+  r.onerror=()=>erro('Falha ao ler a imagem.');r.readAsDataURL(file);
+}
+
+const linhas=s=>String(s||'').split('\n').map(x=>x.trim()).filter(Boolean);
+const cartas=s=>String(s||'').split(/\n\s*\n/).map(x=>x.trim()).filter(Boolean).map(x=>{const l=x.split('\n');return{t:l[0],d:l.slice(1).join('\n')}});
+const cols=(n,m)=>Math.max(1,Math.min(m,Number(n)||1));
+function rs(b,extra){return ' style="margin-top:'+(b.mt!=null?b.mt:3)+'mm;'+(b.h?'min-height:'+b.h+'mm;':'')+(extra||'')+'"'}
+function bloco(b){
+  const c=b.meia?' half':'';
+  switch(b.tipo){
+    case 'titulo':return '<div class="b-titulo'+c+'"'+rs(b)+'>'+(b.secao?'<div class="sc">'+esc(b.secao)+'</div>':'')+'<h1>'+fmt(b.texto)+'</h1></div>';
+    case 'secao':return '<div class="b-secao'+c+'"'+rs(b)+'>'+fmt(b.texto)+'</div>';
+    case 'caminho':return '<div class="b-caminho'+c+'"'+rs(b)+'><div class="lb">CAMINHO NO SIGAA</div><div class="tr">'+linhas(b.texto).map(l=>l.split(/→|>/).map(x=>esc(x.trim())).join('<i>→</i>')).join('<br>')+'</div></div>';
+    case 'passos':{const ps=cartas(b.itens),n0=Number(b.inicio)||1;
+      return '<div class="b-passos'+c+'"'+rs(b)+'>'+(b.rotulo?'<div class="lb">'+esc(b.rotulo)+'</div>':'')+'<div class="grid" style="grid-template-columns:repeat('+cols(b.colunas,3)+',1fr);'+'">'+ps.map((p,i)=>'<div class="ps"'+(b.passo&&i<ps.length-cols(b.colunas,3)?' style="min-height:'+(b.passo-3.5)+'mm"':'')+'><div class="nn">'+(n0+i)+'</div><div><div class="tt">'+fmt(p.t)+'</div>'+(p.d?'<div class="dd">'+fmt(p.d)+'</div>':'')+'</div></div>').join('')+'</div></div>'}
+    case 'quadro':return '<div class="b-quadro '+esc(b.variante)+c+'"'+rs(b)+'><div class="lb">'+esc(b.rotulo||QUADROS[b.variante]||'')+'</div><div class="tx">'+fmt(b.texto)+'</div></div>';
+    case 'texto':return '<div class="b-txt'+c+'"'+rs(b)+'>'+fmt(b.texto)+'</div>';
+    case 'imagem':{const s=imgSrc(b.src);return '<figure class="b-img'+c+'"'+rs(b)+'>'+(b.rotulo?'<div class="tag">'+esc(b.rotulo)+'</div>':'')+(s?'<img src="'+s+'" style="width:'+(b.largura||100)+'%">':'<div class="ph">[ imagem não enviada ]</div>')+((b.legenda||b.fonte)?'<figcaption>'+esc([b.legenda,b.fonte].filter(Boolean).join(' — '))+'</figcaption>':'')+'</figure>'}
+    case 'tabela':{const r=linhas(b.csv).map(l=>l.split(';'));if(!r.length)return '';
+      return '<div class="b-tab'+c+'"'+rs(b)+'><table><tr>'+r[0].map(x=>'<th>'+fmt(x)+'</th>').join('')+'</tr>'+r.slice(1).map(l=>'<tr>'+l.map(x=>'<td>'+fmt(x)+'</td>').join('')+'</tr>').join('')+'</table></div>'}
+    case 'lista':return '<div class="b-lista'+c+'"'+rs(b)+'><ul>'+linhas(b.itens).map(x=>'<li>'+fmt(x)+'</li>').join('')+'</ul></div>';
+    case 'fluxo':case 'cartoes':return '<div class="b-cards '+(b.tipo==='fluxo'?'b-fluxo ':'')+(b.estilo==='topo'?'topo ':'')+c+'"'+rs(b,'grid-template-columns:repeat('+cols(b.colunas,4)+',1fr);')+'>'+cartas(b.itens).map(x=>'<div class="cd"><b>'+fmt(x.t)+'</b>'+(x.d?(b.bullets?'<ul>'+x.d.split('\n').map(l=>'<li>'+fmt(l)+'</li>').join('')+'</ul>':'<span>'+fmt(x.d)+'</span>'):'')+'</div>').join('')+'</div>';
+    case 'divisor':return '<hr class="b-div"'+rs(b)+'>';
+  }
+  return '';
+}
+function renderPreview(){
+  const c=S.cfg,logo=imgSrc('seed:logo_pequena'),big=imgSrc('seed:logo');
+  $('pages').innerHTML=S.fichas.map((f,i)=>{
+    if(f.tipo==='capa'){const k=f.capa||{};
+      return '<div class="page capa">'+(big?'<img class="lg" src="'+big+'">':'')+'<h1>'+esc(k.titulo)+'</h1><div class="pl">'+esc(k.pilula)+'</div><div class="sb">'+esc(k.sub)+'</div><div class="rd">'+esc(k.rodape)+'</div></div>'}
+    return '<div class="page"><div class="st a"></div><div class="st b"></div><div class="st c"></div><div class="p-guia">'+esc(c.guia||'GUIA SIGAA')+'</div>'+(logo?'<img class="p-logo" src="'+logo+'">':'')+
+      '<div class="p-body"><div class="fit">'+f.blocos.map(bloco).join('')+'</div></div><div class="p-foot"><span>'+esc(c.rodape)+'</span><span class="num">'+String(i).padStart(2,'0')+'</span></div></div>';
+  }).join('');
+  ajustar();
+  document.querySelectorAll('.p-body img').forEach(i=>{if(!i.complete)i.addEventListener('load',()=>{ajustar();escala()},{once:true})});
+  escala();
+}
+function ajustar(){
+  document.querySelectorAll('.p-body').forEach(pb=>{
+    const fit=pb.firstElementChild;if(!fit)return;fit.style.transform='';fit.style.width='';
+    const imgs=[...fit.querySelectorAll('img')],lim=pb.clientHeight;
+    let w=imgs.map(i=>parseFloat(i.style.width)||100),n=0;
+    while(fit.offsetHeight>lim+1&&imgs.length&&n++<8){w=w.map(x=>Math.max(55,x*.93));imgs.forEach((i,k)=>i.style.width=w[k]+'%')}
+    if(fit.offsetHeight>lim+1){const k=lim/fit.offsetHeight;fit.style.width=(100/k)+'%';fit.style.transform='scale('+k+')'}
+  });
+}
+function escala(){
+  const pv=document.querySelector('section.preview');if(!pv||getComputedStyle(pv).display==='none')return;
+  const w=pv.clientWidth-32,pw=794,k=Math.min(1,w/pw);
+  $('zoom').style.transform='scale('+k+')';$('zoom').style.width=pw+'px';
+  $('zoom').style.marginBottom=(-(1-k)*$('pages').offsetHeight)+'px';
+}
+window.addEventListener('resize',escala);
+$('bPdf').onclick=()=>{renderPreview();const ims=[...document.querySelectorAll('#pages img')];
+  Promise.all(ims.map(i=>i.complete?1:new Promise(r=>{i.onload=i.onerror=r}))).then(()=>{ajustar();alert('Na janela de impressão escolha "Salvar como PDF", papel A4, margens "Nenhuma" e marque "Gráficos de segundo plano".');window.print()})};
+$('bSet').onclick=()=>{const c=S.cfg;let n=prompt('Texto do rodapé (faixa vinho)',c.rodape);if(n!==null)c.rodape=n;n=prompt('Texto no alto da página',c.guia||'GUIA SIGAA');if(n!==null)c.guia=n;salvar();renderPreview()};
+$('bBackup').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:'application/json'}));a.download='guia-sigaa-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click()};
+$('bRestore').onclick=()=>$('fRestore').click();
+$('fRestore').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.fichas)throw new Error('arquivo não é um backup do guia');if(!confirm('Substituir o guia atual pelo backup?'))return;S=d;S.sel=(S.fichas[0]||{}).id;salvar();renderTudo()}catch(x){erro('Falha ao restaurar: '+x.message)}};
+  r.readAsText(f);e.target.value=''};
+$('bOrig').onclick=()=>{if(!confirm('Voltar ao guia original (as 39 páginas importadas)? Suas alterações serão perdidas. Faça um Backup antes se quiser guardá-las.'))return;S=padrao();S.sel=S.fichas[0].id;salvar();renderTudo()};
+function renderTudo(){renderLista();renderEditor();renderPreview()}
+renderTudo();
+})();
+</script>
+</body>
+</html>
