@@ -6,15 +6,15 @@
 <title>Editor do Guia SIGAA</title>
 <style>
 :root{
-  /* Cor institucional medida no print do app original (#174178). Demais tons derivados dela. */
-  --navy:#174178; --navy-900:#0f2d54; --navy-700:#1f5296; --navy-300:#607ea3; --navy-100:#dfe8f3; --navy-50:#f0f4f9;
-  --bg:#f8fafb; --ink:#14243a; --muted:#607ea3; --line:#d5dfeb; --white:#fff;
-  --warn:#b45309; --warn-bg:#fdf3e3; --err:#b42318;
+  /* Cores extraídas do PPTX do guia: vinho #7A1238, dourado #DDA544, bege #E2DACD. Variáveis mantêm o nome antigo (--navy) só por compatibilidade. */
+  --navy:#7A1238; --navy-900:#560c26; --navy-700:#9a2150; --navy-300:#8c6b76; --navy-100:#eadfd6; --navy-50:#f8f3ee;
+  --bg:#fbf9f7; --ink:#1a1a1a; --muted:#6b6b6b; --line:#e2dacd; --white:#fff;
+  --gold:#dda544; --warn:#8a5d0a; --warn-bg:#fbf1dc; --err:#b42318;
 }
 *{box-sizing:border-box}
-body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg);height:100vh;display:flex;flex-direction:column}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;color:var(--ink);background:var(--bg);height:100vh;display:flex;flex-direction:column}
 button,input,select,textarea{font:inherit;color:inherit}
-header.top{background:var(--navy);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+header.top{background:var(--navy);border-bottom:3px solid var(--gold);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 header.top .brand{font-size:11px;letter-spacing:.14em;font-weight:700;opacity:.85}
 header.top h1{font-size:18px;margin:0;font-weight:700}
 header.top .sp{flex:1}
@@ -52,12 +52,12 @@ section.editor{padding:14px;border-right:1px solid var(--line)}
 .blk .bh label{font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);display:flex;gap:4px;align-items:center}
 .hint{font-size:12px;color:var(--muted)}
 .empty{color:var(--muted);padding:24px;text-align:center;border:1px dashed var(--line);border-radius:8px}
-section.preview{background:#e4eaf1;padding:16px;display:flex;flex-direction:column;align-items:center;gap:16px}
+section.preview{background:#ece6df;padding:16px;display:flex;flex-direction:column;align-items:center;gap:16px}
 .zoomwrap{transform-origin:top center}
 
 /* ===== Folha A4 (usada na prévia e no PDF) ===== */
-.page{width:210mm;height:297mm;background:#fff;position:relative;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 2px 12px rgba(15,45,84,.25);font-size:10.5pt;line-height:1.4;color:var(--ink)}
-.p-top{background:var(--navy);color:#fff;padding:7mm 12mm 6mm;display:flex;align-items:center;gap:6mm}
+.page{width:210mm;height:297mm;background:#fff;position:relative;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 2px 12px rgba(86,12,38,.25);font-size:10.5pt;line-height:1.4;color:var(--ink)}
+.p-top{background:var(--navy);border-bottom:1.2mm solid var(--gold);color:#fff;padding:7mm 12mm 6mm;display:flex;align-items:center;gap:6mm}
 .p-top .org{font-size:8pt;letter-spacing:.14em;font-weight:700;flex:1}
 .p-top .org small{display:block;font-weight:400;opacity:.8;letter-spacing:.08em;margin-top:1mm}
 .p-top .logo{max-height:11mm;max-width:30mm}
@@ -79,7 +79,7 @@ section.preview{background:#e4eaf1;padding:16px;display:flex;flex-direction:colu
 .b-passos li:before{content:counter(s);background:var(--navy);color:#fff;width:5.5mm;height:5.5mm;flex:none;border-radius:50%;font-size:8pt;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:.4mm}
 .b-quadro{border-radius:1.5mm;padding:2.5mm 3.5mm;border:.3mm solid var(--navy-100);background:var(--navy-50)}
 .b-quadro .lb{font-size:7.5pt;font-weight:800;letter-spacing:.12em;margin-bottom:.8mm;color:var(--navy)}
-.b-quadro.atencao{background:var(--warn-bg);border-color:#efd3a3}
+.b-quadro.atencao{background:var(--warn-bg);border-color:#e8c98a}
 .b-quadro.atencao .lb{color:var(--warn)}
 .b-img{margin:0;text-align:center}
 .b-img .ph{background:var(--navy-50);border:.3mm dashed var(--navy-300);color:var(--navy-300);padding:14mm 0;font-size:9pt}
