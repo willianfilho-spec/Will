@@ -66,7 +66,7 @@ section.preview{background:#ece6df;padding:16px;display:flex;flex-direction:colu
 .p-guia{position:absolute;left:13mm;top:9.5mm;font-size:8.5pt;font-weight:700;color:var(--cinza);letter-spacing:.04em}
 .p-logo{position:absolute;right:12mm;top:8mm;height:17mm}
 .p-body{position:absolute;left:13mm;right:13mm;top:20mm;bottom:12mm;overflow:hidden}
-.fit{display:grid;grid-template-columns:1fr 1fr;gap:3mm 5mm;align-content:start;transform-origin:0 0}
+.fit{display:grid;grid-template-columns:1fr 1fr;gap:0 5mm;align-content:start;align-items:start;transform-origin:0 0}
 .fit>*{grid-column:1/3;min-width:0}
 .fit>.half{grid-column:auto}
 .p-foot{position:absolute;left:0;right:0;bottom:0;height:8.5mm;background:var(--vinho-esc);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 13mm;font-size:9pt;font-weight:700}
@@ -80,11 +80,11 @@ section.preview{background:#ece6df;padding:16px;display:flex;flex-direction:colu
 .b-caminho .tr{font-weight:700;color:var(--vinho);font-size:10.5pt;line-height:1.6}
 .b-caminho .tr i{font-style:normal;margin:0 1.5mm;font-weight:400}
 .b-passos .lb{font-size:8.5pt;font-weight:700;color:var(--cinza);letter-spacing:.04em;margin-bottom:2mm}
-.b-passos .grid{display:grid;gap:3.5mm 5mm}
+.b-passos .grid{display:grid;gap:3.5mm 5mm;align-items:start}
 .b-passos .ps{display:flex;gap:3mm}
 .b-passos .ps .nn{flex:none;width:8mm;height:8mm;border-radius:50%;background:var(--vinho);color:#fff;font-weight:700;font-size:10pt;display:flex;align-items:center;justify-content:center}
-.b-passos .ps .tt{font-weight:700;font-size:10.5pt}
-.b-passos .ps .dd{color:var(--cinza);font-size:9.5pt;margin-top:.8mm;white-space:pre-line}
+.b-passos .ps .tt{font-weight:700;font-size:11pt}
+.b-passos .ps .dd{color:var(--cinza);font-size:10pt;margin-top:.8mm;white-space:pre-line}
 .b-quadro{border-radius:2mm;padding:3mm 4mm 3mm 5.5mm;position:relative;box-shadow:0 .5mm 1mm rgba(0,0,0,.14);background:var(--bege)}
 .b-quadro:before{content:"";position:absolute;left:0;top:0;bottom:0;width:1.6mm;border-radius:2mm 0 0 2mm;background:var(--vinho)}
 .b-quadro .lb{font-size:8pt;font-weight:700;letter-spacing:.06em;margin-bottom:1mm;color:var(--vinho);text-transform:uppercase}
@@ -309,22 +309,23 @@ function lerImg(file,b){
 const linhas=s=>String(s||'').split('\n').map(x=>x.trim()).filter(Boolean);
 const cartas=s=>String(s||'').split(/\n\s*\n/).map(x=>x.trim()).filter(Boolean).map(x=>{const l=x.split('\n');return{t:l[0],d:l.slice(1).join('\n')}});
 const cols=(n,m)=>Math.max(1,Math.min(m,Number(n)||1));
+function rs(b,extra){return ' style="margin-top:'+(b.mt!=null?b.mt:3)+'mm;'+(b.h?'min-height:'+b.h+'mm;':'')+(extra||'')+'"'}
 function bloco(b){
   const c=b.meia?' half':'';
   switch(b.tipo){
-    case 'titulo':return '<div class="b-titulo'+c+'">'+(b.secao?'<div class="sc">'+esc(b.secao)+'</div>':'')+'<h1>'+fmt(b.texto)+'</h1></div>';
-    case 'secao':return '<div class="b-secao'+c+'">'+fmt(b.texto)+'</div>';
-    case 'caminho':return '<div class="b-caminho'+c+'"><div class="lb">CAMINHO NO SIGAA</div><div class="tr">'+linhas(b.texto).map(l=>l.split(/→|>/).map(x=>esc(x.trim())).join('<i>→</i>')).join('<br>')+'</div></div>';
+    case 'titulo':return '<div class="b-titulo'+c+'"'+rs(b)+'>'+(b.secao?'<div class="sc">'+esc(b.secao)+'</div>':'')+'<h1>'+fmt(b.texto)+'</h1></div>';
+    case 'secao':return '<div class="b-secao'+c+'"'+rs(b)+'>'+fmt(b.texto)+'</div>';
+    case 'caminho':return '<div class="b-caminho'+c+'"'+rs(b)+'><div class="lb">CAMINHO NO SIGAA</div><div class="tr">'+linhas(b.texto).map(l=>l.split(/→|>/).map(x=>esc(x.trim())).join('<i>→</i>')).join('<br>')+'</div></div>';
     case 'passos':{const ps=cartas(b.itens),n0=Number(b.inicio)||1;
-      return '<div class="b-passos'+c+'">'+(b.rotulo?'<div class="lb">'+esc(b.rotulo)+'</div>':'')+'<div class="grid" style="grid-template-columns:repeat('+cols(b.colunas,3)+',1fr)">'+ps.map((p,i)=>'<div class="ps"><div class="nn">'+(n0+i)+'</div><div><div class="tt">'+fmt(p.t)+'</div>'+(p.d?'<div class="dd">'+fmt(p.d)+'</div>':'')+'</div></div>').join('')+'</div></div>'}
-    case 'quadro':return '<div class="b-quadro '+esc(b.variante)+c+'"><div class="lb">'+esc(b.rotulo||QUADROS[b.variante]||'')+'</div><div class="tx">'+fmt(b.texto)+'</div></div>';
-    case 'texto':return '<div class="b-txt'+c+'">'+fmt(b.texto)+'</div>';
-    case 'imagem':{const s=imgSrc(b.src);return '<figure class="b-img'+c+'">'+(b.rotulo?'<div class="tag">'+esc(b.rotulo)+'</div>':'')+(s?'<img src="'+s+'" style="width:'+(b.largura||100)+'%">':'<div class="ph">[ imagem não enviada ]</div>')+((b.legenda||b.fonte)?'<figcaption>'+esc([b.legenda,b.fonte].filter(Boolean).join(' — '))+'</figcaption>':'')+'</figure>'}
+      return '<div class="b-passos'+c+'"'+rs(b)+'>'+(b.rotulo?'<div class="lb">'+esc(b.rotulo)+'</div>':'')+'<div class="grid" style="grid-template-columns:repeat('+cols(b.colunas,3)+',1fr);'+'">'+ps.map((p,i)=>'<div class="ps"'+(b.passo&&i<ps.length-cols(b.colunas,3)?' style="min-height:'+(b.passo-3.5)+'mm"':'')+'><div class="nn">'+(n0+i)+'</div><div><div class="tt">'+fmt(p.t)+'</div>'+(p.d?'<div class="dd">'+fmt(p.d)+'</div>':'')+'</div></div>').join('')+'</div></div>'}
+    case 'quadro':return '<div class="b-quadro '+esc(b.variante)+c+'"'+rs(b)+'><div class="lb">'+esc(b.rotulo||QUADROS[b.variante]||'')+'</div><div class="tx">'+fmt(b.texto)+'</div></div>';
+    case 'texto':return '<div class="b-txt'+c+'"'+rs(b)+'>'+fmt(b.texto)+'</div>';
+    case 'imagem':{const s=imgSrc(b.src);return '<figure class="b-img'+c+'"'+rs(b)+'>'+(b.rotulo?'<div class="tag">'+esc(b.rotulo)+'</div>':'')+(s?'<img src="'+s+'" style="width:'+(b.largura||100)+'%">':'<div class="ph">[ imagem não enviada ]</div>')+((b.legenda||b.fonte)?'<figcaption>'+esc([b.legenda,b.fonte].filter(Boolean).join(' — '))+'</figcaption>':'')+'</figure>'}
     case 'tabela':{const r=linhas(b.csv).map(l=>l.split(';'));if(!r.length)return '';
-      return '<div class="b-tab'+c+'"><table><tr>'+r[0].map(x=>'<th>'+fmt(x)+'</th>').join('')+'</tr>'+r.slice(1).map(l=>'<tr>'+l.map(x=>'<td>'+fmt(x)+'</td>').join('')+'</tr>').join('')+'</table></div>'}
-    case 'lista':return '<div class="b-lista'+c+'"><ul>'+linhas(b.itens).map(x=>'<li>'+fmt(x)+'</li>').join('')+'</ul></div>';
-    case 'fluxo':case 'cartoes':return '<div class="b-cards '+(b.tipo==='fluxo'?'b-fluxo ':'')+(b.estilo==='topo'?'topo ':'')+c+'" style="grid-template-columns:repeat('+cols(b.colunas,4)+',1fr)">'+cartas(b.itens).map(x=>'<div class="cd"><b>'+fmt(x.t)+'</b>'+(x.d?(b.bullets?'<ul>'+x.d.split('\n').map(l=>'<li>'+fmt(l)+'</li>').join('')+'</ul>':'<span>'+fmt(x.d)+'</span>'):'')+'</div>').join('')+'</div>';
-    case 'divisor':return '<hr class="b-div">';
+      return '<div class="b-tab'+c+'"'+rs(b)+'><table><tr>'+r[0].map(x=>'<th>'+fmt(x)+'</th>').join('')+'</tr>'+r.slice(1).map(l=>'<tr>'+l.map(x=>'<td>'+fmt(x)+'</td>').join('')+'</tr>').join('')+'</table></div>'}
+    case 'lista':return '<div class="b-lista'+c+'"'+rs(b)+'><ul>'+linhas(b.itens).map(x=>'<li>'+fmt(x)+'</li>').join('')+'</ul></div>';
+    case 'fluxo':case 'cartoes':return '<div class="b-cards '+(b.tipo==='fluxo'?'b-fluxo ':'')+(b.estilo==='topo'?'topo ':'')+c+'"'+rs(b,'grid-template-columns:repeat('+cols(b.colunas,4)+',1fr);')+'>'+cartas(b.itens).map(x=>'<div class="cd"><b>'+fmt(x.t)+'</b>'+(x.d?(b.bullets?'<ul>'+x.d.split('\n').map(l=>'<li>'+fmt(l)+'</li>').join('')+'</ul>':'<span>'+fmt(x.d)+'</span>'):'')+'</div>').join('')+'</div>';
+    case 'divisor':return '<hr class="b-div"'+rs(b)+'>';
   }
   return '';
 }

@@ -251,7 +251,12 @@ def convert_segment(items, pics, secao, titulo, num_slide):
         xs = sorted({round(s['c'].x / 20) for s in g})
         cols = 1 if len(xs) == 1 else len(xs)
         ys = [s['c'].y for s in g] + [i.bottom for s in g for i in s['its']]
-        b = {'tipo': 'passos', 'rotulo': rotulo_passos if (gi == 0 or g[0]['n'] == 1) else '', 'itens': '\n\n'.join(itens), 'inicio': g[0]['n'], 'colunas': cols}
+        diffs = []
+        for xc in {round(q['c'].x / 20) for q in g}:
+            ys = sorted(q['c'].y for q in g if round(q['c'].x / 20) == xc)
+            diffs += [b2 - a2 for a2, b2 in zip(ys, ys[1:]) if b2 - a2 >= 8]
+        passo = round(sorted(diffs)[len(diffs) // 2], 1) if diffs else 0
+        b = {'tipo': 'passos', 'passo': passo, 'rotulo': rotulo_passos if (gi == 0 or g[0]['n'] == 1) else '', 'itens': '\n\n'.join(itens), 'inicio': g[0]['n'], 'colunas': cols}
         blocks.append(dict(b=b, y0=min(ys) - (6 if gi == 0 else 0), y1=max(ys), x=min(s['c'].x for s in g), w=190 if cols > 1 else 90, passos=True))
     # --- imagens
     for p in pics:
@@ -296,6 +301,38 @@ def convert_segment(items, pics, secao, titulo, num_slide):
     return blocks
 
 
+def snap(blocks, rects):
+    """Usa os retângulos de fundo do slide (caixas/cartões) para obter a altura real de cada bloco."""
+    for d in blocks:
+        if d['b']['tipo'] not in ('caminho', 'cartoes', 'fluxo'):
+            continue
+        c = [r for r in rects if r[0] - 1.5 <= d['x'] <= r[0] + r[2] - 5 and r[1] - 2 <= d['y0'] <= r[1] + r[3]]
+        if c:
+            r = min(c, key=lambda r: r[2] * r[3])
+            d['y0'] = min(d['y0'], r[1]); d['y1'] = max(d['y1'], r[1] + r[3])
+            d['b']['h'] = round(r[3], 1)
+
+
+def margens(blocks, cursor):
+    """Espaço vertical (mm) entre blocos, como no slide original."""
+    segundo = False
+    mt_ant = 0
+    for d in blocks:
+        b = d['b']
+        if b.get('meia') and not segundo:
+            segundo = True
+            mt = max(0.5, min(40, d['y0'] - cursor)); mt_ant = mt
+            cursor = d['y1']
+        elif b.get('meia') and segundo:
+            segundo = False
+            mt = mt_ant
+            cursor = max(cursor, d['y1'])
+        else:
+            mt = max(0.5, min(40, d['y0'] - cursor))
+            cursor = d['y1']
+        b['mt'] = round(mt, 1)
+
+
 def order_blocks(blocks):
     """Ordena por posição vertical e coloca lado a lado (meia largura) o que estava lado a lado."""
     blocks.sort(key=lambda d: (d['y0'], d['x']))
@@ -335,6 +372,29 @@ def merge_cards(blocks):
     return res
 
 
+CORRECOES = {
+    'CONULTA': 'CONSULTA', 'Consutar': 'Consultar', 'Cursso': 'Curso', 'Tranferir': 'Transferir',
+    'OBERVAÇÃO': 'OBSERVAÇÃO', 'aterar': 'alterar', 'aunos': 'alunos', 'coordenaçoes': 'coordenações',
+    'curricuar': 'curricular', 'documentãção': 'documentação', 'existencia': 'existência',
+    'operaçao': 'operação', 'orientaçoes': 'orientações', 'soicitação': 'solicitação',
+    'solicitaçao': 'solicitação', 'transferencia': 'transferência',
+}
+
+
+def corrigir(o, log):
+    if isinstance(o, str):
+        for a, b in CORRECOES.items():
+            if a in o:
+                log[a] = log.get(a, 0) + o.count(a)
+                o = o.replace(a, b)
+        return o
+    if isinstance(o, list):
+        return [corrigir(x, log) for x in o]
+    if isinstance(o, dict):
+        return {k: (v if k in ('src', 'id') else corrigir(v, log)) for k, v in o.items()}
+    return o
+
+
 def main(pptx_path, outdir):
     import os
     os.makedirs(outdir, exist_ok=True)
@@ -356,6 +416,12 @@ def main(pptx_path, outdir):
             fichas.append({'tipo': 'capa', 'nome': 'Capa', 'capa': {
                 'titulo': g('GUIA SIGAA'), 'pilula': g('Coordenação'), 'sub': g('Orientações'), 'rodape': g('DIOAC')}, 'blocos': []})
             continue
+        rects = []
+        for sh in slide.shapes:
+            if sh.shape_type == 1 and sh.has_text_frame and not sh.text_frame.text.strip():
+                r = (sh.left / EMU_X, sh.top / EMU_Y, sh.width / EMU_X, sh.height / EMU_Y)
+                if r[2] >= 25 and r[3] >= 6 and 15 < r[1] < 285 and r[2] < 200:
+                    rects.append(r)
         its = [i for i in its if not is_chrome(i)]
         texts = [i for i in its if not i.pic]
         pics = []
@@ -379,16 +445,23 @@ def main(pptx_path, outdir):
             seg = [i for i in texts if not i.used and t.y <= i.y < nxt]
             sp = [p for p in pics if t.y <= p['y'] < nxt]
             blocks = convert_segment(seg, sp, secao, t.text, sn)
+            snap(blocks, rects)
             blocks = merge_cards(order_blocks(blocks))
+            margens(blocks, t.y + t.h)
             if sn == 3:
                 for d in blocks:
                     if d['b']['tipo'] == 'cartoes':
                         d['b']['estilo'] = 'topo'; d['b']['bullets'] = 'sim'
             bl = [{'id': f'b{sn}_{k}_{n}', 'meia': False, **d['b']} for n, d in enumerate(blocks)]
-            bl.insert(0, {'id': f'b{sn}_{k}_t', 'tipo': 'titulo', 'meia': False, 'secao': secao, 'texto': t.text})
+            topo = (max(lab, key=lambda i: i.y).y if (lab and k == 0) else t.y)
+            bl.insert(0, {'id': f'b{sn}_{k}_t', 'tipo': 'titulo', 'meia': False, 'secao': secao if k == 0 or True else '', 'texto': t.text,
+                          'mt': round(max(0, topo - 20), 1) if k == 0 else 0})
             fichas.append({'id': f'f{sn}_{k}', 'tipo': 'ficha', 'nome': t.text, 'origem': f'slide {sn}', 'blocos': bl})
     for n, f in enumerate(fichas):
         f.setdefault('id', f'f{n}')
+    log = {}
+    fichas = corrigir(fichas, log)
+    print('correções de português:', log)
     seed = {'fichas': fichas, 'images': images}
     json.dump(seed, open(os.path.join(outdir, 'seed.json'), 'w'), ensure_ascii=False)
     print('fichas', len(fichas), 'imagens', len(images), 'bytes', os.path.getsize(os.path.join(outdir, 'seed.json')))
