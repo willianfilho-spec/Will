@@ -1,9 +1,9 @@
-name: Publicar Editor do Guia SIGAA
+name: Publicar apps no GitHub Pages
 
 on:
   push:
     branches: [main]
-    paths: ['guia-sigaa-editor/**', '.github/workflows/pages.yml']
+    paths: ['guia-sigaa-editor/**', 'editor-pdf/**', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 permissions:
@@ -24,8 +24,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      # O guia continua na raiz (URL inalterada); o editor de PDF fica em /editor-pdf/
+      - name: Montar site
+        run: |
+          mkdir _site
+          cp -r guia-sigaa-editor/. _site/
+          cp -r editor-pdf _site/editor-pdf
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: guia-sigaa-editor
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4

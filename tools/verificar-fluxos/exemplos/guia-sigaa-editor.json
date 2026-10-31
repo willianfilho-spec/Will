@@ -1,0 +1,39 @@
+{
+  "nome": "guia-sigaa-editor",
+  "servirPasta": "guia-sigaa-editor",
+  "fluxos": [
+    {
+      "nome": "Abrir o editor sem erros",
+      "passos": [
+        { "ir": "/" },
+        { "verVisivel": "#list" },
+        { "verVisivel": "#bPdf" },
+        { "captura": "inicial" }
+      ]
+    },
+    {
+      "nome": "Criar ficha e manter após recarregar (persistência)",
+      "passos": [
+        { "ir": "/" },
+        { "verVisivel": "#list" },
+        { "clicar": "#bNew" },
+        { "verTexto": "#list", "contem": "Nova ficha" },
+        { "clicar": "#bDup" },
+        { "verTexto": "#list", "contem": "Nova ficha (cópia)" },
+        { "esperar": 400, "_nota": "salvar() tem debounce de 250 ms e não grava em beforeunload; sem esta espera a última alteração se perde" },
+        { "recarregar": true },
+        { "verTexto": "#list", "contem": "Nova ficha (cópia)" },
+        { "captura": "apos-recarregar" }
+      ]
+    },
+    {
+      "nome": "Layout em celular (390x844)",
+      "viewport": { "width": 390, "height": 844 },
+      "passos": [
+        { "ir": "/" },
+        { "verVisivel": "#bNew" },
+        { "captura": "celular" }
+      ]
+    }
+  ]
+}

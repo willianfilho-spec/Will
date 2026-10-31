@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Folha Clara — editar e extrair PDF no navegador</title>
+  <meta name="description" content="Anote, desenhe e extraia texto, páginas e imagens de PDFs sem enviar o arquivo para nenhum servidor.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='5' y='3' width='22' height='26' rx='3' fill='%23135e57'/%3E%3Cpath d='M10 11h12M10 16h12M10 21h7' stroke='%23f4b942' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="estilo.css">
+  <script src="vendor/pdf-lib/pdf-lib.min.js"></script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="topo">
+    <div class="marca">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="3" width="22" height="26" rx="3" fill="currentColor"/><path d="M10 11h12M10 16h12M10 21h7" stroke="#f4b942" stroke-width="2.4" stroke-linecap="round"/></svg>
+      <span>Folha Clara</span>
+    </div>
+    <nav class="abas" role="tablist" aria-label="Modo">
+      <button id="abaEditar" role="tab" aria-selected="true" class="aba ativa" disabled>Editar</button>
+      <button id="abaExtrair" role="tab" aria-selected="false" class="aba" disabled>Extrair</button>
+    </nav>
+    <div class="acoes-topo">
+      <label class="botao secundario" for="arquivoPdf" id="bAbrir">Abrir PDF</label>
+      <button id="bFechar" class="botao fantasma" hidden>Fechar</button>
+    </div>
+  </header>
+
+  <input type="file" id="arquivoPdf" accept="application/pdf,.pdf" hidden>
+  <input type="file" id="arquivoImagem" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+
+  <main id="principal">
+    <!-- Tela inicial -->
+    <section id="telaInicial" class="tela-inicial">
+      <div id="zonaSoltar" class="zona-soltar" tabindex="0">
+        <h1>Edite e extraia o conteúdo de um PDF</h1>
+        <p>Escreva, marque, desenhe e insira imagens. Depois copie o texto, separe páginas ou salve as imagens.</p>
+        <label class="botao primario grande" for="arquivoPdf">Escolher arquivo PDF</label>
+        <p class="dica">ou arraste o arquivo para cá</p>
+        <p class="privacidade">O arquivo é lido e gravado só neste navegador. Nada é enviado para servidores.</p>
+      </div>
+    </section>
+
+    <!-- Modo Editar -->
+    <section id="modoEditar" class="modo" hidden>
+      <div class="barra" role="toolbar" aria-label="Ferramentas de edição">
+        <div class="grupo ferramentas">
+          <button class="ferr ativa" data-ferr="selecionar" id="fSelecionar" title="Selecionar e mover (V)">Mover</button>
+          <button class="ferr" data-ferr="texto" id="fTexto" title="Adicionar texto (T)">Texto</button>
+          <button class="ferr" data-ferr="destaque" id="fDestaque" title="Marca-texto: arraste sobre a área (H)">Marca-texto</button>
+          <button class="ferr" data-ferr="desenho" id="fDesenho" title="Desenho à mão livre (D)">Caneta</button>
+          <button class="ferr" data-ferr="retangulo" id="fRetangulo" title="Retângulo (R)">Retângulo</button>
+          <button class="ferr" data-ferr="elipse" id="fElipse" title="Elipse (E)">Elipse</button>
+          <button class="ferr" data-ferr="linha" id="fLinha" title="Linha (L)">Linha</button>
+          <button class="ferr" id="fImagem" title="Inserir imagem">Imagem</button>
+          <button class="ferr" data-ferr="cobrir" id="fCobrir" title="Cobre uma área com branco e escreve por cima. Não altera o texto original do PDF.">Cobrir e reescrever</button>
+        </div>
+        <div class="grupo propriedades">
+          <label class="prop" title="Cor">Cor <input type="color" id="pCor" value="#d0312d"></label>
+          <label class="prop" title="Espessura do traço">Traço <input type="range" id="pEspessura" min="1" max="14" value="3"></label>
+          <label class="prop" title="Tamanho do texto">Fonte
+            <select id="pTamanho"><option>10</option><option>12</option><option selected>16</option><option>20</option><option>28</option><option>36</option></select>
+          </label>
+        </div>
+        <div class="grupo acoes">
+          <button id="bDesfazer" class="botao fantasma" title="Desfazer (Ctrl+Z)" disabled>Desfazer</button>
+          <button id="bApagar" class="botao fantasma" title="Apagar selecionada (Delete)" disabled>Apagar</button>
+          <button id="bBaixarPdf" class="botao primario">Baixar PDF</button>
+        </div>
+      </div>
+      <p class="info-doc"><span id="nomeDoc"></span> · <span id="contaPaginas"></span> · <span id="contaAnotacoes">0 anotações</span></p>
+      <div id="paginas" class="paginas"></div>
+    </section>
+
+    <!-- Modo Extrair -->
+    <section id="modoExtrair" class="modo" hidden>
+      <div class="extrair">
+        <div class="cartao">
+          <h2>1. Escolha as páginas</h2>
+          <div class="linha-sel">
+            <button id="bTodas" class="botao fantasma">Todas</button>
+            <button id="bNenhuma" class="botao fantasma">Nenhuma</button>
+            <label class="intervalo">Intervalo <input id="intervalo" placeholder="ex.: 1-2, 4" inputmode="numeric"></label>
+            <button id="bAplicarIntervalo" class="botao fantasma">Aplicar</button>
+            <span id="contaSel" class="conta-sel"></span>
+          </div>
+          <div id="miniaturas" class="miniaturas"></div>
+        </div>
+
+        <div class="cartao">
+          <h2>2. Texto</h2>
+          <p class="nota">Lê a camada de texto do PDF. PDFs digitalizados (só imagem) não têm texto para extrair; o reconhecimento óptico (OCR) não está incluído.</p>
+          <button id="bExtrairTexto" class="botao primario">Extrair texto</button>
+          <div id="saidaTexto" class="saida-texto" hidden>
+            <div class="linha-sel">
+              <button id="bCopiarTexto" class="botao secundario">Copiar tudo</button>
+              <button id="bBaixarTxt" class="botao secundario">Baixar .txt</button>
+            </div>
+            <textarea id="textoCompleto" readonly rows="8" aria-label="Texto extraído completo"></textarea>
+            <div id="textoPorPagina" class="texto-por-pagina"></div>
+          </div>
+        </div>
+
+        <div class="cartao">
+          <h2>3. Páginas em novo PDF</h2>
+          <label class="check"><input type="checkbox" id="incluirAnotacoes" checked> Incluir minhas anotações</label>
+          <button id="bExtrairPaginas" class="botao primario">Criar PDF com as páginas escolhidas</button>
+        </div>
+
+        <div class="cartao">
+          <h2>4. Imagens</h2>
+          <p class="nota"><b>Imagens embutidas</b>: recupera as figuras gravadas dentro do PDF (decodificadas e salvas como PNG). <b>Página como PNG</b>: tira uma “foto” da página inteira, com texto e anotações.</p>
+          <div class="linha-sel">
+            <button id="bExtrairImagens" class="botao primario">Extrair imagens embutidas</button>
+            <button id="bPaginasPng" class="botao secundario">Salvar páginas como PNG</button>
+          </div>
+          <p id="resumoImagens" class="nota" aria-live="polite"></p>
+          <div id="galeriaImagens" class="galeria"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="aviso" class="aviso" role="status" aria-live="polite" hidden></div>
+  <div id="carregando" class="carregando" hidden><span></span></div>
+</body>
+</html>
