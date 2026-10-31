@@ -3,7 +3,7 @@
 // e gera relatório + capturas. Uso: node verificar.mjs <arquivo.json>
 import { createRequire } from 'node:module';
 import { createServer } from 'node:http';
-import { readFile, mkdir, writeFile, stat } from 'node:fs/promises';
+import { readFile, mkdir, writeFile, stat, rm } from 'node:fs/promises';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
@@ -32,7 +32,14 @@ async function pontoEm(page, sel, [fx, fy], t) {
   const loc = page.locator(sel).first();
   await loc.waitFor({ state: 'visible', timeout: t });
   await loc.scrollIntoViewIfNeeded();
-  const b = await loc.boundingBox();
+  let b = await loc.boundingBox();
+  // Elementos altos (ex.: página de PDF): rola até o ponto ficar no meio da tela,
+  // longe de cabeçalhos fixos e da borda inferior.
+  const alt = page.viewportSize().height, y = b.y + b.height * fy;
+  if (y < alt * 0.25 || y > alt * 0.85) {
+    await page.evaluate(d => window.scrollBy(0, d), y - alt / 2);
+    b = await loc.boundingBox();
+  }
   return { x: b.x + b.width * fx, y: b.y + b.height * fy };
 }
 
@@ -84,7 +91,9 @@ async function executarPasso(page, p, base, dirSaida, fluxoIdx, capturas, spec) 
   if (p.clicar) return page.click(p.clicar, { timeout: t });
   if (p.enviarArquivo) return page.setInputFiles(p.enviarArquivo, [].concat(p.arquivo).map(a => path.resolve(a)), { timeout: t });
   if (p.arrastar) {
-    const a = await pontoEm(page, p.arrastar, p.de, t), b = await pontoEm(page, p.arrastar, p.ate, t);
+    const a = await pontoEm(page, p.arrastar, p.de, t);
+    const bb = await page.locator(p.arrastar).first().boundingBox();
+    const b = { x: bb.x + bb.width * p.ate[0], y: bb.y + bb.height * p.ate[1] };
     await page.mouse.move(a.x, a.y); await page.mouse.down();
     await page.mouse.move(b.x, b.y, { steps: 10 }); await page.mouse.up(); return;
   }
@@ -96,6 +105,11 @@ async function executarPasso(page, p, base, dirSaida, fluxoIdx, capturas, spec) 
     capturas.push(nome);
     if (p.validar) await validarDownload(page, spec, base, arq, p.validar);
     return;
+  }
+  if (p.verExpressao) {
+    const deadline = Date.now() + t; let v;
+    while (Date.now() < deadline) { v = await page.evaluate(p.verExpressao); if (v) return; await page.waitForTimeout(100); }
+    throw new Error(`expressão falsa: ${p.verExpressao} (resultado: ${JSON.stringify(v)})`);
   }
   if (p.semRolagemHorizontal) {
     const r = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
@@ -131,6 +145,7 @@ const arqSpec = process.argv[2];
 if (!arqSpec) { console.error('Uso: node verificar.mjs <arquivo.json>'); process.exit(2); }
 const spec = JSON.parse(await readFile(arqSpec, 'utf8'));
 const dirSaida = path.resolve(path.dirname(new URL(import.meta.url).pathname), 'saida', spec.nome || 'app');
+await rm(dirSaida, { recursive: true, force: true });
 await mkdir(dirSaida, { recursive: true });
 
 let srv, base = spec.urlBase;

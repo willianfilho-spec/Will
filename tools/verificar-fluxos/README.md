@@ -40,6 +40,32 @@ Requer Node 18+ e o pacote `playwright` disponível (no ambiente em nuvem do Cla
 }
 ```
 
+### Passos para upload, download e interação com o mouse
+
+```json
+{ "enviarArquivo": "#arquivoPdf", "arquivo": "tools/verificar-fluxos/fixtures/documento-teste.pdf" },
+{ "clicar": "#pagina-1 canvas", "posicao": [0.2, 0.5] },
+{ "arrastar": "#pagina-1 .sobreposicao", "de": [0.1, 0.2], "ate": [0.6, 0.3] },
+{ "verExpressao": "document.querySelectorAll('.anot').length === 2" },
+{ "semRolagemHorizontal": true },
+{ "baixar": "#bBaixarPdf", "validar": {
+    "nomeContem": "-editado.pdf", "assinatura": "%PDF", "bytesMin": 1000,
+    "textoContem": ["trecho"],
+    "pdfPaginas": 3, "pdfTextoContem": ["frase"], "pdfTextoNaoContem": "outra" } }
+```
+
+- `enviarArquivo`: preenche um `<input type="file">` (setInputFiles). Caminhos relativos à pasta onde o comando é executado (a raiz do repositório).
+- `posicao`, `de` e `ate`: **frações** (0 a 1) da largura e da altura do elemento. Antes de clicar ou arrastar, o verificador rola a página até o ponto inicial ficar no meio da tela, longe de cabeçalhos fixos.
+- `verExpressao`: avalia JavaScript na página e espera até o resultado ser verdadeiro (até 5 s).
+- `semRolagemHorizontal`: falha se a página for mais larga que a janela (útil no teste de celular).
+- `baixar`: clica, espera o download, salva em `saida/<nome>/` e valida. `textoContem` lê o arquivo como UTF-8. `assinatura` confere os primeiros bytes (`%PDF`, `PNG`).
+  `pdfPaginas`, `pdfTextoContem` e `pdfTextoNaoContem` abrem o PDF baixado com o pdf.js **servido pelo próprio app** (mesma origem), em outra aba do Chromium. Para isso, informe no topo do arquivo `"pdfjs"` e `"pdfjsWorker"` (caminhos relativos à `urlBase`/`servirPasta`). Assim não é preciso instalar nada no Node.
+- `tempo` (em qualquer passo): muda o limite de espera de 5000 ms.
+
+Exemplo completo: `tools/verificar-fluxos/editor-pdf.json`, com o PDF de teste gerado por `node tools/verificar-fluxos/fixtures/gerar-pdf-teste.mjs`.
+
 Seletores aceitam qualquer sintaxe do Playwright (`#id`, `.classe`, `text=...`, `role=button[name="Salvar"]`).
+
+A pasta `saida/<nome>/` é esvaziada no início de cada execução, para que capturas de falhas antigas não se misturem às novas.
 
 Cada fluxo roda em contexto limpo (sem `localStorage` herdado). Erros de console e exceções de página fazem o fluxo falhar, porque um app que "funciona" com erro no console não cumpre o critério 1 da skill.
