@@ -1,0 +1,235 @@
+{
+  "nome": "editor-pdf",
+  "servirPasta": "editor-pdf",
+  "pdfjs": "vendor/pdfjs/pdf.min.mjs",
+  "pdfjsWorker": "vendor/pdfjs/pdf.worker.min.mjs",
+  "fluxos": [
+    {
+      "nome": "Abrir o app sem erros",
+      "passos": [
+        { "ir": "/" },
+        { "verVisivel": "#zonaSoltar" },
+        { "verTexto": "#zonaSoltar", "contem": "Nada é enviado" },
+        { "verExpressao": "document.body.dataset.pronto === '1'" },
+        { "captura": "inicial" }
+      ]
+    },
+    {
+      "nome": "Carregar PDF e ver as páginas",
+      "passos": [
+        { "ir": "/" },
+        { "enviarArquivo": "#arquivoPdf", "arquivo": "tools/verificar-fluxos/fixtures/documento-teste.pdf" },
+        { "verQuantidade": ".pagina[data-renderizada]", "igual": 3, "tempo": 10000 },
+        { "verTexto": "#contaPaginas", "contem": "3 páginas" },
+        { "verTexto": "#nomeDoc", "contem": "documento-teste.pdf" },
+        { "verExpressao": "(() => { const c = document.querySelector('#pagina-3 canvas'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 0; i < d.length; i += 4) if (d[i] < 200) return true; return false; })()", "_nota": "a página 3 foi realmente desenhada (há pixels não brancos)" },
+        { "captura": "paginas" },
+        { "enviarArquivo": "#arquivoPdf", "arquivo": "tools/verificar-fluxos/fixtures/documento-teste.pdf", "_nota": "abrir um segundo PDF substitui o primeiro sem erro" },
+        { "verTexto": "#aviso", "contem": "Documento aberto" },
+        { "verQuantidade": ".pagina[data-renderizada]", "igual": 3, "tempo": 10000 }
+      ]
+    },
+    {
+      "nome": "Adicionar texto e baixar PDF que o contém",
+      "passos": [
+        { "ir": "/" },
+        { "enviarArquivo": "#arquivoPdf", "arquivo": "tools/verificar-fluxos/fixtures/documento-teste.pdf" },
+        { "verQuantidade": ".pagina[data-renderizada]", "igual": 3, "tempo": 10000 },
+        { "clicar": "#fTexto" },
+        { "clicar": "#pagina-1 .sobreposicao", "posicao": [0.2, 0.45] },
+        { "preencher": ".editor-texto", "valor": "Aprovado por Folha Clara 2026" },
+        { "tecla": "Enter" },
+        { "verQuantidade": "#pagina-1 .anot[data-tipo=texto]", "igual": 1 },
+        { "verTexto": "#contaAnotacoes", "contem": "1 anotação" },
+        { "captura": "texto-adicionado" },
+        { "baixar": "#bBaixarPdf", "validar": { "nomeContem": "-editado.pdf", "assinatura": "%PDF", "pdfPaginas": 3, "pdfTextoContem": ["Aprovado por Folha Clara 2026", "o rato roeu a roupa do rei de Roma"] } }
+      ]
+    },
+    {
+      "nome": "Marca-texto, caneta, retângulo, elipse e linha no PDF baixado",
+      "passos": [
+        { "ir": "/" },
+        { "enviarArquivo": "#arquivoPdf", "arquivo": "tools/verificar-fluxos/fixtures/documento-teste.pdf" },
+        { "verQuantidade": ".pagina[data-renderizada]", "igual": 3, "tempo": 10000 },
+        { "clicar": "#fDestaque" },
+        { "arrastar": "#pagina-1 .sobreposicao", "de": [0.09, 0.14], "ate": [0.72, 0.175] },
+        { "clicar": "#fDesenho" },
+        { "arrastar": "#pagina-1 .sobreposicao", "de": [0.15, 0.55], "ate": [0.6, 0.7] },
+        { "clicar": "#fRetangulo" },
+        { "arrastar": "#pagina-2 .sobreposicao", "de": [0.09, 0.12], "ate": [0.55, 0.18] },
+        { "clicar": "#fElipse" },
+        { "arrastar": "#pagina-2 .sobreposicao", "de": [0.2, 0.3], "ate": [0.5, 0.4] },
+        { "clicar": "#fLinha" },
+        { "arrastar": "#pagina-3 .sobreposicao", "de": [0.1, 0.3], "ate": [0.8, 0.32] },
+        { "verQuantidade": ".anot", "igual": 5 },
+        { "verQuantidade": ".anot[data-tipo=destaque]", "igual": 1 },
+        { "verQuantidade": ".anot[data-tipo=desenho]", "igual": 1 },
+        { "verQuantidade": ".anot[data-tipo=retangulo]", "igual": 1 },
+        { "verQuantidade": ".anot[data-tipo=elipse]", "igual": 1 },
+        { "verQuantidade": ".anot[data-tipo=linha]", "igual": 1 },
+        { "clicar": "#bDesfazer" },
+        { "verQuantidade": ".anot", "igual": 4, "_nota": "desfazer remove a última (linha)" },
+        { "captura": "formas" },
+        { "baixar": "#bBaixarPdf", "validar": { "pdfPaginas": 3, "pdfTextoContem": "Inventario Beta", "bytesMin": 5000 } }
+      ]
+    },
+    {
+      "nome": "Inserir imagem e baixar PDF",
+      "passos": [
+        { "ir": "/" },
+        { "enviarArquivo": "#arquivoPdf", "arquivo": "tools/verificar-fluxos/fixtures/documento-teste.pdf" },
+        { "verQuantidade": ".pagina[data-renderizada]", "igual": 3, "tempo": 10000 },
+        { "enviarArquivo": "#arquivoImagem", "arquivo": "tools/verificar-fluxos/fixtures/imagem-teste.png" },
+        { "verQuantidade": "#pagina-1 .anot[data-tipo=imagem]", "igual": 1 },
+        { "verQuantidade": ".anot.selecionada", "igual": 1 },
+        { "captura": "imagem-inserida" },
+        { "baixar": "#bBaixarPdf", "validar": { "pdfPaginas": 3 } },
+        { "clicar": "#abaExtrair" },
+        { "clicar": "#bExtrairImagens" },
+        { "verTexto": "#resumoImagens", "contem": "1 imagem embutida encontrada", "_nota": "só a imagem original da pág. 3: a inserida vai para o arquivo gerado, o documento aberto continua o original" }
+      ]
+    },
+    {
+      "nome": "Mover e apagar anotação",
+      "passos": [
+        { "ir": "/" },
+        { "enviarArquivo": "#arquivoPdf", "arquivo": "tools/verificar-fluxos/fixtures/documento-teste.pdf" },
+        { "verQuantidade": ".pagina[data-renderizada]", "igual": 3, "tempo": 10000 },
+        { "clicar": "#fRetangulo" },
+        { "arrastar": "#pagina-1 .sobreposicao", "de": [0.2, 0.3], "ate": [0.4, 0.35] },
+        { "verQuantidade": ".anot[data-tipo=retangulo]", "igual": 1 },
+        { "verExpressao": "Math.round(+document.querySelector('.anot[data-tipo=retangulo] rect').getAttribute('y')) < 300" },
+        { "clicar": "#fSelecionar" },
+        { "arrastar": "#pagina-1 .sobreposicao", "de": [0.3, 0.32], "ate": [0.6, 0.72] },
+        { "verQuantidade": ".anot.selecionada", "igual": 1 },
+        { "verExpressao": "+document.querySelector('.anot[data-tipo=retangulo] rect').getAttribute('y') > 500 && +document.querySelector('.anot[data-tipo=retangulo] rect').getAttribute('x') > 200", "_nota": "o retângulo foi arrastado para baixo e para a direita (coordenadas em pontos)" },
+        { "captura": "movido" },
+        { "clicar": "#bApagar" },
+        { "verQuantidade": ".anot", "igual": 0 },
+        { "verTexto": "#contaAnotacoes", "contem": "0 anotações" }
+      ]
+    },
+    {
+      "nome": "Cobrir e reescrever (não substitui o texto original)",
+      "passos": [
+        { "ir": "/" },
+        { "enviarArquivo": "#arquivoPdf", "arquivo": "tools/verificar-fluxos/fixtures/documento-teste.pdf" },
+        { "verQuantidade": ".pagina[data-renderizada]", "igual": 3, "tempo": 10000 },
+        { "clicar": "#fCobrir" },
+        { "arrastar": "#pagina-2 .sobreposicao", "de": [0.09, 0.145], "ate": [0.6, 0.17] },
+        { "preencher": ".editor-texto", "valor": "Codigo do item: NOVO-777" },
+        { "tecla": "Enter" },
+        { "verQuantidade": ".anot[data-tipo=cobrir]", "igual": 1 },
+        { "captura": "cobrir" },
+        { "baixar": "#bBaixarPdf", "validar": { "pdfTextoContem": ["NOVO-777", "BETA-2024-XYZ"], "_nota": "o texto antigo continua no arquivo, só fica escondido sob o branco" } }
+      ]
+    },
+    {
+      "nome": "Persistência: anotações continuam após recarregar",
+      "passos": [
+        { "ir": "/" },
+        { "enviarArquivo": "#arquivoPdf", "arquivo": "tools/verificar-fluxos/fixtures/documento-teste.pdf" },
+        { "verQuantidade": ".pagina[data-renderizada]", "igual": 3, "tempo": 10000 },
+        { "clicar": "#fTexto" },
+        { "clicar": "#pagina-2 .sobreposicao", "posicao": [0.3, 0.5] },
+        { "preencher": ".editor-texto", "valor": "Nota que deve sobreviver" },
+        { "tecla": "Enter" },
+        { "verQuantidade": ".anot", "igual": 1 },
+        { "esperar": 600, "_nota": "gravação no IndexedDB tem atraso de 250 ms" },
+        { "recarregar": true },
+        { "verQuantidade": ".pagina[data-renderizada]", "igual": 3, "tempo": 10000 },
+        { "verExpressao": "document.querySelector('#pagina-2 .sobreposicao').textContent.includes('Nota que deve sobreviver')" },
+        { "verTexto": "#nomeDoc", "contem": "documento-teste.pdf" },
+        { "captura": "apos-recarregar" },
+        { "clicar": "#bFechar" },
+        { "verVisivel": "#zonaSoltar" },
+        { "esperar": 300 },
+        { "recarregar": true },
+        { "verVisivel": "#zonaSoltar" },
+        { "verExpressao": "document.body.dataset.pronto === '1' && document.querySelectorAll('.pagina').length === 0", "_nota": "Fechar apaga a sessão guardada" }
+      ]
+    },
+    {
+      "nome": "Extrair texto (por página e completo, .txt)",
+      "passos": [
+        { "ir": "/" },
+        { "enviarArquivo": "#arquivoPdf", "arquivo": "tools/verificar-fluxos/fixtures/documento-teste.pdf" },
+        { "verQuantidade": ".pagina[data-renderizada]", "igual": 3, "tempo": 10000 },
+        { "clicar": "#abaExtrair" },
+        { "verTexto": "#contaSel", "contem": "3 de 3" },
+        { "clicar": "#bExtrairTexto" },
+        { "verTexto": "#texto-p1", "contem": "Frase conhecida: o rato roeu a roupa do rei de Roma." },
+        { "verTexto": "#texto-p2", "contem": "BETA-2024-XYZ" },
+        { "verQuantidade": ".texto-pagina", "igual": 3 },
+        { "captura": "texto-extraido" },
+        { "baixar": "#bBaixarTxt", "validar": { "nomeContem": "-texto.txt", "textoContem": ["--- Página 1 ---", "o rato roeu a roupa do rei de Roma", "Quantidade em estoque: 42 unidades.", "--- Página 3 ---"] } },
+        { "baixar": "#texto-p2 .baixar-txt", "validar": { "nomeContem": "pagina-2.txt", "textoContem": "Codigo do item: BETA-2024-XYZ." } },
+        { "clicar": "#bCopiarTexto" },
+        { "verTexto": "#aviso", "contem": "copiado" }
+      ]
+    },
+    {
+      "nome": "Extrair páginas para novo PDF",
+      "passos": [
+        { "ir": "/" },
+        { "enviarArquivo": "#arquivoPdf", "arquivo": "tools/verificar-fluxos/fixtures/documento-teste.pdf" },
+        { "verQuantidade": ".pagina[data-renderizada]", "igual": 3, "tempo": 10000 },
+        { "clicar": "#abaExtrair" },
+        { "preencher": "#intervalo", "valor": "1, 3" },
+        { "clicar": "#bAplicarIntervalo" },
+        { "verTexto": "#contaSel", "contem": "2 de 3" },
+        { "captura": "selecao" },
+        { "baixar": "#bExtrairPaginas", "validar": { "nomeContem": "paginas-1_3.pdf", "pdfPaginas": 2, "pdfTextoContem": ["Relatorio Alfa", "Imagem Gama"], "pdfTextoNaoContem": "Inventario Beta" } },
+        { "preencher": "#intervalo", "valor": "2" },
+        { "clicar": "#bAplicarIntervalo" },
+        { "baixar": "#bExtrairPaginas", "validar": { "pdfPaginas": 1, "pdfTextoContem": "BETA-2024-XYZ", "pdfTextoNaoContem": "Relatorio Alfa" } },
+        { "preencher": "#intervalo", "valor": "7" },
+        { "clicar": "#bAplicarIntervalo" },
+        { "verTexto": "#aviso", "contem": "fora do documento" }
+      ]
+    },
+    {
+      "nome": "Extrair imagens embutidas e página como PNG",
+      "passos": [
+        { "ir": "/" },
+        { "enviarArquivo": "#arquivoPdf", "arquivo": "tools/verificar-fluxos/fixtures/documento-teste.pdf" },
+        { "verQuantidade": ".pagina[data-renderizada]", "igual": 3, "tempo": 10000 },
+        { "clicar": "#abaExtrair" },
+        { "clicar": "#bExtrairImagens" },
+        { "verTexto": "#resumoImagens", "contem": "1 imagem embutida encontrada" },
+        { "verTexto": "#galeriaImagens", "contem": "Página 3 · 120×80 px" },
+        { "baixar": "#galeriaImagens .baixar-imagem", "validar": { "nomeContem": "p3-imagem-1.png", "assinatura": "PNG" } },
+        { "captura": "imagens-embutidas" },
+        { "preencher": "#intervalo", "valor": "1" },
+        { "clicar": "#bAplicarIntervalo" },
+        { "clicar": "#bPaginasPng" },
+        { "verQuantidade": ".item-imagem", "igual": 1 },
+        { "verTexto": "#galeriaImagens", "contem": "Página 1 (página inteira)" },
+        { "baixar": "#galeriaImagens .baixar-imagem", "validar": { "nomeContem": "pagina-1.png", "assinatura": "PNG", "bytesMin": 10000 } }
+      ]
+    },
+    {
+      "nome": "Celular 390x844: abrir, anotar e extrair sem rolagem horizontal",
+      "viewport": { "width": 390, "height": 844 },
+      "passos": [
+        { "ir": "/" },
+        { "verVisivel": "#zonaSoltar" },
+        { "semRolagemHorizontal": true },
+        { "captura": "celular-inicial" },
+        { "enviarArquivo": "#arquivoPdf", "arquivo": "tools/verificar-fluxos/fixtures/documento-teste.pdf" },
+        { "verQuantidade": ".pagina[data-renderizada]", "igual": 3, "tempo": 10000 },
+        { "verVisivel": "#bBaixarPdf" },
+        { "clicar": "#fDesenho" },
+        { "arrastar": "#pagina-1 .sobreposicao", "de": [0.2, 0.3], "ate": [0.7, 0.4] },
+        { "verQuantidade": ".anot[data-tipo=desenho]", "igual": 1 },
+        { "semRolagemHorizontal": true },
+        { "captura": "celular-editar" },
+        { "clicar": "#abaExtrair" },
+        { "clicar": "#bExtrairTexto" },
+        { "verTexto": "#texto-p1", "contem": "rato roeu" },
+        { "semRolagemHorizontal": true },
+        { "captura": "celular-extrair" }
+      ]
+    }
+  ]
+}

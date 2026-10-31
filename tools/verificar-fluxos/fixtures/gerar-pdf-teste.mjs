@@ -37,6 +37,8 @@ function png(w, h) {
 
 const doc = await PDFDocument.create();
 doc.setTitle('Documento de teste do Editor PDF');
+doc.setCreationDate(new Date('2026-01-01T00:00:00Z'));
+doc.setModificationDate(new Date('2026-01-01T00:00:00Z'));
 const f = await doc.embedFont(StandardFonts.Helvetica);
 const fb = await doc.embedFont(StandardFonts.HelveticaBold);
 const paginas = [
@@ -51,6 +53,7 @@ for (const [i, [titulo, linhas]] of paginas.entries()) {
   p.drawText(`Rodape ${i + 1} de ${paginas.length}`, { x: 60, y: 40, size: 10, font: f, color: rgb(0.4, 0.4, 0.4) });
   if (i === 2) { const img = await doc.embedPng(png(120, 80)); p.drawImage(img, { x: 60, y: 420, width: 240, height: 160 }); }
 }
+await writeFile(path.join(aqui, 'imagem-teste.png'), png(90, 60));
 const saida = path.join(aqui, 'documento-teste.pdf');
 await writeFile(saida, await doc.save());
 console.log('Gerado:', saida);
