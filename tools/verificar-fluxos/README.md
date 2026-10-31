@@ -60,6 +60,9 @@ Requer Node 18+ e o pacote `playwright` disponível (no ambiente em nuvem do Cla
 - `semRolagemHorizontal`: falha se a página for mais larga que a janela (útil no teste de celular).
 - `baixar`: clica, espera o download, salva em `saida/<nome>/` e valida. `textoContem` lê o arquivo como UTF-8. `assinatura` confere os primeiros bytes (`%PDF`, `PNG`).
   `pdfPaginas`, `pdfTextoContem` e `pdfTextoNaoContem` abrem o PDF baixado com o pdf.js **servido pelo próprio app** (mesma origem), em outra aba do Chromium. Para isso, informe no topo do arquivo `"pdfjs"` e `"pdfjsWorker"` (caminhos relativos à `urlBase`/`servirPasta`). Assim não é preciso instalar nada no Node.
+- `passar`: move o mouse (sem clicar) até a fração `posicao` do elemento (hover). `selecionar` + `valor`: escolhe uma opção de `<select>`.
+- `baixar` → `validar` aceita também: `bytesMax`; `pdfCapturaPagina: n` (salva um PNG da página n do PDF baixado, renderizada pelo pdf.js, ao lado do arquivo); `pdfAmostras: [{ pagina, fx, fy, perto|longe: "#rrggbb", tolerancia }]` (cor do pixel na fração (fx, fy) da página renderizada: prova visual de que o fundo foi preservado). Downloads com o mesmo nome no mesmo fluxo recebem sufixo `-2`, `-3`.
+- `semRedeExterna: true` (no fluxo): falha se qualquer requisição, inclusive de workers, sair para fora do servidor do app. Garante que nada vem de CDN.
 - `tempo` (em qualquer passo): muda o limite de espera de 5000 ms.
 
 Exemplo completo: `tools/verificar-fluxos/editor-pdf.json`, com o PDF de teste gerado por `node tools/verificar-fluxos/fixtures/gerar-pdf-teste.mjs`.
