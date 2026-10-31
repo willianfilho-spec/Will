@@ -101,11 +101,56 @@ button:focus-visible, label.botao:focus-visible, .zona-soltar:focus-visible { ou
 .anot .realce { mix-blend-mode: multiply; }
 .anot.selecionada .moldura { display: block; }
 .moldura { display: none; fill: none; stroke: #1b7cd6; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; stroke-width: 1.5; pointer-events: none; }
-.editor-texto {
-  position: absolute; z-index: 5; min-width: 120px; min-height: 1.6em; resize: both;
-  border: 2px solid #1b7cd6; background: rgba(255,255,255,.92); padding: 0 2px; margin: 0;
-  font-family: Helvetica, Arial, sans-serif; line-height: 1.2; outline: none;
+/* Editor no lugar: sem fundo, só um contorno fino; o texto tem a mesma aparência do resultado final. */
+.editor-caixa {
+  position: absolute; z-index: 5; padding: 6px; cursor: move; touch-action: none;
+  border: 1px dashed #1b7cd6; border-radius: 3px; background: transparent;
 }
+.editor-caixa.movendo { border-style: solid; }
+.editor-alca {
+  position: absolute; left: -7px; top: -7px; width: 12px; height: 12px; border-radius: 50%;
+  background: #1b7cd6; border: 2px solid #fff; box-shadow: 0 0 0 1px #1b7cd6; cursor: move;
+}
+.editor-texto {
+  display: block; margin: 0; padding: 0; border: 0; outline: none; resize: none; overflow: hidden;
+  background: transparent; white-space: pre; cursor: text; caret-color: #1b7cd6;
+}
+
+/* Editar texto: linhas detectadas */
+.linha-detectada { fill: rgba(221,165,68,.10); stroke: var(--dourado); stroke-width: 1; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+.linha-detectada.ativa { fill: rgba(122,18,56,.18); stroke: var(--vinho); stroke-width: 2; stroke-dasharray: none; }
+.linha-detectada[data-origem=ocr] { stroke-dasharray: 1 2; }
+.sobreposicao[data-ferr=editartexto] { cursor: default; touch-action: pan-y; }
+.area-selecao { fill: rgba(221,165,68,.18); stroke: var(--vinho); stroke-width: 1.5; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+.sobreposicao[data-ferr=editartexto] .anot { cursor: pointer; }
+.sobreposicao[data-ferr=editartexto] .anot :is(rect, text) { pointer-events: all; }
+.destaque-ferr { border-color: var(--vinho); font-weight: 600; box-shadow: inset 0 -3px 0 var(--dourado); }
+.ferr.tog[aria-pressed=true] { background: var(--vinho); color: var(--branco); border-color: var(--vinho); }
+.cores-atalho { display: inline-flex; gap: 3px; }
+.cor-atalho { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 1px solid #8a7d82; cursor: pointer; }
+.cor-atalho:hover { outline: 2px solid var(--dourado); }
+.prop input[type=number] { width: 58px; font: inherit; font-size: .85rem; padding: 2px 4px; }
+#pAlinhar { font: inherit; font-size: .85rem; padding: 3px; }
+
+/* Só mostra os controles que fazem sentido para a ferramenta ativa */
+body[data-grupo=texto] .so-forma, body[data-grupo=forma] .so-texto { display: none !important; }
+
+/* OCR */
+.ocr-cartao {
+  position: absolute; z-index: 6; left: 8px; right: 8px; top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
+  padding: 8px 10px; background: rgba(255,255,255,.96); border: 1px solid var(--dourado); border-left: 5px solid var(--vinho);
+  border-radius: 8px; box-shadow: var(--sombra); font-size: .85rem; max-width: 640px;
+}
+.ocr-cartao progress { flex: 1 1 120px; min-width: 100px; accent-color: var(--vinho); }
+.botao.pequeno { padding: 5px 10px; font-size: .85rem; }
+.linha-remocao { position: sticky; bottom: 0; z-index: 15; margin: 0; padding: 8px 16px; background: #fff8e8; border-top: 2px solid var(--dourado); box-shadow: 0 -2px 8px rgba(60,20,30,.12); }
+.linha-remocao .check { margin-bottom: 4px; font-weight: 600; }
+.linha-remocao .nota { margin: 0; color: var(--tinta); }
+
+@font-face { font-family: 'Noto Sans'; font-weight: 400; font-style: normal; src: url(vendor/fontes/noto-sans-latin-400-normal.woff) format('woff'); }
+@font-face { font-family: 'Noto Sans'; font-weight: 400; font-style: italic; src: url(vendor/fontes/noto-sans-latin-400-italic.woff) format('woff'); }
+@font-face { font-family: 'Noto Sans'; font-weight: 700; font-style: normal; src: url(vendor/fontes/noto-sans-latin-700-normal.woff) format('woff'); }
+@font-face { font-family: 'Noto Sans'; font-weight: 700; font-style: italic; src: url(vendor/fontes/noto-sans-latin-700-italic.woff) format('woff'); }
 
 /* Extrair */
 .extrair { display: grid; gap: 14px; padding: 14px 12px 60px; max-width: 980px; margin: 0 auto; }
@@ -159,5 +204,7 @@ button:focus-visible, label.botao:focus-visible, .zona-soltar:focus-visible { ou
   .prop input[type=range] { width: 64px; }
   .zona-soltar { padding: 28px 16px; }
   .zona-soltar h1 { font-size: 1.3rem; }
-  .paginas { padding: 10px 6px 60px; }
+  .paginas { padding: 10px 6px 20px; }
+  .linha-remocao { padding: 6px 10px; font-size: .85rem; }
+  .ocr-cartao { left: 4px; right: 4px; top: 4px; padding: 6px 8px; }
 }
