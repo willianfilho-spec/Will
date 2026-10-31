@@ -114,10 +114,10 @@ button:focus-visible, label.botao:focus-visible, .zona-soltar:focus-visible { ou
 .intervalo input { width: 110px; font: inherit; padding: 6px 8px; border: 1px solid var(--linha); border-radius: 7px; }
 .conta-sel { font-size: .85rem; color: var(--cinza); }
 .miniaturas { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
-.mini { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px; border: 2px solid var(--linha); border-radius: 8px; cursor: pointer; background: var(--papel); }
+.mini { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 30px 6px 6px; border: 2px solid var(--linha); border-radius: 8px; cursor: pointer; background: var(--papel); }
 .mini.marcada { border-color: var(--verde); background: #e6f1ee; }
 .mini canvas { width: 100%; height: auto; background: var(--branco); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
-.mini input { position: absolute; top: 8px; left: 8px; width: 18px; height: 18px; }
+.mini input { position: absolute; top: 6px; left: 8px; margin: 0; width: 18px; height: 18px; }
 .mini span { font-size: .8rem; }
 .check { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; font-size: .92rem; }
 #textoCompleto { width: 100%; font: .85rem/1.4 ui-monospace, Menlo, Consolas, monospace; padding: 8px; border: 1px solid var(--linha); border-radius: 8px; resize: vertical; }
@@ -136,6 +136,7 @@ button:focus-visible, label.botao:focus-visible, .zona-soltar:focus-visible { ou
   position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 50;
   max-width: calc(100% - 24px); background: var(--tinta); color: var(--branco);
   padding: 10px 16px; border-radius: 8px; box-shadow: var(--sombra); font-size: .92rem;
+  pointer-events: none; /* não bloqueia cliques enquanto está visível */
 }
 .aviso.erro { background: #9b1c1c; }
 .carregando { position: fixed; inset: 0; z-index: 40; background: rgba(244,241,234,.6); display: grid; place-items: center; }
