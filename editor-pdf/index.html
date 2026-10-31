@@ -5,15 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Folha Clara — editar e extrair PDF no navegador</title>
   <meta name="description" content="Anote, desenhe e extraia texto, páginas e imagens de PDFs sem enviar o arquivo para nenhum servidor.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='5' y='3' width='22' height='26' rx='3' fill='%23135e57'/%3E%3Cpath d='M10 11h12M10 16h12M10 21h7' stroke='%23f4b942' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='5' y='3' width='22' height='26' rx='3' fill='%237A1238'/%3E%3Cpath d='M10 11h12M10 16h12M10 21h7' stroke='%23DDA544' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="estilo.css">
   <script src="vendor/pdf-lib/pdf-lib.min.js"></script>
+  <script src="vendor/fontkit/fontkit.umd.min.js"></script>
   <script type="module" src="app.js"></script>
 </head>
-<body>
+<body data-grupo="todos">
   <header class="topo">
     <div class="marca">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="3" width="22" height="26" rx="3" fill="currentColor"/><path d="M10 11h12M10 16h12M10 21h7" stroke="#f4b942" stroke-width="2.4" stroke-linecap="round"/></svg>
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="3" width="22" height="26" rx="3" fill="currentColor"/><path d="M10 11h12M10 16h12M10 21h7" stroke="#7A1238" stroke-width="2.4" stroke-linecap="round"/></svg>
       <span>Folha Clara</span>
     </div>
     <nav class="abas" role="tablist" aria-label="Modo">
@@ -45,22 +46,41 @@
     <section id="modoEditar" class="modo" hidden>
       <div class="barra" role="toolbar" aria-label="Ferramentas de edição">
         <div class="grupo ferramentas">
+          <button class="ferr destaque-ferr" data-ferr="editartexto" id="fEditarTexto" title="Editar o texto que já existe no PDF: clique numa linha, ou arraste um retângulo sobre um texto não detectado (X)">Editar texto</button>
           <button class="ferr ativa" data-ferr="selecionar" id="fSelecionar" title="Selecionar e mover (V)">Mover</button>
-          <button class="ferr" data-ferr="texto" id="fTexto" title="Adicionar texto (T)">Texto</button>
+          <button class="ferr" data-ferr="texto" id="fTexto" title="Adicionar texto novo (T)">Texto</button>
           <button class="ferr" data-ferr="destaque" id="fDestaque" title="Marca-texto: arraste sobre a área (H)">Marca-texto</button>
           <button class="ferr" data-ferr="desenho" id="fDesenho" title="Desenho à mão livre (D)">Caneta</button>
           <button class="ferr" data-ferr="retangulo" id="fRetangulo" title="Retângulo (R)">Retângulo</button>
           <button class="ferr" data-ferr="elipse" id="fElipse" title="Elipse (E)">Elipse</button>
           <button class="ferr" data-ferr="linha" id="fLinha" title="Linha (L)">Linha</button>
           <button class="ferr" id="fImagem" title="Inserir imagem">Imagem</button>
-          <button class="ferr" data-ferr="cobrir" id="fCobrir" title="Cobre uma área com branco e escreve por cima. Não altera o texto original do PDF.">Cobrir e reescrever</button>
+          <button class="ferr" data-ferr="cobrir" id="fCobrir" title="Cobre uma área desenhada (com o fundo amostrado ao redor) e escreve por cima. Não apaga o texto original do arquivo.">Cobrir e reescrever</button>
+        </div>
+        <div class="grupo" id="grupoOcr" hidden>
+          <button class="ferr" id="bOcr" title="Reconhece o texto de uma página que é só imagem. Roda neste navegador e pode errar.">Reconhecer texto (OCR) desta página</button>
         </div>
         <div class="grupo propriedades">
-          <label class="prop" title="Cor">Cor <input type="color" id="pCor" value="#d0312d"></label>
-          <label class="prop" title="Espessura do traço">Traço <input type="range" id="pEspessura" min="1" max="14" value="3"></label>
-          <label class="prop" title="Tamanho do texto">Fonte
-            <select id="pTamanho"><option>10</option><option>12</option><option selected>16</option><option>20</option><option>28</option><option>36</option></select>
+          <label class="prop" title="Cor do texto e dos traços">Cor <input type="color" id="pCor" value="#d0312d" data-prop></label>
+          <span class="cores-atalho" role="group" aria-label="Cores da UFMA">
+            <button class="cor-atalho" data-prop data-cor="#7A1238" title="Vinho UFMA" aria-label="Vinho"></button>
+            <button class="cor-atalho" data-prop data-cor="#DDA544" title="Dourado UFMA" aria-label="Dourado"></button>
+            <button class="cor-atalho" data-prop data-cor="#000000" title="Preto" aria-label="Preto"></button>
+            <button class="cor-atalho" data-prop data-cor="#FFFFFF" title="Branco" aria-label="Branco"></button>
+          </span>
+          <label class="prop so-forma" title="Espessura do traço">Traço <input type="range" id="pEspessura" min="1" max="14" value="3"></label>
+          <label class="prop so-texto" title="Fonte do texto">Fonte
+            <select id="pFonte" data-prop>
+              <option value="sans" selected>Noto Sans</option><option value="helvetica">Helvetica</option>
+              <option value="times">Times</option><option value="courier">Courier</option>
+            </select>
           </label>
+          <label class="prop so-texto" title="Tamanho do texto, em pontos (padrão proporcional à largura da página)">Tam. <input type="number" id="pTamanho" min="4" max="600" step="1" value="16" data-prop></label>
+          <button class="ferr tog so-texto" id="pNegrito" data-prop aria-pressed="false" title="Negrito"><b>N</b></button>
+          <button class="ferr tog so-texto" id="pItalico" data-prop aria-pressed="false" title="Itálico"><i>I</i></button>
+          <select id="pAlinhar" class="so-texto" data-prop aria-label="Alinhamento do texto" title="Alinhamento do texto">
+            <option value="esq" selected>Esquerda</option><option value="centro">Centro</option><option value="dir">Direita</option>
+          </select>
         </div>
         <div class="grupo acoes">
           <button id="bDesfazer" class="botao fantasma" title="Desfazer (Ctrl+Z)" disabled>Desfazer</button>
@@ -70,6 +90,10 @@
       </div>
       <p class="info-doc"><span id="nomeDoc"></span> · <span id="contaPaginas"></span> · <span id="contaAnotacoes">0 anotações</span></p>
       <div id="paginas" class="paginas"></div>
+      <div id="linhaRemocao" class="linha-remocao" hidden>
+        <label class="check"><input type="checkbox" id="removerTexto"> Remover de vez o texto antigo (as páginas editadas viram imagem)</label>
+        <p id="avisoRemocao" class="nota" role="status"></p>
+      </div>
     </section>
 
     <!-- Modo Extrair -->
@@ -89,7 +113,7 @@
 
         <div class="cartao">
           <h2>2. Texto</h2>
-          <p class="nota">Lê a camada de texto do PDF. PDFs digitalizados (só imagem) não têm texto para extrair; o reconhecimento óptico (OCR) não está incluído.</p>
+          <p class="nota">Lê a camada de texto do PDF. PDFs digitalizados (só imagem) não têm texto para extrair aqui. O OCR existe apenas na ferramenta “Editar texto”, para corrigir linhas de uma página.</p>
           <button id="bExtrairTexto" class="botao primario">Extrair texto</button>
           <div id="saidaTexto" class="saida-texto" hidden>
             <div class="linha-sel">

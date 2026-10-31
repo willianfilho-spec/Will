@@ -66,9 +66,11 @@ export async function imagensDaPagina(page, OPS) {
   return saida;
 }
 
-/** Renderiza a página inteira (com as anotações do usuário) em PNG a 2x (≈144 dpi). */
-export async function paginaComoPng(page, anotacoes, info, elementoAnotacao) {
-  const escala = 2;
+/**
+ * Renderiza a página (pdf.js) com as anotações do usuário por cima e devolve o canvas.
+ * `css` entra no SVG das anotações (fontes embutidas em base64: um SVG desenhado como imagem não enxerga os arquivos da página).
+ */
+export async function paginaComoCanvas(page, anotacoes, info, elementoAnotacao, escala = 2, css = '') {
   const vp = page.getViewport({ scale: escala });
   const c = Object.assign(document.createElement('canvas'), { width: Math.floor(vp.width), height: Math.floor(vp.height) });
   const ctx = c.getContext('2d');
@@ -78,6 +80,7 @@ export async function paginaComoPng(page, anotacoes, info, elementoAnotacao) {
     svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     svg.setAttribute('viewBox', `0 0 ${info.w} ${info.h}`);
     svg.setAttribute('width', c.width); svg.setAttribute('height', c.height);
+    if (css) { const st = document.createElementNS('http://www.w3.org/2000/svg', 'style'); st.textContent = css; svg.append(st); }
     for (const a of anotacoes) {
       const g = elementoAnotacao(a);
       g.querySelectorAll('.realce').forEach(r => r.setAttribute('style', 'mix-blend-mode:multiply'));
@@ -86,7 +89,21 @@ export async function paginaComoPng(page, anotacoes, info, elementoAnotacao) {
     const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(svg));
     const im = new Image();
     await new Promise((ok, erro) => { im.onload = ok; im.onerror = erro; im.src = url; });
+    await im.decode?.().catch(() => {});
     ctx.drawImage(im, 0, 0, c.width, c.height);
   }
-  return c.toDataURL('image/png');
+  return c;
+}
+
+/** Página inteira (com as anotações) em PNG a 2x (≈144 dpi). */
+export async function paginaComoPng(page, anotacoes, info, elementoAnotacao, css = '') {
+  return (await paginaComoCanvas(page, anotacoes, info, elementoAnotacao, 2, css)).toDataURL('image/png');
+}
+
+/** Página inteira (com as anotações) em JPEG, para substituir a página original no PDF. */
+export async function paginaComoJpeg(page, anotacoes, info, elementoAnotacao, css, escala, qualidade = 0.92) {
+  const c = await paginaComoCanvas(page, anotacoes, info, elementoAnotacao, escala, css);
+  const blob = await new Promise(ok => c.toBlob(ok, 'image/jpeg', qualidade));
+  c.width = c.height = 0;
+  return new Uint8Array(await blob.arrayBuffer());
 }

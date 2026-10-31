@@ -44,49 +44,79 @@ async function pontoEm(page, sel, [fx, fy], t) {
 }
 
 // Abre o PDF baixado no próprio Chromium com o pdf.js indicado em spec.pdfjs
-// (servido pelo app, mesma origem) e devolve { paginas, texto }.
-async function lerPdfNoNavegador(page, spec, base, bytes) {
+// (servido pelo app, mesma origem) e devolve { paginas, texto, textoPorPagina, amostras, imagem }.
+// `amostras` = [{ pagina, fx, fy }] -> cor RGB do pixel na fração (fx, fy) da página renderizada (escala 1).
+// `capturaPagina` = n -> PNG (base64) da página n renderizada em escala 1,5.
+async function lerPdfNoNavegador(page, spec, base, bytes, extra = {}) {
   if (!spec.pdfjs) throw new Error('Validação de PDF requer "pdfjs" e "pdfjsWorker" no arquivo de fluxos');
   const aux = await page.context().newPage();
   try {
     const mod = new URL(spec.pdfjs, base).href;
     await aux.goto(mod);
-    return await aux.evaluate(async ({ mod, worker, b64 }) => {
+    return await aux.evaluate(async ({ mod, worker, b64, amostras, capturaPagina }) => {
       const pdfjs = await import(mod);
       pdfjs.GlobalWorkerOptions.workerSrc = worker;
       const data = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
       const doc = await pdfjs.getDocument({ data }).promise;
-      let texto = '';
+      let texto = ''; const textoPorPagina = [];
       for (let i = 1; i <= doc.numPages; i++) {
         const tc = await (await doc.getPage(i)).getTextContent();
-        texto += tc.items.map(it => it.str).join(' ') + '\n';
+        const t = tc.items.map(it => it.str).join(' ');
+        textoPorPagina.push(t); texto += t + '\n';
       }
-      return { paginas: doc.numPages, texto };
-    }, { mod, worker: new URL(spec.pdfjsWorker, base).href, b64: bytes.toString('base64') });
+      const renderizar = async (n, escala) => {
+        const pg = await doc.getPage(n), vp = pg.getViewport({ scale: escala });
+        const c = document.createElement('canvas'); c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
+        await pg.render({ canvasContext: c.getContext('2d'), canvas: c, viewport: vp }).promise;
+        return c;
+      };
+      const res = [];
+      for (const a of amostras || []) {
+        const c = await renderizar(a.pagina, 1);
+        const x = Math.min(c.width - 1, Math.floor(c.width * a.fx)), y = Math.min(c.height - 1, Math.floor(c.height * a.fy));
+        res.push(Array.from(c.getContext('2d').getImageData(x, y, 1, 1).data.slice(0, 3)));
+      }
+      let imagem = null;
+      if (capturaPagina) imagem = (await renderizar(capturaPagina, 1.5)).toDataURL('image/png').split(',')[1];
+      return { paginas: doc.numPages, texto, textoPorPagina, amostras: res, imagem };
+    }, { mod, worker: new URL(spec.pdfjsWorker, base).href, b64: bytes.toString('base64'), amostras: extra.amostras, capturaPagina: extra.capturaPagina });
   } finally { await aux.close(); }
 }
+
+const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 
 async function validarDownload(page, spec, base, arq, v) {
   const bytes = await readFile(arq);
   const nome = path.basename(arq);
   if (v.nomeContem && !nome.includes(v.nomeContem)) throw new Error(`download "${nome}" não contém "${v.nomeContem}" no nome`);
   if (v.bytesMin && bytes.length < v.bytesMin) throw new Error(`download "${nome}" tem ${bytes.length} bytes (< ${v.bytesMin})`);
+  if (v.bytesMax && bytes.length > v.bytesMax) throw new Error(`download "${nome}" tem ${bytes.length} bytes (> ${v.bytesMax})`);
   if (v.textoContem) for (const s of [].concat(v.textoContem)) {
     if (!bytes.toString('utf8').includes(s)) throw new Error(`texto de "${nome}" não contém "${s}"`);
   }
   if (v.assinatura && !bytes.subarray(0, 8).toString('latin1').includes(v.assinatura))
     throw new Error(`"${nome}" não começa com "${v.assinatura}"`);
-  if (v.pdfPaginas !== undefined || v.pdfTextoContem || v.pdfTextoNaoContem) {
-    const pdf = await lerPdfNoNavegador(page, spec, base, bytes);
+  if (v.pdfPaginas !== undefined || v.pdfTextoContem || v.pdfTextoNaoContem || v.pdfAmostras || v.pdfCapturaPagina) {
+    const pdf = await lerPdfNoNavegador(page, spec, base, bytes, { amostras: v.pdfAmostras, capturaPagina: v.pdfCapturaPagina });
+    if (pdf.imagem) await writeFile(arq.replace(/\.pdf$/i, '') + `-pagina${v.pdfCapturaPagina}.png`, Buffer.from(pdf.imagem, 'base64'));
     if (v.pdfPaginas !== undefined && pdf.paginas !== v.pdfPaginas) throw new Error(`PDF "${nome}": esperado ${v.pdfPaginas} página(s), tem ${pdf.paginas}`);
     for (const s of [].concat(v.pdfTextoContem || [])) if (!pdf.texto.includes(s)) throw new Error(`PDF "${nome}" não contém o texto "${s}"`);
     for (const s of [].concat(v.pdfTextoNaoContem || [])) if (pdf.texto.includes(s)) throw new Error(`PDF "${nome}" não deveria conter "${s}"`);
+    // Amostras de pixel da página renderizada: { pagina, fx, fy, perto: "#rrggbb", tolerancia } ou { ..., longe: "#rrggbb", tolerancia }
+    (v.pdfAmostras || []).forEach((a, k) => {
+      const [r, g, b] = pdf.amostras[k], tol = a.tolerancia ?? 40;
+      const d = ref => { const q = hexRgb(ref); return Math.max(Math.abs(r - q[0]), Math.abs(g - q[1]), Math.abs(b - q[2])); };
+      if (a.perto && d(a.perto) > tol) throw new Error(`PDF "${nome}": pixel (${a.fx}, ${a.fy}) da página ${a.pagina} é rgb(${r},${g},${b}), esperado perto de ${a.perto} (±${tol})`);
+      if (a.longe && d(a.longe) <= tol) throw new Error(`PDF "${nome}": pixel (${a.fx}, ${a.fy}) da página ${a.pagina} é rgb(${r},${g},${b}), não deveria estar perto de ${a.longe}`);
+    });
   }
 }
 
 async function executarPasso(page, p, base, dirSaida, fluxoIdx, capturas, spec) {
   const t = p.tempo || 5000;
   if (p.ir !== undefined) return page.goto(new URL(p.ir, base).href);
+  if (p.selecionar) return page.selectOption(p.selecionar, String(p.valor), { timeout: t });
+  if (p.passar) { const pt = await pontoEm(page, p.passar, p.posicao, t); return page.mouse.move(pt.x, pt.y, { steps: 4 }); }
   if (p.clicar && p.posicao) { const pt = await pontoEm(page, p.clicar, p.posicao, t); return page.mouse.click(pt.x, pt.y); }
   if (p.clicar) return page.click(p.clicar, { timeout: t });
   if (p.enviarArquivo) return page.setInputFiles(p.enviarArquivo, [].concat(p.arquivo).map(a => path.resolve(a)), { timeout: t });
@@ -99,7 +129,8 @@ async function executarPasso(page, p, base, dirSaida, fluxoIdx, capturas, spec) 
   }
   if (p.baixar) {
     const [dl] = await Promise.all([page.waitForEvent('download', { timeout: t }), page.click(p.baixar, { timeout: t })]);
-    const nome = `${String(fluxoIdx + 1).padStart(2, '0')}-${dl.suggestedFilename()}`.replace(/[^\w.-]/g, '_');
+    let nome = `${String(fluxoIdx + 1).padStart(2, '0')}-${dl.suggestedFilename()}`.replace(/[^\w.-]/g, '_');
+    for (let n = 2; capturas.includes(nome); n++) nome = nome.replace(/(-\d+)?(\.[^.]+)$/, `-${n}$2`); // vários downloads com o mesmo nome no fluxo
     const arq = path.join(dirSaida, nome);
     await dl.saveAs(arq);
     capturas.push(nome);
@@ -157,7 +188,9 @@ const resultados = [];
 for (const [i, fluxo] of spec.fluxos.entries()) {
   const ctx = await browser.newContext({ viewport: fluxo.viewport || { width: 1280, height: 800 }, acceptDownloads: true });
   const page = await ctx.newPage();
-  const errosConsole = [];
+  const errosConsole = [], pedidosExternos = [];
+  // semRedeExterna: toda requisição (inclusive de workers) precisa ir para o servidor local do app.
+  ctx.on('request', r => { const u = r.url(); if (!/^(data:|blob:|about:)/.test(u) && !u.startsWith(new URL(base).origin)) pedidosExternos.push(u); });
   page.on('console', m => { if (m.type() === 'error') errosConsole.push(m.text()); });
   page.on('pageerror', e => errosConsole.push(String(e)));
   page.on('dialog', d => d.accept());
@@ -167,6 +200,7 @@ for (const [i, fluxo] of spec.fluxos.entries()) {
     catch (e) { erro = e.message.split('\n')[0]; passoFalho = j + 1; break; }
   }
   if (erro) { const nome = `${String(i + 1).padStart(2, '0')}-FALHA.png`; await page.screenshot({ path: path.join(dirSaida, nome), fullPage: true }).catch(() => {}); capturas.push(nome); }
+  if (!erro && fluxo.semRedeExterna && pedidosExternos.length) erro = `Requisições para fora do app: ${pedidosExternos.slice(0, 3).join(' | ')}`;
   if (!erro && errosConsole.length) erro = `Erros no console: ${errosConsole.slice(0, 3).join(' | ')}`;
   resultados.push({ fluxo: fluxo.nome, ok: !erro, erro, passoFalho, capturas });
   console.log(`${erro ? '❌' : '✅'} ${fluxo.nome}${erro ? ` — passo ${passoFalho ?? '-'}: ${erro}` : ''}`);
