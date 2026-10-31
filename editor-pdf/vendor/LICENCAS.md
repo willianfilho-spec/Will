@@ -14,7 +14,7 @@ Cópias sem alteração dos arquivos `dist`, obtidas do registro npm em 2026-10-
 
 ## Tamanho do pacote de OCR
 
-`vendor/tesseract/` + `vendor/fontkit/` + `vendor/fontes/` = ver o README do app (medido na entrega). O OCR só é baixado quando o usuário pede "Reconhecer texto desta página": o app não toca nesses arquivos ao abrir.
+`vendor/tesseract/` = 8,4 MB (núcleo 3,9 MB, `por` 1,4 MB, `eng` 2,9 MB, scripts 0,2 MB); `vendor/fontkit/` = 0,76 MB; `vendor/fontes/` = 0,07 MB. O OCR só é baixado quando o usuário pede "Reconhecer texto desta página": o app não toca nesses arquivos ao abrir.
 
 ## Decisões
 
