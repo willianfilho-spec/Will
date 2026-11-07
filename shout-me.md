@@ -2,15 +2,15 @@
 
 **Gestão Pública | Desenvolvimento Territorial | Marketing Estratégico | Inovação Pública**
 
-Bem-vindo ao meu espaço de conhecimento e colaboração! Sou um profissional com **mais de 15 anos de experiência** na intersecção entre gestão pública, ensino superior e desenvolvimento socioespacial. Minha trajetória é marcada por uma visão sistêmica que une o rigor acadêmico com a aplicação prática de metodologias ágeis em políticas públicas.
+Bem-vindo! Tenho **mais de 15 anos de experiência** em gestão pública, ensino superior e desenvolvimento socioespacial. Trabalho com uma visão sistêmica: junto o rigor acadêmico com o uso prático de metodologias ágeis em políticas públicas.
 
 ---
 
 ## 🎯 Sobre Mim
 
-Técnico-Administrativo em Educação na **Universidade Federal do Maranhão (UFMA)** - Pró-Reitoria de Graduação, Professor Universitário em instituições como IESF e INEX, e Técnico Municipal de Nível Superior na **Secretaria de Turismo de São Luís (SETUR)**. 
+Sou Técnico-Administrativo em Educação na Pró-Reitoria de Graduação da **Universidade Federal do Maranhão (UFMA)**, professor universitário em instituições como IESF e INEX e Técnico Municipal de Nível Superior na **Secretaria de Turismo de São Luís (SETUR)**.
 
-Minha atuação concentra-se em:
+Atuo principalmente em:
 - 🏛️ **Gestão Pública Inovadora**: Transformação digital e otimização de processos governamentais
 - 🌍 **Desenvolvimento Territorial Sustentável**: Planejamento estratégico e políticas de base comunitária
 - 📊 **Marketing Estratégico**: Análise de mercado, posicionamento e inteligência de negócios
@@ -49,7 +49,7 @@ Minha atuação concentra-se em:
 ## 🌟 Projetos Destacados
 
 ### 📈 Plano de Marketing Turístico de São Luís
-**Relevância Internacional | Financiamento Banco Mundial**
+**Relevância Internacional | Financiamento do Banco Mundial**
 - Desenvolvimento de estratégia de posicionamento para promoção do turismo em São Luís
 - Análise competitiva e oportunidades de mercado
 - Definição de ações de marketing com impacto mensurável
@@ -114,7 +114,7 @@ Minha atuação concentra-se em:
 
 > *"A verdadeira inovação no setor público acontece quando combinamos rigor metodológico com criatividade, sempre com foco no impacto social."*
 
-Acredito que os melhores resultados emergem da **intersecção entre disciplinas**. Minha abordagem híbrida – combinando PMI com Scrum, análise de dados com design thinking – permite identificar e aplicar as ferramentas mais adequadas para cada contexto.
+Acredito que os melhores resultados aparecem no **encontro entre disciplinas**. Por isso combino PMI com Scrum e análise de dados com design thinking, escolhendo a ferramenta que melhor serve a cada contexto.
 
 **Especialidades em Metodologias Híbridas:**
 - ✅ Gestão eficiente de stakeholders e comunicação de resultados
@@ -137,7 +137,7 @@ Estou **aberto a colaborações** que envolvam:
 
 ## 📈 Contribuições Científicas
 
-Minha produção acadêmica reflete preocupação com eficiência organizacional, discutindo como ferramentas de gestão, logística e marketing podem ser diferenciais estratégicos para viabilizar processos, reduzir custos e agregar valor.
+Minha produção acadêmica trata de eficiência organizacional: como ferramentas de gestão, logística e marketing podem ser um diferencial estratégico para viabilizar processos, reduzir custos e agregar valor.
 
 **Áreas de Publicação:**
 - Desenvolvimento Regional e Territorial
@@ -149,10 +149,10 @@ Minha produção acadêmica reflete preocupação com eficiência organizacional
 
 ## ⭐ Vamos Conversar?
 
-Se você tem interesse em colaborar, quer discutir sobre desenvolvimento territorial, inovação pública ou qualquer projeto que combine estratégia com impacto social, **fique à vontade para entrar em contato!**
+Se você quer colaborar ou discutir desenvolvimento territorial, inovação pública ou qualquer projeto que combine estratégia com impacto social, **fique à vontade para entrar em contato!**
 
 **"Transformando ideias em ação, dados em decisão, e projetos em impacto."** 🚀
 
 ---
 
-*Último update: Abril de 2026*
+*Última atualização: abril de 2026*
