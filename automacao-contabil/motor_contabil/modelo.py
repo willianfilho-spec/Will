@@ -33,6 +33,10 @@ class Transacao:
     fitid: str | None = None
     origem: str = ""
     linha: int = 0
+    favorecido: str | None = None
+    # Avisos do leitor sobre a qualidade da linha (ex.: texto truncado na
+    # extração do PDF). Cada aviso manda o lançamento para revisão.
+    alertas: tuple[str, ...] = ()
 
     @property
     def sentido(self) -> str:

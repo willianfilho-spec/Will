@@ -37,16 +37,22 @@ def _hash(*partes: str) -> str:
     return hashlib.sha256("|".join(partes).encode("utf-8")).hexdigest()[:32]
 
 
-def conteudo(t: Transacao) -> tuple[str, str, str, str, str]:
+def conteudo(t: Transacao) -> tuple[str, ...]:
     # O número do documento entra no conteúdo: dois pagamentos iguais com
     # cheques/documentos diferentes são, com certeza, operações distintas.
-    return (
+    partes = (
         t.conta_bancaria,
         t.data.isoformat(),
         f"{t.valor:.2f}",
         normalizar(t.historico),
         normalizar(t.documento or ""),
     )
+    # O favorecido só entra quando existe. Assim, transações sem favorecido
+    # mantêm exatamente a chave que tinham antes deste campo existir, e
+    # reimportar um extrato antigo continua sem gerar duplicidade.
+    if t.favorecido:
+        partes += ("favorecido", normalizar(t.favorecido))
+    return partes
 
 
 def calcular_chaves(transacoes: list[Transacao]) -> list[tuple[str, str, int]]:

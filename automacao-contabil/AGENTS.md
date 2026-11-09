@@ -44,6 +44,14 @@ qualquer uma delas está errada, mesmo que os testes passem.
    mascarados) e o sentido da operação. Não envie valor, data, conta bancária
    ou extrato inteiro sem decisão explícita dos responsáveis.
 
+8. **Regras leem o texto do banco, não o favorecido**, salvo quando a regra
+   declara `"campo": "favorecido"`. Nomes de pessoas casam com padrões por
+   acidente.
+9. **Chaves antigas não mudam.** O teste
+   `test_chave_de_transacao_sem_favorecido_nao_mudou` fixa a chave de uma
+   transação de exemplo. Se ele falhar, a mudança fará extratos já importados
+   serem duplicados. Não atualize o valor esperado; corrija o código.
+
 Ao mudar comportamento coberto por essas regras, adicione ou ajuste testes
 em `testes/test_motor.py` que provem que a regra continua valendo.
 
@@ -65,8 +73,9 @@ em `testes/test_motor.py` que provem que a regra continua valendo.
 ## Dados
 
 Os arquivos em `exemplos/` são fictícios. Nunca faça commit de extratos
-reais, planos de contas de clientes ou arquivos `.db` (já estão no
-`.gitignore`).
+reais, planilhas de clientes (`.xlsx`), planos de contas de clientes ou
+arquivos `.db` (já estão no `.gitignore`). Testes com dados reais usam a
+variável `MOTOR_PLANILHAS_REAIS` e leem os arquivos de fora do repositório.
 
 ## Estilo
 

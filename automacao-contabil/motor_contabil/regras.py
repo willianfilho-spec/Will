@@ -9,8 +9,12 @@ Arquivo JSON:
   ]
 }
 
-`padrao` é uma expressão regular aplicada ao histórico normalizado
-(maiúsculas, sem acentos). `sentido` é "entrada", "saida" ou "ambos".
+`padrao` é uma expressão regular aplicada ao texto normalizado (maiúsculas,
+sem acentos). `sentido` é "entrada", "saida" ou "ambos". `campo` diz onde
+procurar: "historico" (padrão, o texto do banco) ou "favorecido".
+
+Por que o favorecido não entra por padrão: nomes de pessoas casam com
+padrões por acidente. "FRANCISCO DAS CHAGAS" casaria com uma regra de DAS.
 
 Se mais de uma regra casar e elas apontarem contas diferentes, o motor não
 escolhe: o lançamento vai para revisão. A ordem das regras no arquivo não
@@ -35,11 +39,13 @@ class Regra:
     sentido: str
     conta: str
     historico: str | None
+    campo: str = "historico"
 
     def casa(self, t: Transacao) -> bool:
         if self.sentido not in ("ambos", t.sentido):
             return False
-        return bool(self.padrao.search(normalizar(t.historico)))
+        texto = t.favorecido if self.campo == "favorecido" else t.historico
+        return bool(texto) and bool(self.padrao.search(normalizar(texto)))
 
 
 @dataclass
@@ -59,6 +65,9 @@ class ConjuntoDeRegras:
             sentido = bruta.get("sentido", "ambos")
             if sentido not in ("entrada", "saida", "ambos"):
                 raise ValueError(f"regra {bruta['id']}: sentido inválido {sentido!r}")
+            campo = bruta.get("campo", "historico")
+            if campo not in ("historico", "favorecido"):
+                raise ValueError(f"regra {bruta['id']}: campo inválido {campo!r}")
             regras.append(
                 Regra(
                     id=bruta["id"],
@@ -66,6 +75,7 @@ class ConjuntoDeRegras:
                     sentido=sentido,
                     conta=bruta["conta"],
                     historico=bruta.get("historico"),
+                    campo=campo,
                 )
             )
         return cls(conta_banco=dados["conta_banco"], regras=regras)

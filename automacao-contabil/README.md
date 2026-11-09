@@ -12,7 +12,7 @@ contábeis revisados e prontos para importação, sem gerar duplicidades.
 
 | Faz | Não faz (ainda) |
 | --- | --- |
-| Lê OFX (1.x e 2.x) e CSV de extrato | Ler PDF, Excel (.xlsx) ou relatórios de sistemas |
+| Lê OFX (1.x e 2.x), CSV de extrato e as planilhas "Despesas extrato" (.xlsx) | Ler PDF ou relatórios de sistemas |
 | Impede lançamento duplicado ao reprocessar ou sobrepor extratos | Conciliação bancária completa (confronto com a contabilidade já escriturada) |
 | Classifica por regras aprovadas pelo contador | Decidir sozinho casos ambíguos |
 | Sugere contas por IA, sempre como pendência | Liberar lançamento sugerido pela IA sem aprovação |
@@ -110,6 +110,31 @@ Testes:
 pytest
 ```
 
+## Planilhas "Despesas extrato" (.xlsx)
+
+O leitor `leitores/planilha_despesas.py` aceita o leiaute usado pelo
+escritório (DATA, LANÇAMENTO BANCÁRIO, DESCRIÇÃO, VALOR, CAIXA/BANCO, linha de
+total com `=SUM`). Pontos de atenção:
+
+- A DESCRIÇÃO vira o campo **favorecido**, separado do histórico. Ela é usada
+  para distinguir pagamentos iguais (mesmo dia, valor e texto "PIX ENVIADO"),
+  mas as regras só a consultam quando têm `"campo": "favorecido"`. Sem essa
+  separação, "FRANCISCO DAS CHAGAS" casava com a regra do DAS.
+- Linhas com sinais de extração defeituosa vão para revisão, mesmo que uma
+  regra as reconheça: texto do extrato sem tipo de operação (pedaço de nome),
+  favorecido com 6 ou mais palavras (dois nomes juntos) e encargo bancário
+  (tarifa, IOF, juros) com favorecido preenchido.
+- A coluna CAIXA/BANCO vem vazia; a conta bancária é informada na importação.
+
+Para avaliar o motor com planilhas reais sem colocá-las no repositório:
+
+```bash
+python ferramentas/avaliar_planilhas.py /pasta/com/as/planilhas
+MOTOR_PLANILHAS_REAIS=/pasta/com/as/planilhas pytest testes/test_dados_reais.py
+```
+
+O relatório traz só números agregados, sem nomes de favorecidos.
+
 ## Parametrização por empresa
 
 - `exemplos/plano_contas.csv`: `codigo;descricao;tipo;codigo_exportacao`.
@@ -158,7 +183,8 @@ suposição):
 1. Exportador no leiaute do sistema escolhido, testado com importação real.
 2. Teste de reprodução: rodar o motor sobre extratos já escriturados e
    comparar lançamento a lançamento com o que foi feito manualmente.
-3. Leitura de Excel e de outros formatos que aparecerem nos arquivos reais.
+3. Cadastro de favorecidos: o contador classifica cada favorecido uma vez e o
+   motor passa a sugerir a conta nos meses seguintes (sempre como pendência).
 4. Regras aprendidas na revisão: quando o revisor corrige a mesma conta várias
    vezes, sugerir uma nova regra para o contador aprovar.
 5. Separar a base de dados por empresa cliente.

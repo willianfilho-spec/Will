@@ -85,9 +85,13 @@ def montar_lancamento(
     if c.fonte == "ia":
         pendencias.append(f"sugestão da IA, requer aprovação ({c.observacao})")
 
+    pendencias.extend(t.alertas)
+
     historico = t.historico
+    if t.favorecido:
+        historico = f"{historico} - {t.favorecido}"
     if c.historico_padrao:
-        historico = f"{c.historico_padrao} - {t.historico}"
+        historico = f"{c.historico_padrao} - {historico}"
 
     if bloqueios:
         status = Status.BLOQUEADO
@@ -164,10 +168,11 @@ class Motor:
                 )
                 db.execute(
                     "INSERT INTO transacoes (chave, chave_conteudo, fitid, conta_bancaria, data,"
-                    " valor, historico, documento, origem, linha, lote_id)"
-                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    " valor, historico, favorecido, documento, origem, linha, lote_id)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (chave, chave_conteudo, t.fitid, t.conta_bancaria, t.data.isoformat(),
-                     f"{t.valor:.2f}", t.historico, t.documento, t.origem, t.linha, lote_id),
+                     f"{t.valor:.2f}", t.historico, t.favorecido, t.documento, t.origem,
+                     t.linha, lote_id),
                 )
                 self._gravar_lancamento(lanc, classificacao.conta_contrapartida)
                 self.banco.registrar_evento(
@@ -212,7 +217,8 @@ class Motor:
     # ------------------------------------------------------------ consulta
     def listar(self, status: Status | str | None = None) -> list[dict]:
         sql = (
-            "SELECT t.chave, t.data, t.valor, t.historico AS historico_banco, t.documento,"
+            "SELECT t.chave, t.data, t.valor, t.historico AS historico_banco, t.favorecido,"
+            " t.documento,"
             " t.origem, t.linha, t.conta_bancaria, l.conta_contrapartida, l.conta_debito,"
             " l.conta_credito, l.historico, l.status, l.motivos, l.fonte, l.lote_exportacao"
             " FROM transacoes t JOIN lancamentos l USING (chave)"
@@ -235,6 +241,7 @@ class Motor:
         t = Transacao(
             conta_bancaria=linha["conta_bancaria"], data=date.fromisoformat(linha["data"]),
             valor=Decimal(linha["valor"]), historico=linha["historico"],
+            favorecido=linha["favorecido"],
             documento=linha["documento"], fitid=linha["fitid"], origem=linha["origem"],
             linha=linha["linha"],
         )

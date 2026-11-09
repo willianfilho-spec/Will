@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS transacoes (
     data            TEXT NOT NULL,
     valor           TEXT NOT NULL,
     historico       TEXT NOT NULL,
+    favorecido      TEXT,
     documento       TEXT,
     origem          TEXT NOT NULL,
     linha           INTEGER NOT NULL,
@@ -74,6 +75,10 @@ class BancoDeDados:
         self.conexao.row_factory = sqlite3.Row
         self.conexao.execute("PRAGMA foreign_keys = ON")
         self.conexao.executescript(ESQUEMA)
+        colunas = {r["name"] for r in self.conexao.execute("PRAGMA table_info(transacoes)")}
+        if "favorecido" not in colunas:  # banco criado por versão anterior
+            self.conexao.execute("ALTER TABLE transacoes ADD COLUMN favorecido TEXT")
+            self.conexao.commit()
 
     @contextmanager
     def transacao(self):
