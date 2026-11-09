@@ -1,0 +1,4 @@
+streamlit>=1.40
+pytest>=8
+# opcional, só para a sugestão por IA:
+anthropic>=2.6

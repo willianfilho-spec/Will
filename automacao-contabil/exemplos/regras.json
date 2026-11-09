@@ -1,0 +1,15 @@
+{
+  "conta_banco": "1.1.1.02.001",
+  "regras": [
+    {"id": "tarifa", "padrao": "\\bTARIFA\\b|\\bTAR\\b|CESTA DE SERVICOS", "sentido": "saida",
+     "conta": "4.2.1.01.001", "historico": "Tarifa bancária"},
+    {"id": "energia", "padrao": "ENERGIA|CEMIG|ENEL|COPEL|CELESC", "sentido": "saida",
+     "conta": "4.2.1.02.001", "historico": "Pagamento de energia elétrica"},
+    {"id": "fornecedor-boleto", "padrao": "PAGTO FORNECEDOR|PAG FORNEC", "sentido": "saida",
+     "conta": "2.1.1.01.001", "historico": "Pagamento a fornecedor"},
+    {"id": "das", "padrao": "\\bDAS\\b|SIMPLES NACIONAL", "sentido": "saida",
+     "conta": "2.1.4.01.001", "historico": "Pagamento DAS"},
+    {"id": "recebimento-cliente", "padrao": "RECEBIMENTO BOLETO|LIQUIDACAO COBRANCA", "sentido": "entrada",
+     "conta": "1.1.2.01.001", "historico": "Recebimento de cliente"}
+  ]
+}
