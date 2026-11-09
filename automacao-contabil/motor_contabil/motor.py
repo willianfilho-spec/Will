@@ -312,3 +312,33 @@ class Motor:
                 lote_id=lote_id,
             )
         return lote_id, len(liberados)
+
+    def lotes_exportacao(self) -> list[dict]:
+        """Exportações já feitas, da mais recente para a mais antiga."""
+        return [dict(r) for r in self.banco.conexao.execute(
+            "SELECT lo.id, lo.criado_em, lo.usuario, COUNT(la.chave) AS quantidade"
+            " FROM lotes lo LEFT JOIN lancamentos la ON la.lote_exportacao = lo.id"
+            " WHERE lo.tipo='exportacao' GROUP BY lo.id ORDER BY lo.id DESC"
+        )]
+
+    def reexportar(self, lote_id: int, destino: str | Path, exportador=None,
+                   registrar: bool = True) -> int:
+        """Gera de novo o arquivo de uma exportação anterior, idêntico ao original.
+
+        Não muda a situação de nenhum lançamento. Serve para recuperar um
+        arquivo perdido ou que não foi baixado, sem liberar os lançamentos
+        para uma segunda exportação (o que criaria duplicidade no sistema
+        contábil).
+        """
+        exportador = exportador or ExportadorCSVGenerico(self.plano)
+        itens = [i for i in self.listar(Status.EXPORTADO) if i["lote_exportacao"] == lote_id]
+        if not itens:
+            raise KeyError(f"lote de exportação {lote_id} não encontrado")
+        exportador.escrever(itens, destino)
+        if registrar:
+            self.banco.registrar_evento(
+                self.usuario, "reexportado", f"lote {lote_id} regerado em {destino}",
+                lote_id=lote_id,
+            )
+            self.banco.conexao.commit()
+        return len(itens)

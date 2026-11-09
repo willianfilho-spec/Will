@@ -1,0 +1,11 @@
+# Não enviar estatísticas de uso ao Streamlit: o app lida com dados financeiros.
+[browser]
+gatherUsageStats = false
+
+[server]
+# Só aceita conexões desta máquina.
+address = "localhost"
+
+[client]
+# Esconde o botão "Deploy" e opções de desenvolvedor.
+toolbarMode = "viewer"

@@ -293,3 +293,17 @@ def test_falha_na_escrita_nao_marca_como_exportado(motor, tmp_path):
     with pytest.raises(OSError):
         motor.exportar(tmp_path / "x.csv", exportador=Quebrado())
     assert len(motor.listar(Status.LIBERADO)) == antes
+
+
+def test_reexportar_gera_arquivo_identico_sem_liberar_de_novo(motor, tmp_path):
+    motor.importar(EXEMPLOS / "extrato_exemplo.ofx")
+    original = tmp_path / "original.csv"
+    lote, n = motor.exportar(original)
+    assert n == 2
+    copia = tmp_path / "copia.csv"
+    assert motor.reexportar(lote, copia) == 2
+    assert copia.read_bytes() == original.read_bytes()
+    assert motor.listar(Status.LIBERADO) == []  # nada voltou a ficar disponível
+    assert motor.lotes_exportacao()[0]["quantidade"] == 2
+    with pytest.raises(KeyError):
+        motor.reexportar(999, tmp_path / "x.csv")

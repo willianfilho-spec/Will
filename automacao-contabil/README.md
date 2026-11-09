@@ -78,6 +78,22 @@ Interface de conferência (abre no navegador, roda localmente):
 streamlit run app.py
 ```
 
+Cuidados já configurados em `.streamlit/config.toml` (valem quando o app é
+iniciado de dentro da pasta `automacao-contabil`):
+
+- o Streamlit não envia estatísticas de uso (por padrão ele envia);
+- o app só aceita conexões do próprio computador;
+- o botão "Deploy" (publicar na nuvem do Streamlit) fica oculto.
+
+Cada exportação fica guardada como lote. O arquivo de qualquer lote pode ser
+baixado de novo na seção 3, idêntico ao original, sem que os lançamentos
+voltem a ficar disponíveis para nova exportação. Downloads ficam registrados na
+trilha de auditoria.
+
+O campo "Responsável pela revisão" é só uma identificação declarada, não um
+login. Controle de acesso de verdade é requisito da versão para vários
+escritórios.
+
 Linha de comando:
 
 ```bash

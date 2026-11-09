@@ -29,6 +29,15 @@ def brl(valor: str) -> str:
 def data_br(iso: str) -> str:
     return date.fromisoformat(iso).strftime("%d/%m/%Y")
 
+
+def texto_literal(texto: str) -> str:
+    """Impede que o histórico do banco seja interpretado como Markdown/LaTeX.
+
+    Sem isto, "US$ 10 ... US$ 20" vira fórmula e "*PIX*" vira itálico.
+    """
+    return "".join("\\" + c if c in "\\`*_{}[]()<>#+-.!|$~" else c for c in texto)
+
+
 st.set_page_config(page_title="Conferência de lançamentos", layout="wide")
 st.title("Conferência de lançamentos")
 st.caption("Prova de conceito. Os lançamentos só saem do sistema depois de liberados.")
@@ -45,6 +54,16 @@ with st.sidebar:
         help="Envia apenas o histórico (CPF/CNPJ mascarados) e o sentido da operação. "
         "Toda sugestão fica pendente de aprovação.",
     )
+
+
+def registrar_download(caminho: str, responsavel: str, lote_id: int) -> None:
+    # Callbacks do Streamlit rodam em outra thread; o SQLite exige conexão própria.
+    banco = BancoDeDados(caminho)
+    try:
+        banco.registrar_evento(responsavel, "arquivo_baixado", f"lote {lote_id}", lote_id=lote_id)
+        banco.conexao.commit()
+    finally:
+        banco.fechar()
 
 
 def obter_motor() -> Motor:
@@ -75,7 +94,7 @@ arquivo = col1.file_uploader("Extrato OFX ou CSV", type=["ofx", "ofc", "csv", "t
 conta_bancaria = col2.text_input("Conta bancária (obrigatória para CSV)", "")
 if arquivo and st.button("Processar extrato", type="primary"):
     with tempfile.TemporaryDirectory() as pasta:
-        destino = Path(pasta) / arquivo.name
+        destino = Path(pasta) / Path(arquivo.name).name  # só o nome, nunca um caminho
         destino.write_bytes(arquivo.getvalue())
         try:
             resultado = motor.importar(destino, conta_bancaria or None)
@@ -107,13 +126,13 @@ for item in itens:
     with st.container(border=True):
         a, b, c = st.columns([4, 2, 2])
         a.markdown(
-            f"**{item['historico_banco']}**  \n"
-            f"{data_br(item['data'])} · {item['origem']} linha {item['linha']}"
+            f"**{texto_literal(item['historico_banco'])}**  \n"
+            f"{data_br(item['data'])} · {texto_literal(item['origem'])} linha {item['linha']}"
         )
         b.markdown(f"**{brl(item['valor'])}**")
         c.markdown(f"D: `{item['conta_debito'] or '-'}`  \nC: `{item['conta_credito'] or '-'}`")
         if item["motivos"]:
-            st.caption(item["motivos"])
+            st.caption(texto_literal(item["motivos"]))
         if filtro in ("pendente", "bloqueado", "liberado"):
             atual = item["conta_contrapartida"]
             x, y, z = st.columns([4, 1, 2])
@@ -121,15 +140,21 @@ for item in itens:
                 "Contrapartida", contas,
                 index=contas.index(atual) if atual in contas else None,
                 format_func=lambda k: rotulos[k], key=f"conta-{item['chave']}",
+                placeholder="Escolha a conta",
             )
             if y.button("Aprovar", key=f"ok-{item['chave']}", disabled=escolhida is None):
-                lanc = motor.aprovar(item["chave"], escolhida if escolhida != atual else None)
-                st.toast(f"Resultado: {lanc.status.value}")
-                st.rerun()
+                try:
+                    motor.aprovar(item["chave"], escolhida if escolhida != atual else None)
+                    st.rerun()
+                except (ValueError, KeyError) as erro:
+                    st.error(f"Não foi possível aprovar: {erro}")
             motivo = z.text_input("Motivo do descarte", key=f"mot-{item['chave']}")
             if z.button("Descartar", key=f"x-{item['chave']}", disabled=not motivo.strip()):
-                motor.descartar(item["chave"], motivo)
-                st.rerun()
+                try:
+                    motor.descartar(item["chave"], motivo)
+                    st.rerun()
+                except (ValueError, KeyError) as erro:
+                    st.error(f"Não foi possível descartar: {erro}")
 
 # ------------------------------------------------------------------ exportar
 st.subheader("3. Exportar liberados")
@@ -139,9 +164,32 @@ st.caption(
 )
 if st.button("Gerar arquivo de importação", disabled=contagem[Status.LIBERADO] == 0):
     with tempfile.TemporaryDirectory() as pasta:
-        destino = Path(pasta) / "lancamentos.csv"
-        lote, n = motor.exportar(destino)
-        st.session_state["exportacao"] = (f"lancamentos_lote_{lote}.csv", destino.read_bytes(), n)
-if "exportacao" in st.session_state:
-    nome, dados, n = st.session_state["exportacao"]
-    st.download_button(f"Baixar {nome} ({n} lançamentos)", dados, file_name=nome, mime="text/csv")
+        lote, n = motor.exportar(Path(pasta) / "lancamentos.csv")
+    if n:
+        st.session_state["aviso_exportacao"] = f"Lote {lote} gerado com {n} lançamentos."
+    # Recarrega para os contadores e a lista refletirem a exportação.
+    st.rerun()
+if aviso := st.session_state.pop("aviso_exportacao", None):
+    st.success(aviso)
+
+# O arquivo de cada lote é regerado a partir do banco de dados. Assim, se a
+# página for fechada antes do download, o arquivo não se perde, e os
+# lançamentos continuam protegidos contra uma segunda exportação.
+lotes = motor.lotes_exportacao()
+if lotes:
+    st.markdown("**Arquivos gerados**")
+for lote in lotes[:10]:
+    with tempfile.TemporaryDirectory() as pasta:
+        destino = Path(pasta) / "lote.csv"
+        motor.reexportar(lote["id"], destino, registrar=False)
+        dados = destino.read_bytes()
+    st.download_button(
+        f"Baixar lote {lote['id']} · {lote['quantidade']} lançamentos · "
+        f"{lote['criado_em'].replace('T', ' ')} · {lote['usuario']}",
+        dados,
+        file_name=f"lancamentos_lote_{lote['id']}.csv",
+        mime="text/csv",
+        key=f"lote-{lote['id']}",
+        on_click=registrar_download,
+        args=(caminho_db, usuario, lote["id"]),
+    )
