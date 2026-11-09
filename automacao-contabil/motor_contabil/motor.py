@@ -111,7 +111,9 @@ class Motor:
         self.plano = plano
         self.regras = regras
         self.classificador = classificador or SemIA()
-        self.usuario = usuario
+        if not usuario.strip():
+            raise ValueError("informe o responsável pela operação")
+        self.usuario = usuario.strip()
 
     # ------------------------------------------------------------ importação
     def importar(self, caminho: str | Path, conta_bancaria: str | None = None) -> ResultadoImportacao:
@@ -247,19 +249,19 @@ class Motor:
         A aprovação resolve pendências de julgamento (sugestão da IA, possível
         duplicidade). Não resolve bloqueios: conta inexistente continua bloqueada.
         """
-        t, atual = self._transacao(chave)
-        if atual["status"] in (Status.EXPORTADO.value, Status.DESCARTADO.value):
-            raise ValueError(f"lançamento já {atual['status']}; não pode ser alterado")
-        contrapartida = conta or atual["conta_contrapartida"]
-        if contrapartida is None:
-            raise ValueError("informe a conta de contrapartida para aprovar")
-        c = Classificacao(contrapartida, None, "manual" if conta else f"{atual['fonte']}+aprovado")
-        lanc = montar_lancamento(chave, t, c, self.plano, self.regras.conta_banco)
-        if historico:
-            lanc.historico = historico
-        elif not conta:
-            lanc.historico = atual["historico_lanc"]
         with self.banco.transacao():
+            t, atual = self._transacao(chave)
+            if atual["status"] in (Status.EXPORTADO.value, Status.DESCARTADO.value):
+                raise ValueError(f"lançamento já {atual['status']}; não pode ser alterado")
+            contrapartida = conta or atual["conta_contrapartida"]
+            if contrapartida is None:
+                raise ValueError("informe a conta de contrapartida para aprovar")
+            c = Classificacao(contrapartida, None, "manual" if conta else f"{atual['fonte']}+aprovado")
+            lanc = montar_lancamento(chave, t, c, self.plano, self.regras.conta_banco)
+            if historico:
+                lanc.historico = historico
+            elif not conta:
+                lanc.historico = atual["historico_lanc"]
             self._gravar_lancamento(lanc, contrapartida)
             self.banco.registrar_evento(
                 self.usuario, "aprovado",
@@ -270,10 +272,10 @@ class Motor:
     def descartar(self, chave: str, motivo: str) -> None:
         if not motivo.strip():
             raise ValueError("informe o motivo do descarte")
-        _, atual = self._transacao(chave)
-        if atual["status"] == Status.EXPORTADO.value:
-            raise ValueError("lançamento já exportado; corrija no sistema contábil")
         with self.banco.transacao():
+            _, atual = self._transacao(chave)
+            if atual["status"] == Status.EXPORTADO.value:
+                raise ValueError("lançamento já exportado; corrija no sistema contábil")
             self.banco.conexao.execute(
                 "UPDATE lancamentos SET status=?, motivos=?, atualizado_em=? WHERE chave=?",
                 (Status.DESCARTADO.value, f"descartado: {motivo}", agora(), chave),
@@ -288,11 +290,11 @@ class Motor:
         Devolve (id do lote de exportação, quantidade).
         """
         exportador = exportador or ExportadorCSVGenerico(self.plano)
-        liberados = self.listar(Status.LIBERADO)
-        if not liberados:
-            return None, 0
         db = self.banco.conexao
         with self.banco.transacao():
+            liberados = self.listar(Status.LIBERADO)
+            if not liberados:
+                return None, 0
             lote_id = db.execute(
                 "INSERT INTO lotes (tipo, criado_em, usuario, descricao)"
                 " VALUES ('exportacao', ?, ?, ?)",
@@ -307,6 +309,10 @@ class Motor:
             # O arquivo é escrito dentro da transação: se a escrita falhar,
             # os lançamentos voltam a "liberado".
             exportador.escrever(liberados, destino)
+            db.execute(
+                "INSERT INTO arquivos_exportacao (lote_id, conteudo) VALUES (?, ?)",
+                (lote_id, Path(destino).read_bytes()),
+            )
             self.banco.registrar_evento(
                 self.usuario, "exportado", f"{len(liberados)} lançamentos em {destino}",
                 lote_id=lote_id,
@@ -330,11 +336,18 @@ class Motor:
         para uma segunda exportação (o que criaria duplicidade no sistema
         contábil).
         """
-        exportador = exportador or ExportadorCSVGenerico(self.plano)
         itens = [i for i in self.listar(Status.EXPORTADO) if i["lote_exportacao"] == lote_id]
         if not itens:
             raise KeyError(f"lote de exportação {lote_id} não encontrado")
-        exportador.escrever(itens, destino)
+        arquivo = self.banco.conexao.execute(
+            "SELECT conteudo FROM arquivos_exportacao WHERE lote_id=?", (lote_id,)
+        ).fetchone()
+        if arquivo is None:
+            raise ValueError(
+                "lote antigo sem arquivo original preservado; recupere o CSV original "
+                "no backup do escritório. Não é possível garantir uma cópia idêntica."
+            )
+        Path(destino).write_bytes(arquivo["conteudo"])
         if registrar:
             self.banco.registrar_evento(
                 self.usuario, "reexportado", f"lote {lote_id} regerado em {destino}",

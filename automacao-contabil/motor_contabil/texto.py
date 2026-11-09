@@ -36,6 +36,10 @@ def para_decimal(bruto: str) -> Decimal:
         valor = Decimal(s)
     except InvalidOperation as erro:
         raise ValueError(f"valor monetário inválido: {bruto!r}") from erro
+    if not valor.is_finite():
+        raise ValueError("informe um valor monetário finito")
+    if valor.as_tuple().exponent < -2 and valor != valor.quantize(Decimal("0.01")):
+        raise ValueError("valor com fração de centavo; confira o extrato")
     return -valor if negativo else valor
 
 

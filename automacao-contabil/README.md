@@ -88,7 +88,7 @@ iniciado de dentro da pasta `automacao-contabil`):
 Cada exportação fica guardada como lote. O arquivo de qualquer lote pode ser
 baixado de novo na seção 3, idêntico ao original, sem que os lançamentos
 voltem a ficar disponíveis para nova exportação. Downloads ficam registrados na
-trilha de auditoria.
+trilha de auditoria (o evento registra o clique, não confirma que o navegador salvou o arquivo).
 
 O campo "Responsável pela revisão" é só uma identificação declarada, não um
 login. Controle de acesso de verdade é requisito da versão para vários
@@ -162,3 +162,15 @@ suposição):
 4. Regras aprendidas na revisão: quando o revisor corrige a mesma conta várias
    vezes, sugerir uma nova regra para o contador aprovar.
 5. Separar a base de dados por empresa cliente.
+
+## Integridade dos lotes
+
+Novas exportações preservam os bytes originais no SQLite. Alterações futuras no
+plano ou no exportador não mudam o download desses lotes. Lotes de versões antigas
+sem cópia preservada exigem recuperar o CSV original no backup do escritório;
+o aplicativo não recria um arquivo que poderia ser diferente e não libera esses
+lançamentos novamente. Faça backup do banco e dos arquivos originais.
+
+Exportação, aprovação e descarte usam transação com bloqueio de escrita antes
+da consulta, evitando decisões sobre estados desatualizados em acessos simultâneos.
+Valores não finitos e frações de centavo são recusados, sem arredondamento silencioso.
