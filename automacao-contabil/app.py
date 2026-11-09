@@ -72,13 +72,14 @@ def obter_motor() -> Motor:
         from motor_contabil.classificador_ia import ClassificadorClaude
 
         classificador = ClassificadorClaude()
-    return Motor(
-        BancoDeDados(caminho_db),
-        PlanoDeContas.carregar(caminho_plano),
-        ConjuntoDeRegras.carregar(caminho_regras),
-        classificador=classificador,
-        usuario=usuario,
-    )
+    plano = PlanoDeContas.carregar(caminho_plano)
+    regras = ConjuntoDeRegras.carregar(caminho_regras)
+    banco = BancoDeDados(caminho_db)
+    try:
+        return Motor(banco, plano, regras, classificador=classificador, usuario=usuario)
+    except Exception:
+        banco.fechar()
+        raise
 
 
 try:
@@ -87,109 +88,119 @@ except Exception as erro:  # configuração inválida: mostrar e parar
     st.error(f"Não foi possível carregar a configuração: {erro}")
     st.stop()
 
-# ------------------------------------------------------------------ importar
-st.subheader("1. Importar extrato")
-col1, col2 = st.columns([3, 2])
-arquivo = col1.file_uploader("Extrato OFX ou CSV", type=["ofx", "ofc", "csv", "txt"])
-conta_bancaria = col2.text_input("Conta bancária (obrigatória para CSV)", "")
-if arquivo and st.button("Processar extrato", type="primary"):
-    with tempfile.TemporaryDirectory() as pasta:
-        destino = Path(pasta) / Path(arquivo.name).name  # só o nome, nunca um caminho
-        destino.write_bytes(arquivo.getvalue())
-        try:
-            resultado = motor.importar(destino, conta_bancaria or None)
-            st.success("Extrato processado.")
-            st.code(resultado.resumo(), language=None)
-        except Exception as erro:
-            st.error(f"Erro ao processar: {erro}")
+try:
+    # ------------------------------------------------------------------ importar
+    st.subheader("1. Importar extrato")
+    col1, col2 = st.columns([3, 2])
+    arquivo = col1.file_uploader("Extrato OFX ou CSV", type=["ofx", "ofc", "csv", "txt"])
+    conta_bancaria = col2.text_input("Conta bancária (obrigatória para CSV)", "")
+    if arquivo and st.button("Processar extrato", type="primary"):
+        with tempfile.TemporaryDirectory() as pasta:
+            destino = Path(pasta) / Path(arquivo.name).name  # só o nome, nunca um caminho
+            destino.write_bytes(arquivo.getvalue())
+            try:
+                resultado = motor.importar(destino, conta_bancaria or None)
+                st.success("Extrato processado.")
+                st.code(resultado.resumo(), language=None)
+            except Exception as erro:
+                st.error(f"Erro ao processar: {erro}")
 
-# ------------------------------------------------------------------ conferir
-st.subheader("2. Conferir")
-todos = motor.listar()
-contagem = {s: sum(1 for i in todos if i["status"] == s.value) for s in Status}
-m = st.columns(4)
-m[0].metric("Liberados", contagem[Status.LIBERADO])
-m[1].metric("Pendentes", contagem[Status.PENDENTE])
-m[2].metric("Bloqueados", contagem[Status.BLOQUEADO])
-m[3].metric("Exportados", contagem[Status.EXPORTADO])
+    # ------------------------------------------------------------------ conferir
+    st.subheader("2. Conferir")
+    todos = motor.listar()
+    contagem = {s: sum(1 for i in todos if i["status"] == s.value) for s in Status}
+    m = st.columns(4)
+    m[0].metric("Liberados", contagem[Status.LIBERADO])
+    m[1].metric("Pendentes", contagem[Status.PENDENTE])
+    m[2].metric("Bloqueados", contagem[Status.BLOQUEADO])
+    m[3].metric("Exportados", contagem[Status.EXPORTADO])
 
-filtro = st.radio(
-    "Mostrar", ["pendente", "bloqueado", "liberado", "exportado", "descartado"], horizontal=True
-)
-itens = [i for i in todos if i["status"] == filtro]
-contas = [c.codigo for c in motor.plano.analiticas()]
-rotulos = {c.codigo: f"{c.codigo} - {c.descricao}" for c in motor.plano.analiticas()}
-
-if not itens:
-    st.info("Nenhum lançamento nesta situação.")
-for item in itens:
-    with st.container(border=True):
-        a, b, c = st.columns([4, 2, 2])
-        a.markdown(
-            f"**{texto_literal(item['historico_banco'])}**  \n"
-            f"{data_br(item['data'])} · {texto_literal(item['origem'])} linha {item['linha']}"
-        )
-        b.markdown(f"**{brl(item['valor'])}**")
-        c.markdown(f"D: `{item['conta_debito'] or '-'}`  \nC: `{item['conta_credito'] or '-'}`")
-        if item["motivos"]:
-            st.caption(texto_literal(item["motivos"]))
-        if filtro in ("pendente", "bloqueado", "liberado"):
-            atual = item["conta_contrapartida"]
-            x, y, z = st.columns([4, 1, 2])
-            escolhida = x.selectbox(
-                "Contrapartida", contas,
-                index=contas.index(atual) if atual in contas else None,
-                format_func=lambda k: rotulos[k], key=f"conta-{item['chave']}",
-                placeholder="Escolha a conta",
-            )
-            if y.button("Aprovar", key=f"ok-{item['chave']}", disabled=escolhida is None):
-                try:
-                    motor.aprovar(item["chave"], escolhida if escolhida != atual else None)
-                    st.rerun()
-                except (ValueError, KeyError) as erro:
-                    st.error(f"Não foi possível aprovar: {erro}")
-            motivo = z.text_input("Motivo do descarte", key=f"mot-{item['chave']}")
-            if z.button("Descartar", key=f"x-{item['chave']}", disabled=not motivo.strip()):
-                try:
-                    motor.descartar(item["chave"], motivo)
-                    st.rerun()
-                except (ValueError, KeyError) as erro:
-                    st.error(f"Não foi possível descartar: {erro}")
-
-# ------------------------------------------------------------------ exportar
-st.subheader("3. Exportar liberados")
-st.caption(
-    "Leiaute provisório (CSV genérico). Ainda não corresponde ao leiaute de nenhum "
-    "sistema contábil específico."
-)
-if st.button("Gerar arquivo de importação", disabled=contagem[Status.LIBERADO] == 0):
-    with tempfile.TemporaryDirectory() as pasta:
-        lote, n = motor.exportar(Path(pasta) / "lancamentos.csv")
-    if n:
-        st.session_state["aviso_exportacao"] = f"Lote {lote} gerado com {n} lançamentos."
-    # Recarrega para os contadores e a lista refletirem a exportação.
-    st.rerun()
-if aviso := st.session_state.pop("aviso_exportacao", None):
-    st.success(aviso)
-
-# O arquivo de cada lote é regerado a partir do banco de dados. Assim, se a
-# página for fechada antes do download, o arquivo não se perde, e os
-# lançamentos continuam protegidos contra uma segunda exportação.
-lotes = motor.lotes_exportacao()
-if lotes:
-    st.markdown("**Arquivos gerados**")
-for lote in lotes[:10]:
-    with tempfile.TemporaryDirectory() as pasta:
-        destino = Path(pasta) / "lote.csv"
-        motor.reexportar(lote["id"], destino, registrar=False)
-        dados = destino.read_bytes()
-    st.download_button(
-        f"Baixar lote {lote['id']} · {lote['quantidade']} lançamentos · "
-        f"{lote['criado_em'].replace('T', ' ')} · {lote['usuario']}",
-        dados,
-        file_name=f"lancamentos_lote_{lote['id']}.csv",
-        mime="text/csv",
-        key=f"lote-{lote['id']}",
-        on_click=registrar_download,
-        args=(caminho_db, usuario, lote["id"]),
+    filtro = st.radio(
+        "Mostrar", ["pendente", "bloqueado", "liberado", "exportado", "descartado"], horizontal=True
     )
+    itens = [i for i in todos if i["status"] == filtro]
+    contas = [c.codigo for c in motor.plano.analiticas()]
+    rotulos = {c.codigo: f"{c.codigo} - {c.descricao}" for c in motor.plano.analiticas()}
+
+    if not itens:
+        st.info("Nenhum lançamento nesta situação.")
+    for item in itens:
+        with st.container(border=True):
+            a, b, c = st.columns([4, 2, 2])
+            a.markdown(
+                f"**{texto_literal(item['historico_banco'])}**  \n"
+                f"{data_br(item['data'])} · {texto_literal(item['origem'])} linha {item['linha']}"
+            )
+            b.markdown(f"**{brl(item['valor'])}**")
+            c.markdown(f"D: `{item['conta_debito'] or '-'}`  \nC: `{item['conta_credito'] or '-'}`")
+            if item["motivos"]:
+                st.caption(texto_literal(item["motivos"]))
+            if filtro in ("pendente", "bloqueado", "liberado"):
+                atual = item["conta_contrapartida"]
+                x, y, z = st.columns([4, 1, 2])
+                escolhida = x.selectbox(
+                    "Contrapartida", contas,
+                    index=contas.index(atual) if atual in contas else None,
+                    format_func=lambda k: rotulos[k], key=f"conta-{item['chave']}",
+                    placeholder="Escolha a conta",
+                )
+                if y.button("Aprovar", key=f"ok-{item['chave']}", disabled=escolhida is None):
+                    try:
+                        motor.aprovar(item["chave"], escolhida if escolhida != atual else None)
+                        st.rerun()
+                    except (ValueError, KeyError) as erro:
+                        st.error(f"Não foi possível aprovar: {erro}")
+                motivo = z.text_input("Motivo do descarte", key=f"mot-{item['chave']}")
+                if z.button("Descartar", key=f"x-{item['chave']}", disabled=not motivo.strip()):
+                    try:
+                        motor.descartar(item["chave"], motivo)
+                        st.rerun()
+                    except (ValueError, KeyError) as erro:
+                        st.error(f"Não foi possível descartar: {erro}")
+
+    # ------------------------------------------------------------------ exportar
+    st.subheader("3. Exportar liberados")
+    st.caption(
+        "Leiaute provisório (CSV genérico). Ainda não corresponde ao leiaute de nenhum "
+        "sistema contábil específico."
+    )
+    if st.button("Gerar arquivo de importação", disabled=contagem[Status.LIBERADO] == 0):
+        try:
+            with tempfile.TemporaryDirectory() as pasta:
+                lote, n = motor.exportar(Path(pasta) / "lancamentos.csv")
+            if n:
+                st.session_state["aviso_exportacao"] = f"Lote {lote} gerado com {n} lançamentos."
+            st.rerun()
+        except Exception as erro:
+            st.error(f"Não foi possível exportar. Confira o banco e o espaço em disco: {erro}")
+    if aviso := st.session_state.pop("aviso_exportacao", None):
+        st.success(aviso)
+
+    # Os bytes originais de cada lote são recuperados do banco de dados. Assim, se a
+    # página for fechada antes do download, o arquivo não se perde, e os
+    # lançamentos continuam protegidos contra uma segunda exportação.
+    lotes = motor.lotes_exportacao()
+    if lotes:
+        st.markdown("**Arquivos gerados**")
+    for lote in lotes:
+        with tempfile.TemporaryDirectory() as pasta:
+            destino = Path(pasta) / "lote.csv"
+            try:
+                motor.reexportar(lote["id"], destino, registrar=False)
+                dados = destino.read_bytes()
+            except (OSError, ValueError, KeyError) as erro:
+                st.error(f"Não foi possível recuperar o lote {lote['id']}: {erro}")
+                continue
+        st.download_button(
+            f"Baixar lote {lote['id']} · {lote['quantidade']} lançamentos · "
+            f"{lote['criado_em'].replace('T', ' ')} · {lote['usuario']}",
+            dados,
+            file_name=f"lancamentos_lote_{lote['id']}.csv",
+            mime="text/csv",
+            key=f"lote-{lote['id']}",
+            on_click=registrar_download,
+            args=(caminho_db, usuario, lote["id"]),
+        )
+
+finally:
+    motor.banco.fechar()

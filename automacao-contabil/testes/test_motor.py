@@ -307,3 +307,59 @@ def test_reexportar_gera_arquivo_identico_sem_liberar_de_novo(motor, tmp_path):
     assert motor.lotes_exportacao()[0]["quantidade"] == 2
     with pytest.raises(KeyError):
         motor.reexportar(999, tmp_path / "x.csv")
+
+
+@pytest.mark.parametrize('valor', ['NaN', 'sNaN', 'Infinity', '-Infinity', '1,001'])
+def test_rejeita_valores_nao_finitos_ou_fracao_de_centavo(valor):
+    with pytest.raises(ValueError):
+        para_decimal(valor)
+
+
+def test_lote_preserva_bytes_apesar_de_exportador_diferente(motor, tmp_path):
+    motor.importar(EXEMPLOS / 'extrato_exemplo.ofx')
+    original = tmp_path / 'original.csv'
+    lote, _ = motor.exportar(original)
+
+    class OutroExportador:
+        def escrever(self, itens, destino):
+            raise AssertionError('download não pode serializar novamente')
+
+    copia = tmp_path / 'copia.csv'
+    motor.reexportar(lote, copia, exportador=OutroExportador())
+    assert copia.read_bytes() == original.read_bytes()
+
+
+def test_lote_legado_sem_bytes_nao_promete_copia_identica(motor, tmp_path):
+    motor.importar(EXEMPLOS / 'extrato_exemplo.ofx')
+    lote, _ = motor.exportar(tmp_path / 'original.csv')
+    with motor.banco.transacao():
+        motor.banco.conexao.execute('DELETE FROM arquivos_exportacao WHERE lote_id=?', (lote,))
+    with pytest.raises(ValueError, match='backup'):
+        motor.reexportar(lote, tmp_path / 'copia.csv')
+    assert not motor.listar(Status.LIBERADO)
+
+
+def test_exportacoes_concorrentes_nao_repetem(motor, tmp_path, plano, regras):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    motor.importar(EXEMPLOS / 'extrato_exemplo.ofx')
+    barreira = Barrier(2)
+
+    def exportar(numero):
+        banco = BancoDeDados(motor.banco.caminho)
+        try:
+            outro = Motor(banco, plano, regras)
+            barreira.wait(timeout=5)
+            return outro.exportar(tmp_path / f'lote-{numero}.csv')
+        finally:
+            banco.fechar()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        resultados = list(executor.map(exportar, [1, 2]))
+    assert sorted(n for _, n in resultados) == [0, 2]
+    assert len(motor.lotes_exportacao()) == 1
+
+
+def test_responsavel_vazio_rejeitado(motor, plano, regras):
+    with pytest.raises(ValueError, match='responsável'):
+        Motor(motor.banco, plano, regras, usuario='  ')

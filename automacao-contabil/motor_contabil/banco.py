@@ -22,6 +22,11 @@ CREATE TABLE IF NOT EXISTS lotes (
     hash_arquivo  TEXT
 );
 
+CREATE TABLE IF NOT EXISTS arquivos_exportacao (
+    lote_id INTEGER PRIMARY KEY REFERENCES lotes(id),
+    conteudo BLOB NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS transacoes (
     chave           TEXT PRIMARY KEY,
     chave_conteudo  TEXT NOT NULL,
@@ -79,6 +84,7 @@ class BancoDeDados:
     def transacao(self):
         """Tudo ou nada: se algo falhar no meio, nada é gravado."""
         try:
+            self.conexao.execute("BEGIN IMMEDIATE")
             yield self.conexao
             self.conexao.commit()
         except Exception:
