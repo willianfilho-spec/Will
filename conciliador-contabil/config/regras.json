@@ -1,0 +1,22 @@
+{
+  "conta_banco": "1.1.1.02",
+  "conta_transitoria": "1.1.9.99",
+  "regras": [
+    {"nome": "Energia elétrica", "palavras_chave": ["ENEL", "CEMIG", "COPEL", "CPFL", "ENERGISA", "EQUATORIAL", "NEOENERGIA", "ENERGIA ELETRICA"], "sentido": "saida", "conta": "4.1.1.01", "historico": "Pgto energia elétrica"},
+    {"nome": "Água e esgoto", "palavras_chave": ["SABESP", "COPASA", "SANEPAR", "CAGEPA", "CAERN", "EMBASA", "AGUA E ESGOTO"], "sentido": "saida", "conta": "4.1.1.02", "historico": "Pgto água e esgoto"},
+    {"nome": "Telefone e internet", "palavras_chave": ["VIVO", "CLARO", "TIM", "TELEFONICA", "INTERNET"], "sentido": "saida", "conta": "4.1.1.03", "historico": "Pgto telefone/internet"},
+    {"nome": "Aluguel", "palavras_chave": ["ALUGUEL", "IMOBILIARIA"], "sentido": "saida", "conta": "4.1.1.04", "historico": "Pgto aluguel"},
+    {"nome": "Tarifas bancárias", "palavras_chave": ["TARIFA", "TAR", "CESTA DE SERVICOS", "MANUT CONTA", "ANUIDADE"], "sentido": "saida", "conta": "4.1.2.01", "historico": "Tarifa bancária"},
+    {"nome": "IOF", "palavras_chave": ["IOF"], "sentido": "saida", "conta": "4.1.2.03", "historico": "IOF"},
+    {"nome": "Juros e multas", "palavras_chave": ["JUROS", "MULTA", "MULTAS", "ENCARGOS"], "sentido": "saida", "conta": "4.1.2.02", "historico": "Juros/multa"},
+    {"nome": "Simples Nacional (DAS)", "palavras_chave": ["DAS SIMPLES", "SIMPLES NACIONAL", "DARF DAS"], "sentido": "saida", "conta": "2.1.3.01", "historico": "Pgto DAS Simples Nacional"},
+    {"nome": "FGTS", "palavras_chave": ["FGTS"], "sentido": "saida", "conta": "2.1.3.02", "historico": "Pgto FGTS"},
+    {"nome": "INSS", "palavras_chave": ["INSS", "GPS", "DARF PREV"], "sentido": "saida", "conta": "2.1.3.03", "historico": "Pgto INSS"},
+    {"nome": "Folha de pagamento", "palavras_chave": ["FOLHA", "SALARIO", "PAGTO FUNCIONARIO"], "sentido": "saida", "conta": "2.1.2.01", "historico": "Pgto salários"},
+    {"nome": "Aplicação financeira", "palavras_chave": ["APLICACAO", "APLIC"], "sentido": "saida", "conta": "1.1.1.03", "historico": "Aplicação financeira"},
+    {"nome": "Resgate de aplicação", "palavras_chave": ["RESGATE"], "sentido": "entrada", "conta": "1.1.1.03", "historico": "Resgate de aplicação"},
+    {"nome": "Rendimentos", "palavras_chave": ["RENDIMENTO", "REND"], "sentido": "entrada", "conta": "3.2.1.01", "historico": "Rendimento financeiro"},
+    {"nome": "Recebimento genérico", "palavras_chave": ["PIX RECEBIDO", "TED RECEBIDA", "CREDITO COBRANCA", "LIQUIDACAO COBRANCA"], "sentido": "entrada", "conta": "1.1.2.01", "revisar": true, "historico": "Recebimento de cliente"},
+    {"nome": "Pagamento genérico a fornecedor", "palavras_chave": ["PAGAMENTO BOLETO", "PAGTO BOLETO", "PAGAMENTO FORNECEDOR"], "sentido": "saida", "conta": "2.1.1.01", "revisar": true, "historico": "Pgto fornecedor"}
+  ]
+}

@@ -1,0 +1,19 @@
+codigo;descricao
+1.1.1.02;Banco Conta Movimento
+1.1.1.03;Aplicações Financeiras
+1.1.2.01;Clientes a Receber
+1.1.9.99;Lançamentos a Classificar (conta transitória)
+2.1.1.01;Fornecedores a Pagar
+2.1.2.01;Salários a Pagar
+2.1.3.01;Simples Nacional a Recolher
+2.1.3.02;FGTS a Recolher
+2.1.3.03;INSS a Recolher
+2.1.4.01;Empréstimos e Financiamentos
+3.2.1.01;Receitas Financeiras
+4.1.1.01;Energia Elétrica
+4.1.1.02;Água e Esgoto
+4.1.1.03;Telefone e Internet
+4.1.1.04;Aluguéis
+4.1.2.01;Tarifas Bancárias
+4.1.2.02;Juros e Multas
+4.1.2.03;IOF
