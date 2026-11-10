@@ -1,4 +1,4 @@
-"""Etapa 2: plano de contas, regras de palavras-chave e classificação."""
+"""Etapa 2: plano de contas, cadastro de fornecedores, regras e classificação."""
 
 import csv
 import json
@@ -14,9 +14,14 @@ class ErroConfiguracao(Exception):
     """Plano de contas ou arquivo de regras inconsistente."""
 
 
-def _contem_termo(descricao: str, termo: str) -> bool:
-    """Casa o termo como palavra inteira: 'TIM' não casa com 'ULTIMO'."""
-    return bool(termo) and re.search(rf"(?<![a-z0-9]){re.escape(termo)}(?![a-z0-9])", descricao) is not None
+def termos(texto: str) -> str:
+    """Só letras e números, separados por um espaço e cercados por espaços.
+
+    'F. OLAVO', 'F OLAVO' e 'f.olavo' viram ' f olavo ', de modo que a
+    pontuação do extrato não impede a regra de casar. Os espaços nas pontas
+    garantem palavra inteira: 'NX' não casa dentro de 'ANXIETY'.
+    """
+    return " " + re.sub(r"[^a-z0-9]+", " ", normalizar(texto)).strip() + " "
 
 
 @dataclass
@@ -27,14 +32,15 @@ class Regra:
     sentido: str = "ambos"  # "entrada", "saida" ou "ambos"
     revisar: bool = False   # True = a regra é uma suposição; marcar para conferência
     historico: str = ""
+    fornecedor: str = ""    # preenchido nas regras geradas pelo cadastro de fornecedores
 
     def casa(self, transacao: Transacao) -> bool:
         if self.sentido == "entrada" and transacao.valor < 0:
             return False
         if self.sentido == "saida" and transacao.valor > 0:
             return False
-        descricao = normalizar(transacao.descricao)
-        return any(_contem_termo(descricao, normalizar(palavra)) for palavra in self.palavras_chave)
+        descricao = termos(transacao.descricao)
+        return any(termos(p).strip() and termos(p) in descricao for p in self.palavras_chave)
 
 
 @dataclass
@@ -62,7 +68,21 @@ def carregar_configuracao(caminho_regras, caminho_plano) -> Configuracao:
     dados = json.loads(Path(caminho_regras).read_text(encoding="utf-8"))
 
     try:
+        # Fornecedores vêm antes das regras gerais: um nome próprio é mais
+        # específico do que "PAGAMENTO BOLETO".
         regras = [
+            Regra(
+                nome=f"Fornecedor: {f['nome']}",
+                palavras_chave=f["apelidos"],
+                conta=f["conta"],
+                sentido=f.get("sentido", "saida"),
+                revisar=bool(f.get("revisar", False)),
+                historico=f.get("historico", f"Pgto fornecedor {f['nome']}"),
+                fornecedor=f["nome"],
+            )
+            for f in dados.get("fornecedores", [])
+        ]
+        regras += [
             Regra(
                 nome=r["nome"],
                 palavras_chave=r["palavras_chave"],
@@ -85,16 +105,16 @@ def carregar_configuracao(caminho_regras, caminho_plano) -> Configuracao:
             problemas.append(f"{rotulo} '{conta}' não existe no plano de contas")
     for regra in regras:
         if regra.conta not in plano:
-            problemas.append(f"regra '{regra.nome}': conta '{regra.conta}' não existe no plano de contas")
+            problemas.append(f"'{regra.nome}': conta '{regra.conta}' não existe no plano de contas")
         if regra.sentido not in ("entrada", "saida", "ambos"):
-            problemas.append(f"regra '{regra.nome}': sentido inválido '{regra.sentido}'")
-        if not regra.palavras_chave:
-            problemas.append(f"regra '{regra.nome}': sem palavras-chave")
+            problemas.append(f"'{regra.nome}': sentido inválido '{regra.sentido}'")
+        if not any(termos(p).strip() for p in regra.palavras_chave):
+            problemas.append(f"'{regra.nome}': sem palavras-chave ou apelidos")
     if problemas:
         raise ErroConfiguracao("Configuração inconsistente:\n  " + "\n  ".join(problemas))
     return config
 
 
 def regras_que_casam(transacao: Transacao, regras: list[Regra]) -> list[Regra]:
-    """Todas as regras aplicáveis, na ordem do arquivo (a primeira tem prioridade)."""
+    """Todas as regras aplicáveis, na ordem de prioridade (a primeira vence)."""
     return [regra for regra in regras if regra.casa(transacao)]

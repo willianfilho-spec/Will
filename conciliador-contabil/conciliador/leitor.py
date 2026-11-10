@@ -1,4 +1,4 @@
-"""Etapa 1: leitura do extrato em CSV e conversão para objetos Transacao."""
+"""Etapa 1: leitura do extrato (CSV ou XLSX) e conversão para objetos Transacao."""
 
 import csv
 import re
@@ -7,7 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-from .modelos import Transacao
+from .modelos import Extrato, Transacao
 
 
 class ErroExtrato(Exception):
@@ -15,43 +15,49 @@ class ErroExtrato(Exception):
 
 
 # Nomes de coluna aceitos (já normalizados: minúsculos e sem acento).
-COLUNAS_DATA = {"data", "data lancamento", "data movimento", "dt"}
-COLUNAS_DESCRICAO = {"descricao", "historico", "lancamento", "detalhe", "memo"}
+COLUNAS_DATA = {"data", "data lancamento", "data movimento", "data mov", "dt"}
+COLUNAS_DESCRICAO = {"descricao", "historico", "lancamento", "detalhe", "detalhes", "memo"}
 COLUNAS_VALOR = {"valor", "valor (r$)", "valor r$", "montante"}
-COLUNAS_DEBITO = {"debito", "saida", "saidas"}
-COLUNAS_CREDITO = {"credito", "entrada", "entradas"}
+COLUNAS_DEBITO = {"debito", "debito (r$)", "saida", "saidas"}
+COLUNAS_CREDITO = {"credito", "credito (r$)", "entrada", "entradas"}
 COLUNAS_TIPO = {"tipo", "d/c", "dc", "natureza"}
-COLUNAS_DOCUMENTO = {"documento", "doc", "numero", "n documento", "id"}
+COLUNAS_DOCUMENTO = {"documento", "doc", "numero", "n documento", "nr documento", "id"}
 
-FORMATOS_DATA = ("%d/%m/%Y", "%Y-%m-%d", "%d/%m/%y", "%d-%m-%Y", "%d.%m.%Y")
+FORMATOS_DATA = ("%d/%m/%Y", "%Y-%m-%d", "%d/%m/%y", "%d-%m-%Y", "%d.%m.%Y", "%Y-%m-%d %H:%M:%S")
+LINHAS_ATE_CABECALHO = 30  # extratos de banco costumam ter título antes da tabela
 
 
-def normalizar(texto: str) -> str:
+def normalizar(texto) -> str:
     """Minúsculas, sem acentos e sem espaços duplicados."""
-    sem_acento = unicodedata.normalize("NFKD", texto or "")
+    sem_acento = unicodedata.normalize("NFKD", "" if texto is None else str(texto))
     sem_acento = "".join(c for c in sem_acento if not unicodedata.combining(c))
     return re.sub(r"\s+", " ", sem_acento).strip().lower()
 
 
-def converter_valor(texto: str) -> Decimal:
-    """Converte '1.234,56', '-1234.56', 'R$ 100,00', '(50,00)' ou '50,00 D' em Decimal."""
-    bruto = (texto or "").strip().upper()
-    if not bruto:
+def converter_valor(bruto) -> Decimal:
+    """Converte '1.234,56', '-1234.56', 'R$ 100,00', '(50,00)', '50,00 D' ou número em Decimal."""
+    if isinstance(bruto, bool):
+        raise ValueError(f"valor não reconhecido: {bruto!r}")
+    if isinstance(bruto, (int, float, Decimal)):  # célula numérica de planilha
+        return Decimal(str(bruto)).quantize(Decimal("0.01"))
+
+    texto = ("" if bruto is None else str(bruto)).strip().upper()
+    if not texto:
         raise ValueError("valor vazio")
 
     negativo = False
-    if bruto.startswith("(") and bruto.endswith(")"):
-        negativo, bruto = True, bruto[1:-1]
-    if bruto.endswith("D"):
-        negativo, bruto = True, bruto[:-1]
-    elif bruto.endswith("C"):
-        bruto = bruto[:-1]
-    if "-" in bruto:
-        negativo, bruto = True, bruto.replace("-", "")
+    if texto.startswith("(") and texto.endswith(")"):
+        negativo, texto = True, texto[1:-1]
+    if texto.endswith("D"):
+        negativo, texto = True, texto[:-1]
+    elif texto.endswith("C"):
+        texto = texto[:-1]
+    if "-" in texto:
+        negativo, texto = True, texto.replace("-", "")
 
-    numero = re.sub(r"[R$\s+]", "", bruto)
+    numero = re.sub(r"[R$\s+]", "", texto)
     if not re.fullmatch(r"[\d.,]+", numero):
-        raise ValueError(f"valor não reconhecido: {texto!r}")
+        raise ValueError(f"valor não reconhecido: {bruto!r}")
 
     if "," in numero and "." in numero:
         # O separador que aparece por último é o decimal.
@@ -68,23 +74,27 @@ def converter_valor(texto: str) -> Decimal:
     try:
         valor = Decimal(numero)
     except InvalidOperation as erro:
-        raise ValueError(f"valor não reconhecido: {texto!r}") from erro
+        raise ValueError(f"valor não reconhecido: {bruto!r}") from erro
     return -valor if negativo else valor
 
 
-def converter_data(texto: str) -> date:
-    limpo = (texto or "").strip()
+def converter_data(bruto) -> date:
+    if isinstance(bruto, datetime):  # célula de data de planilha
+        return bruto.date()
+    if isinstance(bruto, date):
+        return bruto
+    limpo = ("" if bruto is None else str(bruto)).strip()
     for formato in FORMATOS_DATA:
         try:
             return datetime.strptime(limpo, formato).date()
         except ValueError:
             continue
-    raise ValueError(f"data não reconhecida: {texto!r}")
+    raise ValueError(f"data não reconhecida: {bruto!r}")
 
 
-def _ler_texto(caminho: Path) -> str:
-    """Bancos brasileiros exportam ora em UTF-8, ora em Latin-1 (Windows)."""
-    dados = caminho.read_bytes()
+def ler_texto(caminho: Path) -> str:
+    """Bancos e o Excel gravam ora em UTF-8, ora em Latin-1 (Windows)."""
+    dados = Path(caminho).read_bytes()
     for codificacao in ("utf-8-sig", "cp1252", "latin-1"):
         try:
             return dados.decode(codificacao)
@@ -93,19 +103,62 @@ def _ler_texto(caminho: Path) -> str:
     raise ErroExtrato(f"Não foi possível decodificar {caminho}")
 
 
-def _detectar_delimitador(cabecalho: str) -> str:
-    return max(";,\t|", key=cabecalho.count)
+def detectar_delimitador(amostra: str) -> str:
+    return max(";,\t|", key=amostra.count)
 
 
-def _achar(colunas: dict, aceitas: set):
-    for nome_normalizado, nome_original in colunas.items():
-        if nome_normalizado in aceitas:
-            return nome_original
-    return None
+def _linhas_csv(caminho: Path) -> list[tuple[int, list]]:
+    linhas = ler_texto(caminho).splitlines()
+    delimitador = detectar_delimitador("\n".join(linhas[:LINHAS_ATE_CABECALHO]))
+    return [
+        (numero, next(csv.reader([linha], delimiter=delimitador)))
+        for numero, linha in enumerate(linhas, start=1)
+        if linha.strip()
+    ]
 
 
-def ler_extrato(caminho) -> tuple[list[Transacao], int]:
-    """Lê o CSV e devolve (transações, quantidade de linhas de saldo ignoradas).
+def _linhas_xlsx(caminho: Path) -> list[tuple[int, list]]:
+    try:
+        import openpyxl
+    except ImportError as erro:
+        raise ErroExtrato("Para ler XLSX instale:  pip install openpyxl") from erro
+    planilha = openpyxl.load_workbook(caminho, read_only=True, data_only=True).worksheets[0]
+    return [
+        (numero, list(linha))
+        for numero, linha in enumerate(planilha.iter_rows(values_only=True), start=1)
+        if any(celula is not None and str(celula).strip() for celula in linha)
+    ]
+
+
+def _mapear_colunas(celulas: list) -> dict | None:
+    """Devolve {papel: índice} se a linha for um cabeçalho válido; senão None."""
+    nomes = {normalizar(c): i for i, c in enumerate(celulas) if c is not None and normalizar(c)}
+
+    def achar(aceitas):
+        return next((i for nome, i in nomes.items() if nome in aceitas), None)
+
+    mapa = {
+        "data": achar(COLUNAS_DATA), "descricao": achar(COLUNAS_DESCRICAO),
+        "valor": achar(COLUNAS_VALOR), "debito": achar(COLUNAS_DEBITO),
+        "credito": achar(COLUNAS_CREDITO), "tipo": achar(COLUNAS_TIPO),
+        "documento": achar(COLUNAS_DOCUMENTO),
+    }
+    tem_valor = mapa["valor"] is not None or (mapa["debito"] is not None and mapa["credito"] is not None)
+    if mapa["data"] is None or mapa["descricao"] is None or not tem_valor:
+        return None
+    return mapa
+
+
+def _opcional(celula) -> Decimal | None:
+    """Célula de débito/crédito: vazia, '-' ou zero contam como 'sem valor'."""
+    if celula is None or str(celula).strip() in ("", "-"):
+        return None
+    valor = converter_valor(celula)
+    return None if valor == 0 else valor
+
+
+def ler_extrato(caminho) -> Extrato:
+    """Lê o arquivo e devolve os movimentos e os saldos informados nele.
 
     Qualquer linha que não possa ser interpretada interrompe a leitura com a
     lista completa dos problemas: em contabilidade, pular linha em silêncio é
@@ -114,50 +167,66 @@ def ler_extrato(caminho) -> tuple[list[Transacao], int]:
     caminho = Path(caminho)
     if not caminho.exists():
         raise ErroExtrato(f"Arquivo não encontrado: {caminho}")
+    extensao = caminho.suffix.lower()
+    if extensao in (".xlsx", ".xlsm"):
+        linhas = _linhas_xlsx(caminho)
+    elif extensao in (".csv", ".txt"):
+        linhas = _linhas_csv(caminho)
+    else:
+        raise ErroExtrato(f"Formato não suportado: {extensao or caminho.name}. Use CSV ou XLSX.")
 
-    linhas = [l for l in _ler_texto(caminho).splitlines() if l.strip()]
-    if len(linhas) < 2:
-        raise ErroExtrato("O extrato precisa de um cabeçalho e ao menos uma linha.")
-
-    leitor = csv.DictReader(linhas, delimiter=_detectar_delimitador(linhas[0]))
-    colunas = {normalizar(nome): nome for nome in (leitor.fieldnames or []) if nome}
-
-    col_data = _achar(colunas, COLUNAS_DATA)
-    col_desc = _achar(colunas, COLUNAS_DESCRICAO)
-    col_valor = _achar(colunas, COLUNAS_VALOR)
-    col_deb = _achar(colunas, COLUNAS_DEBITO)
-    col_cred = _achar(colunas, COLUNAS_CREDITO)
-    col_tipo = _achar(colunas, COLUNAS_TIPO)
-    col_doc = _achar(colunas, COLUNAS_DOCUMENTO)
-
-    if not col_data or not col_desc or not (col_valor or (col_deb and col_cred)):
+    mapa, inicio = None, 0
+    for posicao, (_, celulas) in enumerate(linhas[:LINHAS_ATE_CABECALHO]):
+        mapa = _mapear_colunas(celulas)
+        if mapa:
+            inicio = posicao + 1
+            break
+    if not mapa:
         raise ErroExtrato(
-            "Colunas obrigatórias não encontradas. Esperado: data, descrição e "
-            "valor (ou débito + crédito). Encontrado: "
-            + ", ".join(leitor.fieldnames or [])
+            "Cabeçalho não encontrado. O arquivo precisa de uma linha com as colunas "
+            "data, descrição (ou histórico) e valor (ou débito + crédito)."
         )
 
-    transacoes, erros, saldos_ignorados = [], [], 0
-    for numero, registro in enumerate(leitor, start=2):
-        descricao = re.sub(r"\s+", " ", registro.get(col_desc) or "").strip()
-        if normalizar(descricao).startswith("saldo"):
-            saldos_ignorados += 1  # linha informativa, não é movimento
-            continue
+    def celula(celulas, papel):
+        indice = mapa[papel]
+        return celulas[indice] if indice is not None and indice < len(celulas) else None
+
+    extrato, erros = Extrato(), []
+    for numero, celulas in linhas[inicio:]:
+        descricao = re.sub(r"\s+", " ", str(celula(celulas, "descricao") or "")).strip()
         try:
-            data = converter_data(registro.get(col_data))
-            if col_valor:
-                valor = converter_valor(registro.get(col_valor))
-                tipo = normalizar(registro.get(col_tipo) or "") if col_tipo else ""
-                if tipo[:1] == "d":
+            if mapa["valor"] is not None:
+                valor = converter_valor(celula(celulas, "valor"))
+                tipo = normalizar(celula(celulas, "tipo"))[:1]
+                if tipo == "d":
                     valor = -abs(valor)
-                elif tipo[:1] == "c":
+                elif tipo == "c":
                     valor = abs(valor)
             else:
-                debito = (registro.get(col_deb) or "").strip()
-                credito = (registro.get(col_cred) or "").strip()
-                if bool(debito) == bool(credito):
+                debito, credito = _opcional(celula(celulas, "debito")), _opcional(celula(celulas, "credito"))
+                if (debito is None) == (credito is None):
                     raise ValueError("preencha débito ou crédito (apenas um)")
-                valor = abs(converter_valor(credito)) if credito else -abs(converter_valor(debito))
+                valor = abs(credito) if credito is not None else -abs(debito)
+        except ValueError as erro:
+            valor, erro_valor = None, erro
+        else:
+            erro_valor = None
+
+        if normalizar(descricao).startswith("saldo"):
+            # Linha informativa: não é movimento, mas serve para conferir o total.
+            extrato.linhas_saldo += 1
+            rotulo = normalizar(descricao)
+            if valor is not None:
+                if ("anterior" in rotulo or "inicial" in rotulo) and extrato.saldo_inicial is None:
+                    extrato.saldo_inicial = valor
+                elif "final" in rotulo or "atual" in rotulo:
+                    extrato.saldo_final = valor
+            continue
+
+        try:
+            if erro_valor:
+                raise erro_valor
+            data = converter_data(celula(celulas, "data"))
             if valor == 0:
                 raise ValueError("valor zero")
             if not descricao:
@@ -165,11 +234,11 @@ def ler_extrato(caminho) -> tuple[list[Transacao], int]:
         except ValueError as erro:
             erros.append(f"  linha {numero}: {erro}")
             continue
-        documento = (registro.get(col_doc) or "").strip() if col_doc else ""
-        transacoes.append(Transacao(numero, data, descricao, valor, documento))
+        documento = str(celula(celulas, "documento") or "").strip()
+        extrato.transacoes.append(Transacao(numero, data, descricao, valor, documento))
 
     if erros:
         raise ErroExtrato("Linhas inválidas no extrato:\n" + "\n".join(erros))
-    if not transacoes:
+    if not extrato.transacoes:
         raise ErroExtrato("Nenhum movimento encontrado no extrato.")
-    return transacoes, saldos_ignorados
+    return extrato

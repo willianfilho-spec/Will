@@ -1,7 +1,11 @@
 {
   "conta_banco": "1.1.1.02",
   "conta_transitoria": "1.1.9.99",
+  "fornecedores": [
+    {"nome": "NX / F. Olavo", "apelidos": ["NX", "F. OLAVO", "F OLAYO"], "conta": "2.1.1.01", "historico": "Pgto fornecedor NX/F. Olavo"}
+  ],
   "regras": [
+    {"nome": "Transferência entre contas", "palavras_chave": ["TRANSF ENTRE CONTAS", "TRANSFERENCIA ENTRE CONTAS", "TRANSF MESMA TITULARIDADE"], "sentido": "ambos", "conta": "1.1.1.90", "revisar": true, "historico": "Transferência entre contas"},
     {"nome": "Energia elétrica", "palavras_chave": ["ENEL", "CEMIG", "COPEL", "CPFL", "ENERGISA", "EQUATORIAL", "NEOENERGIA", "ENERGIA ELETRICA"], "sentido": "saida", "conta": "4.1.1.01", "historico": "Pgto energia elétrica"},
     {"nome": "Água e esgoto", "palavras_chave": ["SABESP", "COPASA", "SANEPAR", "CAGEPA", "CAERN", "EMBASA", "AGUA E ESGOTO"], "sentido": "saida", "conta": "4.1.1.02", "historico": "Pgto água e esgoto"},
     {"nome": "Telefone e internet", "palavras_chave": ["VIVO", "CLARO", "TIM", "TELEFONICA", "INTERNET"], "sentido": "saida", "conta": "4.1.1.03", "historico": "Pgto telefone/internet"},

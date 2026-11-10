@@ -1,0 +1,20 @@
+{
+  "_leia": "LAYOUT PROVISÓRIO. Não é o layout oficial do Fortes. Ajuste as colunas abaixo para reproduzir um arquivo que o Fortes já tenha aceitado e só então troque validado_no_sistema para true.",
+  "validado_no_sistema": false,
+  "arquivo": "importacao.csv",
+  "delimitador": ";",
+  "codificacao": "utf-8",
+  "cabecalho": true,
+  "formato_data": "%d/%m/%Y",
+  "separador_decimal": ",",
+  "colunas": [
+    {"titulo": "Data", "campo": "data"},
+    {"titulo": "Conta Débito", "campo": "conta_debito"},
+    {"titulo": "Conta Crédito", "campo": "conta_credito"},
+    {"titulo": "Valor", "campo": "valor"},
+    {"titulo": "Histórico", "campo": "historico", "tamanho_maximo": 200},
+    {"titulo": "Documento", "campo": "documento"},
+    {"titulo": "Centro de Custo", "fixo": ""},
+    {"titulo": "Empresa", "fixo": ""}
+  ]
+}

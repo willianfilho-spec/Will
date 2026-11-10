@@ -1,2 +1,3 @@
-# Necessário apenas para a opção --ia
-anthropic
+# Opcionais
+openpyxl   # leitura de extratos em XLSX
+anthropic  # opção --ia

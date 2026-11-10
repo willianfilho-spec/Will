@@ -1,6 +1,7 @@
 codigo;descricao
 1.1.1.02;Banco Conta Movimento
 1.1.1.03;Aplicações Financeiras
+1.1.1.90;Transferências entre Contas (transitória)
 1.1.2.01;Clientes a Receber
 1.1.9.99;Lançamentos a Classificar (conta transitória)
 2.1.1.01;Fornecedores a Pagar
