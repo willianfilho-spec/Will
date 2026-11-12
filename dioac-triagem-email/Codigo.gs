@@ -17,9 +17,10 @@
  *
  * NÃO utiliza Gemini nem IA externa.
  * NÃO cria marcadores.
- * NÃO usa o endereço do remetente para classificar.
+ * NÃO usa o endereço do remetente para classificar, com uma única
+ * exceção: os endereços institucionais da Ouvidoria e da Procuradoria
+ * Federal (CONFIG.EMAILS_ORIGEM_SETORIAL).
  * NÃO registra remetente, assunto ou conteúdo nos logs.
- * ROBERTA NÃO participa da atribuição.
  * PROFA. KÁTIA NÃO recebe atribuição automática: atua no
  * escalonamento (pedido fora do prazo, situação não prevista nas
  * normas ou demanda fora das atribuições dos demais técnicos).
@@ -45,6 +46,15 @@ const CONFIG = Object.freeze({
 
   // Casos de auditoria com responsável definido recebem rascunho.
   CRIAR_RASCUNHO_PARA_AUDITORIA: true,
+
+  // Mensagem que menciona a Ouvidoria ou a Procuradoria Federal (e não
+  // veio delas) gera um RASCUNHO de encaminhamento ao setor. Nada é
+  // enviado sem revisão humana.
+  CRIAR_RASCUNHO_ENCAMINHAMENTO_SETORIAL: true,
+
+  // Endereços institucionais reconhecidos como origem. Mensagem vinda
+  // deles vai só para a Mireya.
+  EMAILS_ORIGEM_SETORIAL: ['ouvidoria@ufma.br', 'pf.ufma@ufma.br'],
 
   // Conversas sem ação entram no controle invisível (o Gmail não é
   // alterado). Evita que as mesmas conversas ocupem as vagas do
@@ -91,7 +101,9 @@ const MARCADORES_RESPONSAVEIS = {
   'Alessandra Amorim': 'ALESSANDRA AMORIM',
   'Izabella': 'IZABELLA',
   'Mireya': 'MIREYA',
-  'Willian Barbosa Filho': 'WILLIAN'
+  'Willian Barbosa Filho': 'WILLIAN',
+  // CONFIRMAR: nome exato do marcador da Roberta no Gmail.
+  'Roberta': 'ROBERTA'
 };
 
 
@@ -124,15 +136,32 @@ function regraAtribuicao_(id, responsavel, prioridade, termos, opcoes) {
 
 const REGRAS_ATRIBUICAO = [
 
-  // Ana Paula: readmissão/retorno ao curso, codificação do segundo
-  // ciclo e atualização de nome.
+  // Ana Paula: readmissão/retorno ao curso (com Alessandra Amorim),
+  // codificação do segundo ciclo e atualização de nome.
   regraAtribuicao_('READMISSAO', 'Ana Paula', 110,
-    ['readmissao', 'retorno ao curso']),
+    ['readmissao', 'retorno ao curso'],
+    { corresponsavel: 'Alessandra Amorim' }),
   regraAtribuicao_('CODIFICACAO_SEGUNDO_CICLO', 'Ana Paula', 110,
     ['codificacao segundo ciclo', 'codificacao do segundo ciclo',
      'codificacao de segundo ciclo']),
   regraAtribuicao_('ATUALIZACAO_NOME', 'Ana Paula', 110,
     ['atualizacao do nome', 'atualizacao de nome']),
+
+  // Roberta: mudança ou alteração de nome, mudança de estado civil e
+  // alteração de dados do aluno.
+  regraAtribuicao_('ALTERACAO_DADOS', 'Roberta', 110,
+    ['mudanca de nome', 'mudanca do nome', 'alteracao de nome',
+     'alteracao do nome', 'mudar meu nome', 'alterar meu nome',
+     'mudanca de estado civil', 'alteracao de estado civil',
+     'alteracao do estado civil',
+     'alteracao de dados', 'alteracao dos dados', 'alterar meus dados']),
+
+  // Alessandra Amorim: matrícula/inscrição em segundo ciclo.
+  regraAtribuicao_('MATRICULA_SEGUNDO_CICLO', 'Alessandra Amorim', 110,
+    ['matricula em segundo ciclo', 'matricula no segundo ciclo',
+     'matricula do segundo ciclo', 'matricula para o segundo ciclo',
+     'inscricao em segundo ciclo', 'inscricao no segundo ciclo',
+     'inscricao do segundo ciclo', 'inscricao para o segundo ciclo']),
 
   // Mireya: transferência compulsória e andamento de processos
   // administrativos.
@@ -242,6 +271,20 @@ const REGRAS_ENCAMINHAMENTO = [
     setor: 'DIDEG',
     email: 'dideg.proen@ufma.br',
     termos: ['estrutura curricular', 'projeto pedagogico de curso', 'ppc']
+  },
+  // Ouvidoria e Procuradoria: sempre em auditoria, então nunca são
+  // encaminhadas direto; recebem um rascunho de encaminhamento.
+  {
+    setor: 'OUVIDORIA',
+    email: 'ouvidoria@ufma.br',
+    termos: ['ouvidoria'],
+    rascunhoNaAuditoria: true
+  },
+  {
+    setor: 'PROCURADORIA FEDERAL',
+    email: 'pf.ufma@ufma.br',
+    termos: ['procuradoria federal', 'procuradoria'],
+    rascunhoNaAuditoria: true
   }
 ];
 
@@ -878,6 +921,7 @@ function decidirAcaoDIOAC_(
     marcadores: [],
     marcadorSetor: null,
     rascunho: false,
+    rascunhoEncaminhamentoPara: null,
     encaminharPara: null,
     confirmar: false
   };
@@ -907,6 +951,17 @@ function decidirAcaoDIOAC_(
       CONFIG.CRIAR_RASCUNHO_PARA_AUDITORIA &&
       !jaRespondidaPelaDIOAC
     );
+
+    // Menção à Ouvidoria/Procuradoria por terceiros: rascunho de
+    // encaminhamento ao setor. Se veio do próprio setor, não volta.
+    if (
+      encaminhamento &&
+      encaminhamento.rascunhoNaAuditoria &&
+      CONFIG.CRIAR_RASCUNHO_ENCAMINHAMENTO_SETORIAL &&
+      !(atribuicao && atribuicao.id === 'ORIGEM_OUVIDORIA_PROCURADORIA')
+    ) {
+      plano.rascunhoEncaminhamentoPara = encaminhamento.email;
+    }
 
     return plano;
   }
@@ -995,7 +1050,12 @@ function processarThreadDIOAC_(thread) {
 
   const encaminhamento = identificarEncaminhamento_(assunto, corpoNovo);
   const atribuicao =
-    identificarAtribuicao_(assunto, corpoNovo, nomeRemetente);
+    identificarAtribuicao_(
+      assunto,
+      corpoNovo,
+      nomeRemetente,
+      extrairEnderecoRemetente_(remetente)
+    );
 
   const plano = decidirAcaoDIOAC_(
     triagem,
@@ -1020,6 +1080,8 @@ function processarThreadDIOAC_(thread) {
     'Plano: ' + plano.resultado +
     ' | marcadores: ' + plano.marcadores.length +
     ' | rascunho: ' + (plano.rascunho ? 'sim' : 'não') +
+    ' | rascunho de encaminhamento: ' +
+    (plano.rascunhoEncaminhamentoPara ? 'sim' : 'não') +
     ' | encaminhar: ' + (plano.encaminharPara ? 'sim' : 'não') +
     ' | confirmar: ' + (plano.confirmar ? 'sim' : 'não')
   );
@@ -1075,11 +1137,52 @@ function executarPlanoDIOAC_(thread, mensagem, assuntoOriginal, plano) {
     criarRascunhoAuditoriaDIOAC_(thread);
   }
 
+  if (plano.rascunhoEncaminhamentoPara) {
+    criarRascunhoEncaminhamentoDIOAC_(
+      mensagem,
+      plano.rascunhoEncaminhamentoPara,
+      assuntoOriginal
+    );
+  }
+
   if (plano.confirmar) {
     thread.reply(MENSAGEM_RECEBIMENTO);
   }
 
   thread.markUnread();
+}
+
+/*
+ * Rascunho com a mensagem original (e os anexos) endereçado ao setor.
+ * Fica na caixa da DIOAC para revisão; nada é enviado.
+ */
+function criarRascunhoEncaminhamentoDIOAC_(mensagem, destino, assuntoOriginal) {
+
+  const corpo = [
+    'Encaminhamos a mensagem abaixo para conhecimento e providências.',
+    '',
+    '---------- Mensagem original ----------',
+    'De: ' + (mensagem.getFrom() || ''),
+    'Data: ' + mensagem.getDate(),
+    'Assunto: ' + assuntoOriginal,
+    '',
+    mensagem.getPlainBody() || '',
+    '',
+    'Atenciosamente,',
+    CONFIG.ASSINATURA
+  ].join('\n');
+
+  const anexos = mensagem.getAttachments({
+    includeInlineImages: false,
+    includeAttachments: true
+  }) || [];
+
+  GmailApp.createDraft(
+    destino,
+    '[DIOAC - Encaminhamento] ' + assuntoOriginal,
+    corpo,
+    { attachments: anexos }
+  );
 }
 
 function adicionarMarcadorExistenteDIOAC_(thread, nomeMarcador) {
@@ -1145,9 +1248,15 @@ function identificarEncaminhamento_(assunto, corpo) {
  * Ordem: assunto -> unidade pelo nome do remetente -> corpo.
  ************************************************************/
 
-function identificarAtribuicao_(assunto, corpo, remetenteNome) {
+function identificarAtribuicao_(
+  assunto,
+  corpo,
+  remetenteNome,
+  remetenteEndereco
+) {
 
-  const origem = identificarOrigemSetorialDIOAC_(remetenteNome);
+  const origem =
+    identificarOrigemSetorialDIOAC_(remetenteNome, remetenteEndereco);
 
   if (origem) return origem;
 
@@ -1204,14 +1313,20 @@ function escolherRegraDeAtribuicao_(texto, campo) {
 }
 
 /*
- * E-mail enviado pela Ouvidoria ou pela Procuradoria Federal, conforme
- * o nome de apresentação do remetente.
+ * E-mail enviado pela Ouvidoria ou pela Procuradoria Federal: pelo
+ * endereço institucional exato ou pelo nome de apresentação.
  */
-function identificarOrigemSetorialDIOAC_(remetenteNome) {
+function identificarOrigemSetorialDIOAC_(remetenteNome, remetenteEndereco) {
 
   const texto = normalizarTexto_(remetenteNome);
+  const endereco = String(remetenteEndereco || '').toLowerCase().trim();
 
-  if (contemAlgumTermo_(texto, ['ouvidoria', 'procuradoria'])) {
+  const porEndereco = Boolean(endereco) &&
+    CONFIG.EMAILS_ORIGEM_SETORIAL.some(function(email) {
+      return email.toLowerCase() === endereco;
+    });
+
+  if (porEndereco || contemAlgumTermo_(texto, ['ouvidoria', 'procuradoria'])) {
     return obterRegraPorId_('ORIGEM_OUVIDORIA_PROCURADORIA');
   }
 
@@ -1319,6 +1434,20 @@ function contemTermoNoInicioDePalavra_(texto, termo) {
  * (apenas o endereço), devolve vazio: o endereço de e-mail nunca é
  * usado para classificar.
  */
+/*
+ * Endereço do remetente, em minúsculas. Usado SOMENTE para reconhecer
+ * a Ouvidoria e a Procuradoria Federal (CONFIG.EMAILS_ORIGEM_SETORIAL).
+ */
+function extrairEnderecoRemetente_(remetente) {
+
+  const texto = String(remetente || '');
+  const entre = texto.match(/<([^>]+)>/);
+
+  if (entre) return entre[1].trim().toLowerCase();
+
+  return texto.indexOf('@') !== -1 ? texto.trim().toLowerCase() : '';
+}
+
 function extrairNomeRemetente_(remetente) {
 
   const texto = String(remetente || '');
@@ -1414,7 +1543,7 @@ function testarCasosCriticosDIOAC() {
       assunto: 'Re: Solicitação de readmissão',
       remetente: 'Discente Fictício <discente1@exemplo.invalid>',
       corpo: 'Aluno do curso de Enfermagem.',
-      esperado: 'ATRIBUIR:READMISSAO'
+      esperado: 'ATRIBUIR:READMISSAO+Alessandra Amorim'
     },
     {
       numero: 2,
@@ -1468,7 +1597,7 @@ function testarCasosCriticosDIOAC() {
       assunto: 'Manifestação da Ouvidoria',
       remetente: 'Setor Fictício <setor@exemplo.invalid>',
       corpo: '',
-      esperado: 'ATRIBUIR:OUVIDORIA_PROCURADORIA+Mireya'
+      esperado: 'ATRIBUIR:OUVIDORIA_PROCURADORIA+Mireya | ENCAMINHAR:OUVIDORIA'
     },
     {
       numero: 9,
@@ -1528,6 +1657,48 @@ function testarCasosCriticosDIOAC() {
       esperado: 'ATRIBUIR:PINHEIRO'
     },
     {
+      numero: 18,
+      assunto: 'Encaminhamento de processo',
+      remetente: '"pf.ufma UFMA" <pf.ufma@ufma.br>',
+      corpo: 'Trata de transferência compulsória.',
+      esperado: 'ATRIBUIR:ORIGEM_OUVIDORIA_PROCURADORIA'
+    },
+    {
+      numero: 19,
+      assunto: 'Manifestação',
+      remetente: 'Ouvidoria UFMA UFMA <ouvidoria@ufma.br>',
+      corpo: '',
+      esperado: 'ATRIBUIR:ORIGEM_OUVIDORIA_PROCURADORIA'
+    },
+    {
+      numero: 20,
+      assunto: 'Alteração de nome no SIGAA',
+      remetente: 'Discente Fictício <discente20@exemplo.invalid>',
+      corpo: '',
+      esperado: 'ATRIBUIR:ALTERACAO_DADOS'
+    },
+    {
+      numero: 21,
+      assunto: 'Mudança de estado civil',
+      remetente: 'Discente Fictício <discente21@exemplo.invalid>',
+      corpo: '',
+      esperado: 'ATRIBUIR:ALTERACAO_DADOS'
+    },
+    {
+      numero: 22,
+      assunto: 'Atualização de nome',
+      remetente: 'Discente Fictício <discente22@exemplo.invalid>',
+      corpo: '',
+      esperado: 'ATRIBUIR:ATUALIZACAO_NOME'
+    },
+    {
+      numero: 23,
+      assunto: 'Matrícula no segundo ciclo',
+      remetente: 'Discente Fictício <discente23@exemplo.invalid>',
+      corpo: '',
+      esperado: 'ATRIBUIR:MATRICULA_SEGUNDO_CICLO'
+    },
+    {
       numero: 17,
       assunto: 'Aproveitamento de estudos - Campus de Pinheiro',
       remetente: 'Discente Fictício <discente17@exemplo.invalid>',
@@ -1545,16 +1716,28 @@ function testarCasosCriticosDIOAC() {
     const nome = normalizarTexto_(extrairNomeRemetente_(caso.remetente));
 
     const encaminhamento = identificarEncaminhamento_(assunto, corpo);
-    const atribuicao = identificarAtribuicao_(assunto, corpo, nome);
+    const atribuicao = identificarAtribuicao_(
+      assunto,
+      corpo,
+      nome,
+      extrairEnderecoRemetente_(caso.remetente)
+    );
 
     let obtido = 'SEM_ACAO';
 
-    if (encaminhamento) {
-      obtido = 'ENCAMINHAR:' + encaminhamento.setor;
-    } else if (atribuicao) {
-      obtido = 'ATRIBUIR:' + atribuicao.id +
-        (atribuicao.corresponsavel ? '+' + atribuicao.corresponsavel : '');
+    // Mostra a atribuição e o encaminhamento, quando houver os dois.
+    const partes = [];
+
+    if (atribuicao) {
+      partes.push('ATRIBUIR:' + atribuicao.id +
+        (atribuicao.corresponsavel ? '+' + atribuicao.corresponsavel : ''));
     }
+
+    if (encaminhamento) {
+      partes.push('ENCAMINHAR:' + encaminhamento.setor);
+    }
+
+    if (partes.length) obtido = partes.join(' | ');
 
     const aprovado = obtido === caso.esperado;
 
