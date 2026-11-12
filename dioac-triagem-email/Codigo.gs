@@ -1473,7 +1473,7 @@ function ehMensagemAutomatica_(remetente, mensagem) {
 
   const indicadores = [
     'mailer-daemon', 'postmaster',
-    'no-reply', 'noreply', 'no_reply',
+    'no-reply', 'noreply', 'no_reply', 'naoresponder',
     'do-not-reply', 'donotreply',
     'nao-responda', 'naoresponda', 'nao_responda',
     'calendar-notification', 'notifications@', 'notification@'
