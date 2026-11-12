@@ -20,6 +20,9 @@
  * NÃO usa o endereço do remetente para classificar.
  * NÃO registra remetente, assunto ou conteúdo nos logs.
  * ROBERTA NÃO participa da atribuição.
+ * PROFA. KÁTIA NÃO recebe atribuição automática: atua no
+ * escalonamento (pedido fora do prazo, situação não prevista nas
+ * normas ou demanda fora das atribuições dos demais técnicos).
  ************************************************************/
 
 
@@ -69,7 +72,7 @@ const CONFIG = Object.freeze({
 
   // CONFIRMAR: o código original usava dois nomes diferentes para a
   // diretoria. Mantido um só; ajuste aqui se o oficial for outro.
-  ASSINATURA: 'Diretoria de Organização Acadêmica – DIOAC/PROEN/UFMA'
+  ASSINATURA: 'Diretoria de Organização Acadêmica - DIOAC'
 });
 
 
@@ -85,8 +88,8 @@ const MARCADORES_RESPONSAVEIS = {
   'Keila': 'KEYLA',
   'José de Ribamar': 'RIBAMAR',
   'Francisco': 'FRANCISCO',
-  'Alessandra': 'ALESSANDRA AMORIM',
-  'Izabela': 'IZABELLA',
+  'Alessandra Amorim': 'ALESSANDRA AMORIM',
+  'Izabella': 'IZABELLA',
   'Mireya': 'MIREYA',
   'Willian Barbosa Filho': 'WILLIAN'
 };
@@ -95,12 +98,14 @@ const MARCADORES_RESPONSAVEIS = {
 /************************************************************
  * REGRAS DE ATRIBUIÇÃO
  * Os mesmos termos valem para o assunto e para o corpo.
+ * "corresponsavel" recebe também o seu marcador (atuação conjunta).
  ************************************************************/
 
-function regraAtribuicao_(id, responsavel, prioridade, termos) {
+function regraAtribuicao_(id, responsavel, prioridade, termos, corresponsavel) {
   return {
     id: id,
     responsavel: responsavel,
+    corresponsavel: corresponsavel || null,
     prioridade: prioridade,
     assunto: termos,
     contexto: termos
@@ -109,40 +114,45 @@ function regraAtribuicao_(id, responsavel, prioridade, termos) {
 
 const REGRAS_ATRIBUICAO = [
 
-  // Ana Paula
+  // Ana Paula: readmissão/retorno ao curso, codificação do segundo
+  // ciclo e atualização de nome.
   regraAtribuicao_('READMISSAO', 'Ana Paula', 110,
     ['readmissao', 'retorno ao curso']),
   regraAtribuicao_('CODIFICACAO_SEGUNDO_CICLO', 'Ana Paula', 110,
-    ['codificacao segundo ciclo']),
+    ['codificacao segundo ciclo', 'codificacao do segundo ciclo',
+     'codificacao de segundo ciclo']),
   regraAtribuicao_('ATUALIZACAO_NOME', 'Ana Paula', 110,
-    ['atualizacao do nome']),
+    ['atualizacao do nome', 'atualizacao de nome']),
 
-  // Mireya
+  // Mireya: transferência compulsória e andamento de processos
+  // administrativos.
   regraAtribuicao_('TRANSFERENCIA_COMPULSORIA', 'Mireya', 109,
     ['transferencia compulsoria']),
   regraAtribuicao_('ANDAMENTO_PROCESSO', 'Mireya', 108,
     ['andamento do meu processo', 'andamento do processo',
-     'andamento de meu processo']),
+     'andamento de meu processo', 'processo administrativo']),
 
-  // Izabela
-  regraAtribuicao_('JUDICIAL', 'Izabela', 107,
+  // Izabella: demandas judiciais. Com a Mireya nas demandas ligadas
+  // à Ouvidoria e à Procuradoria Federal (as duas recebem marcador).
+  // Esta regra vem antes de JUDICIAL: no empate, a primeira vence.
+  regraAtribuicao_('OUVIDORIA_PROCURADORIA', 'Izabella', 107,
+    ['ouvidoria', 'procuradoria federal'], 'Mireya'),
+  regraAtribuicao_('JUDICIAL', 'Izabella', 107,
     ['demanda judicial', 'processo judicial', 'ordem judicial',
      'decisao judicial', 'determinacao judicial', 'mandado judicial',
      'oficio judicial']),
 
-  // Alessandra
-  regraAtribuicao_('CANCELAMENTO_TEMPORARIO', 'Alessandra', 106,
+  // Alessandra Amorim: consultas e dados sobre cancelamento temporário.
+  regraAtribuicao_('CANCELAMENTO_TEMPORARIO', 'Alessandra Amorim', 106,
     ['cancelamento temporario']),
-  regraAtribuicao_('VAGAS', 'Alessandra', 80,
-    ['vagas ociosas', 'vagas remanescentes', 'vaga ociosa',
-     'vaga remanescente']),
 
-  // Francisco (prioridade 100 para prevalecer sobre VAGAS)
+  // Francisco: campi de Pinheiro, Chapadinha e Imperatriz.
   regraAtribuicao_('PINHEIRO', 'Francisco', 100, ['pinheiro']),
   regraAtribuicao_('CHAPADINHA', 'Francisco', 100, ['chapadinha']),
   regraAtribuicao_('IMPERATRIZ', 'Francisco', 100, ['imperatriz']),
 
-  // Willian Barbosa Filho
+  // Willian Barbosa Filho: campi de Balsas, Grajaú, Codó, Bacabal e
+  // São Bernardo.
   regraAtribuicao_('BALSAS', 'Willian Barbosa Filho', 100, ['balsas']),
   regraAtribuicao_('GRAJAU', 'Willian Barbosa Filho', 100, ['grajau']),
   regraAtribuicao_('CODO', 'Willian Barbosa Filho', 100, ['codo']),
@@ -150,14 +160,25 @@ const REGRAS_ATRIBUICAO = [
   regraAtribuicao_('SAO_BERNARDO', 'Willian Barbosa Filho', 100,
     ['sao bernardo']),
 
-  // Unidades acadêmicas
+  // Unidades acadêmicas do Campus São Luís.
   regraAtribuicao_('CCSO', 'Jorge Henrique', 90,
     ['ciencias sociais', 'ccso']),
+  // "tecnologia" também cobre "tecnologias".
   regraAtribuicao_('CCET', 'Kellen', 90,
-    ['ciencias exatas e tecnologias', 'ccet']),
-  regraAtribuicao_('CCH', 'Keila', 90, ['ciencias humanas']),
+    ['ciencias exatas e tecnologia', 'ccet']),
+  regraAtribuicao_('CCH', 'Keila', 90,
+    ['ciencias humanas', 'cch']),
   regraAtribuicao_('CCBS', 'José de Ribamar', 90,
-    ['ciencias da saude', 'ccbs'])
+    ['ciencias da saude', 'ccbs']),
+
+  // José de Ribamar: problemas relacionados ao SIGAA. Prioridade
+  // menor para que campus e unidade prevaleçam; só termos de
+  // problema, porque "SIGAA" sozinho aparece em quase toda consulta.
+  regraAtribuicao_('SIGAA', 'José de Ribamar', 70,
+    ['problema no sigaa', 'problemas no sigaa',
+     'problema com o sigaa', 'problemas com o sigaa',
+     'erro no sigaa', 'erro do sigaa', 'falha no sigaa',
+     'nao consigo acessar o sigaa', 'acesso ao sigaa'])
 ];
 
 
@@ -167,8 +188,7 @@ const REGRAS_ATRIBUICAO = [
 
 const REGRAS_ENCAMINHAMENTO = [
   {
-    // CONFIRMAR: sigla do setor (DERRED) difere do e-mail (dired).
-    setor: 'DERRED',
+    setor: 'DIRED',
     email: 'dired.proen@ufma.br',
     termos: [
       'revalidacao de diploma', 'problema com registro de diploma',
@@ -208,7 +228,7 @@ const REGRAS_ENCAMINHAMENTO = [
 
 const MENSAGEM_RECEBIMENTO = [
   'Confirmamos o recebimento de sua consulta.',
-  'O e-mail corporativo é destinado a consultas e orientações e não gera protocolo. O retorno está previsto em até 5 dias úteis.',
+  'O e-mail corporativo é destinado a consultas e orientações e não gera protocolo. Retornaremos o mais rápido possível.',
   'Solicitações que exijam formalização, análise de mérito ou alteração de situação acadêmica devem ser registradas pelo canal institucional adequado, como SEI, GLPI ou Atendimento PROEN no portal da UFMA.',
   'Atenciosamente,',
   CONFIG.ASSINATURA
@@ -623,7 +643,8 @@ function classificarFluxoTriagemDIOAC_(
     'transferencia compulsoria', 'readmissao',
     'desligamento', 'mudanca de vinculo',
     'fora do prazo', 'pedido extemporaneo',
-    'alteracao de plano de estudos'
+    'alteracao de plano de estudos',
+    'demanda judicial', 'processo judicial', 'ouvidoria', 'procuradoria'
   ];
 
   const termosDeAtoAcademico = [
@@ -746,16 +767,20 @@ function decidirAcaoDIOAC_(
 
   const plano = {
     resultado: 'SEM_ACAO',
-    marcador: null,
+    marcadores: [],
     marcadorSetor: null,
     rascunho: false,
     encaminharPara: null,
     confirmar: false
   };
 
-  const marcadorResponsavel = atribuicao
-    ? (MARCADORES_RESPONSAVEIS[atribuicao.responsavel] || null)
-    : null;
+  // Responsável e, se houver, corresponsável (atuação conjunta).
+  const marcadoresResponsaveis = atribuicao
+    ? [atribuicao.responsavel, atribuicao.corresponsavel]
+        .filter(Boolean)
+        .map(function(nome) { return MARCADORES_RESPONSAVEIS[nome]; })
+        .filter(Boolean)
+    : [];
 
   // Mérito, anexo ou dado identificável: sempre auditoria.
   // Demanda não reconhecida, mas com responsável definido: também.
@@ -765,9 +790,9 @@ function decidirAcaoDIOAC_(
   ) {
 
     plano.resultado = 'AUDITORIA_TECNICA';
-    plano.marcador = atribuicao
-      ? marcadorResponsavel
-      : CONFIG.LABEL_EM_ANALISE;
+    plano.marcadores = atribuicao
+      ? marcadoresResponsaveis
+      : [CONFIG.LABEL_EM_ANALISE];
     plano.rascunho = Boolean(
       atribuicao &&
       CONFIG.CRIAR_RASCUNHO_PARA_AUDITORIA &&
@@ -779,7 +804,7 @@ function decidirAcaoDIOAC_(
 
   if (triagem.classe === 'CONSULTA_PROCEDIMENTAL') {
 
-    plano.marcador = marcadorResponsavel;
+    plano.marcadores = marcadoresResponsaveis;
 
     if (encaminhamento && CONFIG.ENCAMINHAR_AUTOMATICAMENTE) {
       plano.encaminharPara = encaminhamento.email;
@@ -880,7 +905,7 @@ function processarThreadDIOAC_(thread) {
   );
   Logger.log(
     'Plano: ' + plano.resultado +
-    ' | marcador: ' + (plano.marcador ? 'sim' : 'não') +
+    ' | marcadores: ' + plano.marcadores.length +
     ' | rascunho: ' + (plano.rascunho ? 'sim' : 'não') +
     ' | encaminhar: ' + (plano.encaminharPara ? 'sim' : 'não') +
     ' | confirmar: ' + (plano.confirmar ? 'sim' : 'não')
@@ -913,12 +938,11 @@ function executarPlanoDIOAC_(thread, mensagem, assuntoOriginal, plano) {
     return;
   }
 
-  if (
-    plano.marcador &&
-    !adicionarMarcadorExistenteDIOAC_(thread, plano.marcador)
-  ) {
-    Logger.log('AVISO: o marcador previsto não existe no Gmail.');
-  }
+  plano.marcadores.forEach(function(nomeMarcador) {
+    if (!adicionarMarcadorExistenteDIOAC_(thread, nomeMarcador)) {
+      Logger.log('AVISO: um marcador previsto não existe no Gmail.');
+    }
+  });
 
   if (plano.encaminharPara) {
     mensagem.forward(plano.encaminharPara, {
@@ -1068,8 +1092,8 @@ function identificarUnidadePorRemetente_(remetenteNome) {
 
   const unidades = [
     ['CCSO', ['ciencias sociais', 'ccso']],
-    ['CCET', ['ciencias exatas e tecnologias', 'ccet']],
-    ['CCH', ['ciencias humanas']],
+    ['CCET', ['ciencias exatas e tecnologia', 'ccet']],
+    ['CCH', ['ciencias humanas', 'cch']],
     ['CCBS', ['ciencias da saude', 'ccbs']]
   ];
 
@@ -1117,7 +1141,7 @@ function normalizarTexto_(texto) {
   return String(texto || '')
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -1130,7 +1154,28 @@ function contemAlgumTermo_(texto, termos) {
 
     const termo = normalizarTexto_(termos[i]);
 
-    if (termo && texto.indexOf(termo) !== -1) return true;
+    if (termo && contemTermoNoInicioDePalavra_(texto, termo)) return true;
+  }
+
+  return false;
+}
+
+/*
+ * O termo precisa começar no início de uma palavra: "cch" casa com
+ * "cch" e "/cch", mas não com "bacchus". O fim fica livre para aceitar
+ * plurais ("diploma" casa com "diplomas").
+ */
+function contemTermoNoInicioDePalavra_(texto, termo) {
+
+  let posicao = texto.indexOf(termo);
+
+  while (posicao !== -1) {
+
+    if (posicao === 0 || !/[a-z0-9]/.test(texto.charAt(posicao - 1))) {
+      return true;
+    }
+
+    posicao = texto.indexOf(termo, posicao + 1);
   }
 
   return false;
@@ -1277,6 +1322,48 @@ function testarCasosCriticosDIOAC() {
       remetente: 'ccso@exemplo.invalid',
       corpo: '',
       esperado: 'SEM_ACAO'
+    },
+    {
+      numero: 7,
+      assunto: 'Codificação do segundo ciclo',
+      remetente: 'Discente Fictício <discente7@exemplo.invalid>',
+      corpo: '',
+      esperado: 'ATRIBUIR:CODIFICACAO_SEGUNDO_CICLO'
+    },
+    {
+      numero: 8,
+      assunto: 'Manifestação da Ouvidoria',
+      remetente: 'Setor Fictício <setor@exemplo.invalid>',
+      corpo: '',
+      esperado: 'ATRIBUIR:OUVIDORIA_PROCURADORIA+Mireya'
+    },
+    {
+      numero: 9,
+      assunto: 'Curso de Ciências Exatas e Tecnologia',
+      remetente: 'Discente Fictício <discente9@exemplo.invalid>',
+      corpo: '',
+      esperado: 'ATRIBUIR:CCET'
+    },
+    {
+      numero: 10,
+      assunto: 'Dúvida do CCH',
+      remetente: 'Discente Fictício <discente10@exemplo.invalid>',
+      corpo: '',
+      esperado: 'ATRIBUIR:CCH'
+    },
+    {
+      numero: 11,
+      assunto: 'Problema no SIGAA',
+      remetente: 'Discente Fictício <discente11@exemplo.invalid>',
+      corpo: '',
+      esperado: 'ATRIBUIR:SIGAA'
+    },
+    {
+      numero: 12,
+      assunto: 'Vagas remanescentes',
+      remetente: 'Discente Fictício <discente12@exemplo.invalid>',
+      corpo: '',
+      esperado: 'SEM_ACAO'
     }
   ];
 
@@ -1296,7 +1383,8 @@ function testarCasosCriticosDIOAC() {
     if (encaminhamento) {
       obtido = 'ENCAMINHAR:' + encaminhamento.setor;
     } else if (atribuicao) {
-      obtido = 'ATRIBUIR:' + atribuicao.id;
+      obtido = 'ATRIBUIR:' + atribuicao.id +
+        (atribuicao.corresponsavel ? '+' + atribuicao.corresponsavel : '');
     }
 
     const aprovado = obtido === caso.esperado;
@@ -1474,10 +1562,12 @@ function testarMarcadoresDIOAC() {
 
   // Toda regra precisa apontar para um responsável com marcador.
   REGRAS_ATRIBUICAO.forEach(function(regra) {
-    if (!MARCADORES_RESPONSAVEIS[regra.responsavel]) {
-      ausentes++;
-      Logger.log('SEM MARCADOR CONFIGURADO → regra ' + regra.id);
-    }
+    [regra.responsavel, regra.corresponsavel].forEach(function(nome) {
+      if (nome && !MARCADORES_RESPONSAVEIS[nome]) {
+        ausentes++;
+        Logger.log('SEM MARCADOR CONFIGURADO → regra ' + regra.id);
+      }
+    });
   });
 
   Logger.log('Marcadores ausentes: ' + ausentes);
