@@ -98,14 +98,24 @@ const MARCADORES_RESPONSAVEIS = {
 /************************************************************
  * REGRAS DE ATRIBUIÇÃO
  * Os mesmos termos valem para o assunto e para o corpo.
- * "corresponsavel" recebe também o seu marcador (atuação conjunta).
+ * Opções:
+ * - corresponsavel: recebe também o seu marcador (atuação conjunta);
+ * - exigeAuditoria: nunca recebe confirmação automática.
+ *
+ * Cada centro e campus responde por todas as operações acadêmicas da
+ * Resolução 1.892/2019 (trancamento, aproveitamento, plano de estudos
+ * etc.) dos seus cursos. As regras temáticas (readmissão, cancelamento
+ * temporário, transferência compulsória...) têm prioridade maior e
+ * prevalecem sobre o centro. Veja OPERACOES_1892 mais abaixo.
  ************************************************************/
 
-function regraAtribuicao_(id, responsavel, prioridade, termos, corresponsavel) {
+function regraAtribuicao_(id, responsavel, prioridade, termos, opcoes) {
+  opcoes = opcoes || {};
   return {
     id: id,
     responsavel: responsavel,
-    corresponsavel: corresponsavel || null,
+    corresponsavel: opcoes.corresponsavel || null,
+    exigeAuditoria: Boolean(opcoes.exigeAuditoria),
     prioridade: prioridade,
     assunto: termos,
     contexto: termos
@@ -132,22 +142,36 @@ const REGRAS_ATRIBUICAO = [
     ['andamento do meu processo', 'andamento do processo',
      'andamento de meu processo', 'processo administrativo']),
 
-  // Izabella: demandas judiciais. Com a Mireya nas demandas ligadas
-  // à Ouvidoria e à Procuradoria Federal (as duas recebem marcador).
+  // E-mail ENVIADO pela Ouvidoria ou pela Procuradoria Federal: só
+  // Mireya. Reconhecido pelo nome de apresentação do remetente (nunca
+  // pelo endereço), antes de qualquer outra regra. Sem termos próprios:
+  // é aplicada por identificarOrigemSetorialDIOAC_.
+  regraAtribuicao_('ORIGEM_OUVIDORIA_PROCURADORIA', 'Mireya', 120, [],
+    { exigeAuditoria: true }),
+
+  // Izabella: demandas judiciais. Quando outra pessoa MENCIONA a
+  // Ouvidoria ou a Procuradoria Federal: Izabella e Mireya juntas.
   // Esta regra vem antes de JUDICIAL: no empate, a primeira vence.
   regraAtribuicao_('OUVIDORIA_PROCURADORIA', 'Izabella', 107,
-    ['ouvidoria', 'procuradoria federal'], 'Mireya'),
+    ['ouvidoria', 'procuradoria federal'],
+    { corresponsavel: 'Mireya', exigeAuditoria: true }),
   regraAtribuicao_('JUDICIAL', 'Izabella', 107,
     ['demanda judicial', 'processo judicial', 'ordem judicial',
      'decisao judicial', 'determinacao judicial', 'mandado judicial',
-     'oficio judicial']),
+     'oficio judicial'],
+    { exigeAuditoria: true }),
 
   // Alessandra Amorim: consultas e dados sobre cancelamento temporário.
   regraAtribuicao_('CANCELAMENTO_TEMPORARIO', 'Alessandra Amorim', 106,
     ['cancelamento temporario']),
 
   // Francisco: campi de Pinheiro, Chapadinha e Imperatriz.
-  regraAtribuicao_('PINHEIRO', 'Francisco', 100, ['pinheiro']),
+  // Pinheiro: sigla CCPi. A palavra "pinheiro" sozinha não é usada
+  // porque também é sobrenome comum ("Maria Pinheiro").
+  regraAtribuicao_('PINHEIRO', 'Francisco', 100,
+    ['ccpi', 'campus pinheiro', 'campus de pinheiro',
+     'campus do pinheiro', 'campi de pinheiro', 'em pinheiro',
+     'pinheiro/ma', 'pinheiro - ma', 'pinheiro-ma']),
   regraAtribuicao_('CHAPADINHA', 'Francisco', 100, ['chapadinha']),
   regraAtribuicao_('IMPERATRIZ', 'Francisco', 100, ['imperatriz']),
 
@@ -622,6 +646,92 @@ function limparControleInternoAntigoDIOAC_() {
  * outra confirmação.
  ************************************************************/
 
+/*
+ * Operações acadêmicas da Resolução n.º 1.892/2019-CONSEPE, com o
+ * título/capítulo de origem. Servem para:
+ * - registrar no log qual operação a mensagem trata (sem dados
+ *   pessoais), ajudando quem faz a triagem humana;
+ * - mandar para auditoria as operações de análise individual
+ *   (analiseIndividual: true), que nunca recebem resposta automática.
+ *
+ * O catálogo NÃO atribui responsável: cada centro/campus responde
+ * por todas essas operações dos seus cursos.
+ */
+const OPERACOES_1892 = [
+  { id: 'VAGAS_REMANESCENTES', capitulo: 'Tít. III, Cap. II',
+    termos: ['vaga remanescente', 'vagas remanescentes'] },
+  { id: 'TRANSFERENCIA_COMPULSORIA', capitulo: 'Tít. III, Cap. III',
+    termos: ['transferencia compulsoria'], analiseIndividual: true },
+  { id: 'SEGUNDO_CICLO', capitulo: 'Tít. III, Cap. V',
+    termos: ['segundo ciclo'] },
+  { id: 'DISCIPLINA_ISOLADA', capitulo: 'Tít. III, Cap. VI',
+    termos: ['disciplina isolada'] },
+  { id: 'MOBILIDADE_ACADEMICA', capitulo: 'Tít. III, Cap. VII',
+    termos: ['mobilidade academica'] },
+  { id: 'MUDANCA_TURNO', capitulo: 'Tít. III, Cap. VIII',
+    termos: ['mudanca de turno'] },
+  { id: 'CADASTRAMENTO', capitulo: 'Tít. III, Cap. IX',
+    termos: ['cadastramento'] },
+  { id: 'EQUIVALENCIA', capitulo: 'Tít. IV, Cap. III',
+    termos: ['equivalencia'] },
+  { id: 'ESTAGIO', capitulo: 'Tít. IV, Cap. II, Seç. III',
+    termos: ['estagio'] },
+  { id: 'TCC', capitulo: 'Tít. IV, Cap. II, Seç. III',
+    termos: ['trabalho de conclusao', 'tcc'] },
+  { id: 'ATIVIDADES_COMPLEMENTARES', capitulo: 'Tít. IV, Cap. II, Seç. III',
+    termos: ['atividades complementares', 'atividade complementar'] },
+  { id: 'MONITORIA', capitulo: 'Tít. IV, Cap. II, Seç. III',
+    termos: ['monitoria'] },
+  { id: 'CALENDARIO_ACADEMICO', capitulo: 'Tít. V, Cap. I',
+    termos: ['calendario academico'] },
+  { id: 'INSCRICAO_COMPONENTE', capitulo: 'Tít. V, Cap. II',
+    termos: ['inscricao em componente', 'inscricao em disciplina',
+             'ajuste de inscricao', 'ajuste de matricula'] },
+  { id: 'CANCELAMENTO_INSCRICAO', capitulo: 'Tít. V, Cap. II, Seç. IV',
+    termos: ['cancelamento de inscricao', 'cancelamento de disciplina',
+             'exclusao de turma'] },
+  { id: 'TRANCAMENTO_CURSO', capitulo: 'Tít. V, Cap. III',
+    termos: ['trancamento'] },
+  { id: 'CANCELAMENTO_TEMPORARIO', capitulo: 'Tít. V, Cap. IV',
+    termos: ['cancelamento temporario'] },
+  { id: 'READMISSAO', capitulo: 'Tít. V, Cap. V',
+    termos: ['readmissao'], analiseIndividual: true },
+  { id: 'PLANO_DE_ESTUDOS', capitulo: 'Tít. V, Cap. VII',
+    termos: ['plano de estudos', 'plano de estudo'],
+    analiseIndividual: true },
+  { id: 'DESLIGAMENTO', capitulo: 'Tít. V, Cap. VIII',
+    termos: ['desligamento', 'desligado'], analiseIndividual: true },
+  { id: 'APROVEITAMENTO_ESTUDOS', capitulo: 'Tít. V, Cap. IX',
+    termos: ['aproveitamento de estudos', 'aproveitamento de disciplina',
+             'perfil inicial'],
+    analiseIndividual: true },
+  { id: 'AVALIACAO', capitulo: 'Tít. V, Cap. X',
+    termos: ['revisao de nota', 'revisao de prova', 'segunda chamada'] },
+  { id: 'EXERCICIOS_DOMICILIARES', capitulo: 'Tít. V, Cap. XI',
+    termos: ['exercicios domiciliares', 'regime domiciliar'],
+    analiseIndividual: true },
+  { id: 'ATESTADO_VINCULO', capitulo: 'Tít. VI, Cap. I',
+    termos: ['atestado de matricula', 'declaracao de vinculo'] },
+  { id: 'HISTORICO_ACADEMICO', capitulo: 'Tít. VI, Cap. IV',
+    termos: ['historico'], analiseIndividual: true },
+  { id: 'CERTIDAO_CONCLUSAO', capitulo: 'Tít. VI, Cap. V',
+    termos: ['certidao de conclusao'] },
+  { id: 'DIPLOMA', capitulo: 'Tít. VI, Cap. VI',
+    termos: ['diploma'], analiseIndividual: true },
+  { id: 'COLACAO_DE_GRAU', capitulo: 'Tít. VII, Cap. I',
+    termos: ['colacao de grau'] },
+  { id: 'COLACAO_DE_GRAU_ESPECIAL', capitulo: 'Tít. VII, Cap. II',
+    termos: ['colacao de grau especial'], analiseIndividual: true },
+  { id: 'TRANSFERENCIA_EXTERNA', capitulo: 'Tít. VII, Cap. III',
+    termos: ['transferencia externa', 'transferencia para outra'] }
+];
+
+function identificarOperacoes1892_(texto) {
+  return OPERACOES_1892.filter(function(operacao) {
+    return contemAlgumTermo_(texto, operacao.termos);
+  });
+}
+
 function classificarFluxoTriagemDIOAC_(
   assuntoOriginal,
   corpoOriginal,
@@ -637,18 +747,17 @@ function classificarFluxoTriagemDIOAC_(
   ).trim();
 
   const temasDeMerito = [
-    'veracidade documental', 'autenticidade documental', 'diploma',
-    'historico escolar', 'alteracao de historico', 'vinculo academico',
+    'veracidade documental', 'autenticidade documental',
+    'alteracao de historico', 'vinculo academico',
     'decisao liminar', 'ordem judicial', 'mandado judicial',
-    'transferencia compulsoria', 'readmissao',
-    'desligamento', 'mudanca de vinculo',
+    'mudanca de vinculo',
     'fora do prazo', 'pedido extemporaneo',
-    'alteracao de plano de estudos',
     'demanda judicial', 'processo judicial', 'ouvidoria', 'procuradoria'
   ];
 
   const termosDeAtoAcademico = [
-    'solicito matricula', 'solicito cancelamento',
+    'solicito matricula', 'solicito cancelamento', 'solicito trancamento',
+    'solicito aproveitamento', 'solicito mudanca de turno',
     'efetuar matricula', 'alterar minha matricula',
     'cancelar minha disciplina', 'corrigir meu historico',
     'alterar meu vinculo', 'regularizar minha situacao'
@@ -666,40 +775,39 @@ function classificarFluxoTriagemDIOAC_(
     'projeto pedagogico de curso', 'ppc'
   ];
 
+  // Operações tratadas: as do texto completo (segurança) e as do texto
+  // novo (registro). Análise individual em qualquer parte -> auditoria.
+  const operacoes = identificarOperacoes1892_(textoNovo);
+  const analiseIndividual = identificarOperacoes1892_(textoCompleto)
+    .some(function(operacao) { return operacao.analiseIndividual; });
+
   const dadoIdentificavel = detectarDadoPessoalDIOAC_(textoCompleto);
 
+  const base = {
+    operacoes: operacoes.map(function(operacao) { return operacao.id; }),
+    dadoIdentificavel: dadoIdentificavel,
+    temAnexo: Boolean(temAnexo)
+  };
+
+  let classe = 'REVISAO_MANUAL';
+
   if (
+    analiseIndividual ||
     contemAlgumTermo_(textoCompleto, temasDeMerito) ||
     contemAlgumTermo_(textoCompleto, termosDeAtoAcademico) ||
     temAnexo ||
     dadoIdentificavel
   ) {
-    return {
-      classe: 'AUDITORIA_TECNICA',
-      requerAuditoria: true,
-      dadoIdentificavel: dadoIdentificavel,
-      temAnexo: Boolean(temAnexo),
-      respostaAutomaticaPermitida: false
-    };
+    classe = 'AUDITORIA_TECNICA';
+  } else if (contemAlgumTermo_(textoNovo, termosDeConsulta)) {
+    classe = 'CONSULTA_PROCEDIMENTAL';
   }
 
-  if (contemAlgumTermo_(textoNovo, termosDeConsulta)) {
-    return {
-      classe: 'CONSULTA_PROCEDIMENTAL',
-      requerAuditoria: false,
-      dadoIdentificavel: false,
-      temAnexo: false,
-      respostaAutomaticaPermitida: true
-    };
-  }
+  base.classe = classe;
+  base.requerAuditoria = classe !== 'CONSULTA_PROCEDIMENTAL';
+  base.respostaAutomaticaPermitida = classe === 'CONSULTA_PROCEDIMENTAL';
 
-  return {
-    classe: 'REVISAO_MANUAL',
-    requerAuditoria: true,
-    dadoIdentificavel: false,
-    temAnexo: false,
-    respostaAutomaticaPermitida: false
-  };
+  return base;
 }
 
 /*
@@ -786,7 +894,8 @@ function decidirAcaoDIOAC_(
   // Demanda não reconhecida, mas com responsável definido: também.
   if (
     triagem.classe === 'AUDITORIA_TECNICA' ||
-    (triagem.classe === 'REVISAO_MANUAL' && atribuicao)
+    (triagem.classe === 'REVISAO_MANUAL' && atribuicao) ||
+    (atribuicao && atribuicao.exigeAuditoria)
   ) {
 
     plano.resultado = 'AUDITORIA_TECNICA';
@@ -896,6 +1005,10 @@ function processarThreadDIOAC_(thread) {
   );
 
   Logger.log('Classe da triagem: ' + triagem.classe);
+  Logger.log(
+    'Operações (Res. 1.892/2019): ' +
+    (triagem.operacoes.length ? triagem.operacoes.join(', ') : 'nenhuma')
+  );
   Logger.log(
     'Regra de atribuição: ' + (atribuicao ? atribuicao.id : 'nenhuma')
   );
@@ -1034,6 +1147,10 @@ function identificarEncaminhamento_(assunto, corpo) {
 
 function identificarAtribuicao_(assunto, corpo, remetenteNome) {
 
+  const origem = identificarOrigemSetorialDIOAC_(remetenteNome);
+
+  if (origem) return origem;
+
   const porAssunto = escolherRegraDeAtribuicao_(assunto, 'assunto');
 
   if (porAssunto.conflito) {
@@ -1086,11 +1203,27 @@ function escolherRegraDeAtribuicao_(texto, campo) {
   return { regra: melhores[0], conflito: false };
 }
 
+/*
+ * E-mail enviado pela Ouvidoria ou pela Procuradoria Federal, conforme
+ * o nome de apresentação do remetente.
+ */
+function identificarOrigemSetorialDIOAC_(remetenteNome) {
+
+  const texto = normalizarTexto_(remetenteNome);
+
+  if (contemAlgumTermo_(texto, ['ouvidoria', 'procuradoria'])) {
+    return obterRegraPorId_('ORIGEM_OUVIDORIA_PROCURADORIA');
+  }
+
+  return null;
+}
+
 function identificarUnidadePorRemetente_(remetenteNome) {
 
   const texto = normalizarTexto_(remetenteNome);
 
   const unidades = [
+    ['PINHEIRO', ['ccpi']],
     ['CCSO', ['ciencias sociais', 'ccso']],
     ['CCET', ['ciencias exatas e tecnologia', 'ccet']],
     ['CCH', ['ciencias humanas', 'cch']],
@@ -1365,6 +1498,42 @@ function testarCasosCriticosDIOAC() {
       corpo: '',
       esperado: 'SEM_ACAO'
     }
+,
+    {
+      numero: 13,
+      assunto: 'Ofício nº 10/2026',
+      remetente: 'Ouvidoria Fictícia <ouvidoria@exemplo.invalid>',
+      corpo: 'Trata de readmissão.',
+      esperado: 'ATRIBUIR:ORIGEM_OUVIDORIA_PROCURADORIA'
+    },
+    {
+      numero: 14,
+      assunto: 'Encaminhamento',
+      remetente: 'Procuradoria Federal Fictícia <pf@exemplo.invalid>',
+      corpo: '',
+      esperado: 'ATRIBUIR:ORIGEM_OUVIDORIA_PROCURADORIA'
+    },
+    {
+      numero: 15,
+      assunto: 'Dúvida sobre trancamento',
+      remetente: 'Discente Fictício <discente15@exemplo.invalid>',
+      corpo: 'Atenciosamente, Maria Pinheiro',
+      esperado: 'SEM_ACAO'
+    },
+    {
+      numero: 16,
+      assunto: 'Trancamento de curso',
+      remetente: 'COORDENAÇÃO DO CURSO DE MEDICINA/CCPi <c@exemplo.invalid>',
+      corpo: '',
+      esperado: 'ATRIBUIR:PINHEIRO'
+    },
+    {
+      numero: 17,
+      assunto: 'Aproveitamento de estudos - Campus de Pinheiro',
+      remetente: 'Discente Fictício <discente17@exemplo.invalid>',
+      corpo: '',
+      esperado: 'ATRIBUIR:PINHEIRO'
+    }
   ];
 
   let falhas = 0;
@@ -1455,6 +1624,27 @@ function testarFluxoTriagemEmailDIOAC() {
       corpo: 'Como faço?\n\n> CPF 123.456.789-00',
       anexo: false,
       esperado: 'AUDITORIA_TECNICA'
+    },
+    {
+      nome: 'exercícios domiciliares (dado de saúde)',
+      assunto: 'Dúvida sobre exercícios domiciliares',
+      corpo: 'Como faço?',
+      anexo: false,
+      esperado: 'AUDITORIA_TECNICA'
+    },
+    {
+      nome: 'aproveitamento de estudos é análise individual',
+      assunto: 'Como solicitar aproveitamento de estudos?',
+      corpo: '',
+      anexo: false,
+      esperado: 'AUDITORIA_TECNICA'
+    },
+    {
+      nome: 'dúvida sobre trancamento continua consulta',
+      assunto: 'Dúvida sobre trancamento de curso',
+      corpo: 'Como faço pelo SIGAA?',
+      anexo: false,
+      esperado: 'CONSULTA_PROCEDIMENTAL'
     },
     {
       nome: 'demanda não reconhecida',
