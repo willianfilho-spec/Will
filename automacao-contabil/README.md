@@ -244,3 +244,39 @@ impresso pelo banco. Na interface, a conferência fica na seção 4.
 Limite atual: a contabilidade é representada pelos arquivos importados, não
 pelo razão emitido pelo Fortes. Lançamento apagado ou alterado à mão no Fortes
 não aparece aqui; para isso, compare também o saldo da conta no balancete.
+
+## Backup e restauração
+
+`motor_contabil/backup.py` copia a pasta de dados (bancos SQLite e arquivos)
+para outro dispositivo. Cada cópia é uma pasta `backup_AAAAMMDD_HHMMSS` com
+um manifesto de hashes; os bancos são copiados pela API de backup do SQLite,
+consistentes mesmo com o aplicativo aberto. Ficam a última cópia de cada um
+dos 30 dias mais recentes e a última de cada um dos 12 meses mais recentes.
+
+```bash
+python -m motor_contabil.backup fazer     --dados D:\dados_contabeis --destino E:\backups
+python -m motor_contabil.backup testar    --destino E:\backups   # restaura numa pasta temporária e confere
+python -m motor_contabil.backup situacao  --destino E:\backups   # sai com erro se a última cópia tem mais de 26 h
+python -m motor_contabil.backup restaurar --destino E:\backups --para D:\dados_restaurados
+```
+
+Restaurar só funciona numa pasta vazia: feche o aplicativo, restaure numa
+pasta nova, confira e só então troque a pasta de dados.
+
+**Agendar no Windows** (Prompt de Comando, ajustando os caminhos; roda todo
+dia às 18h e, se o computador estiver desligado nesse horário, na próxima vez
+que for ligado):
+
+```bat
+schtasks /Create /TN "Backup contabil" /SC DAILY /ST 18:00 /RL LIMITED ^
+  /TR "\"C:\caminho\.venv\Scripts\python.exe\" -m motor_contabil.backup fazer --dados D:\dados_contabeis --destino E:\backups"
+```
+
+Depois, em Agendador de Tarefas, abra a tarefa, marque "Executar a tarefa o
+mais cedo possível após uma inicialização agendada ter sido perdida" e defina
+"Iniciar em" como a pasta `automacao-contabil`. A barra lateral do aplicativo
+avisa quando a última cópia tem mais de 26 horas.
+
+O destino deve ser outro disco, um pendrive ou uma unidade de rede, e de
+preferência guardado fora da sala do computador. Teste a restauração antes do
+piloto e depois a cada três meses.

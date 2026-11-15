@@ -57,6 +57,17 @@ with st.sidebar:
     prefixo_marca = st.text_input("Prefixo da marca no histórico (Fortes)", "EXT", max_chars=6)
     caminho_regras = st.text_input("Regras (JSON)", str(EXEMPLOS / "regras.json"))
     usuario = st.text_input("Responsável pela revisão", "operador")
+    pasta_backup = st.text_input("Pasta de backup (para o aviso de cópia atrasada)", "")
+    if pasta_backup.strip():
+        from motor_contabil.backup import horas_desde_ultima
+
+        horas = horas_desde_ultima(pasta_backup.strip())
+        if horas is None:
+            st.error("Nenhuma cópia de segurança encontrada nessa pasta.")
+        elif horas > 26:
+            st.error(f"Última cópia de segurança há {horas:.0f} horas. Confira o agendamento.")
+        else:
+            st.caption(f"Última cópia de segurança há {horas:.1f} horas.")
     usar_ia = st.checkbox(
         "Sugerir contas com IA",
         value=False,
