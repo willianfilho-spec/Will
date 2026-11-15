@@ -9,6 +9,7 @@ pasta dentro da pasta de dados (ver motor_contabil/empresas.py).
 
 from __future__ import annotations
 
+import os
 import tempfile
 from datetime import date
 from decimal import Decimal
@@ -45,7 +46,9 @@ st.caption("Prova de conceito. Os lançamentos só saem do sistema depois de lib
 
 with st.sidebar:
     st.header("Configuração")
-    pasta_dados = Path(st.text_input("Pasta de dados do escritório", "dados"))
+    pasta_dados = Path(st.text_input(
+        "Pasta de dados do escritório", os.environ.get("MOTOR_CONTABIL_DADOS", "dados")
+    ))
     try:
         cadastradas = empresas.listar(pasta_dados)
     except ValueError as erro:
