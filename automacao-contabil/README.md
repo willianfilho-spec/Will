@@ -12,7 +12,7 @@ contábeis revisados e prontos para importação, sem gerar duplicidades.
 
 | Faz | Não faz (ainda) |
 | --- | --- |
-| Lê OFX (1.x e 2.x) e CSV de extrato | Ler PDF, Excel (.xlsx) ou relatórios de sistemas |
+| Lê OFX (1.x e 2.x), CSV e planilhas Excel (.xlsx) de extrato | Ler PDF ou relatórios de sistemas |
 | Impede lançamento duplicado ao reprocessar ou sobrepor extratos | Conciliação bancária completa (confronto com a contabilidade já escriturada) |
 | Classifica por regras aprovadas pelo contador | Decidir sozinho casos ambíguos |
 | Sugere contas por IA, sempre como pendência | Liberar lançamento sugerido pela IA sem aprovação |
@@ -194,3 +194,32 @@ reduzido, o lote inteiro é recusado com a lista dos problemas, e nenhum
 lançamento é marcado como exportado. O leiaute foi conferido contra arquivos
 reais, mas a aceitação pelo Fortes de um lote gerado por este exportador ainda
 precisa ser testada com uma importação real.
+
+## Planilhas Excel (.xlsx)
+
+`motor_contabil/leitores/xlsx_extrato.py` lê as planilhas mensais de
+movimentação que os clientes enviam (título, cabeçalho DATA / LANÇAMENTO
+BANCÁRIO / DESCRIÇÃO / VALOR / CAIXA/BANCO e linha de total). Usa só a
+biblioteca padrão e lê o valor como o texto gravado no arquivo. Regras:
+
+- título DESPESAS acima do cabeçalho: todos os valores são saídas; RECEITAS:
+  entradas; sem título, vale o sinal;
+- o histórico junta o texto das colunas que não são data, valor ou caixa/banco;
+- linha só com números e sem data (total) é ignorada; linha com texto e sem
+  data é erro; movimento sem nenhum texto entra como "SEM HISTORICO NA
+  PLANILHA" e vai para revisão;
+- arquivo com mais de uma planilha, CAIXA/BANCO preenchida, valor negativo em
+  planilha de despesas ou fração de centavo são recusados com a linha.
+
+Uma planilha de despesas traz só as saídas. Ela serve para gerar lançamentos,
+mas não permite conferir o saldo do banco, que depende do extrato completo.
+
+## Regras sugeridas a partir do histórico
+
+`python -m motor_contabil.sugerir_regras` junta cada movimento com o
+lançamento que o escritório já importou no Fortes (mesma data, mesmo valor,
+banco na partida certa) e sugere uma regra só para o histórico que aparece ao
+menos duas vezes e foi lançado sempre na mesma conta. Contas passadas em
+`--nunca` (sócios, empréstimos, folha, guias de tributos) nunca viram regra.
+O arquivo gerado é uma sugestão para o contador revisar e contém nomes de
+favorecidos: guarde-o com os dados do cliente, fora do repositório.

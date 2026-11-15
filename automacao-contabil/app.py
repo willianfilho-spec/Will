@@ -92,8 +92,10 @@ try:
     # ------------------------------------------------------------------ importar
     st.subheader("1. Importar extrato")
     col1, col2 = st.columns([3, 2])
-    arquivo = col1.file_uploader("Extrato OFX ou CSV", type=["ofx", "ofc", "csv", "txt"])
-    conta_bancaria = col2.text_input("Conta bancária (obrigatória para CSV)", "")
+    arquivo = col1.file_uploader(
+        "Extrato OFX, CSV ou planilha XLSX", type=["ofx", "ofc", "csv", "txt", "xlsx"]
+    )
+    conta_bancaria = col2.text_input("Conta bancária (obrigatória para CSV e XLSX)", "")
     if arquivo and st.button("Processar extrato", type="primary"):
         with tempfile.TemporaryDirectory() as pasta:
             destino = Path(pasta) / Path(arquivo.name).name  # só o nome, nunca um caminho
