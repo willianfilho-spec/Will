@@ -161,7 +161,6 @@ suposição):
 3. Leitura de Excel e de outros formatos que aparecerem nos arquivos reais.
 4. Regras aprendidas na revisão: quando o revisor corrige a mesma conta várias
    vezes, sugerir uma nova regra para o contador aprovar.
-5. Separar a base de dados por empresa cliente.
 
 ## Integridade dos lotes
 
@@ -280,3 +279,34 @@ avisa quando a última cópia tem mais de 26 horas.
 O destino deve ser outro disco, um pendrive ou uma unidade de rede, e de
 preferência guardado fora da sala do computador. Teste a restauração antes do
 piloto e depois a cada três meses.
+
+## Dados separados por empresa
+
+Cada empresa cliente tem a sua pasta dentro da pasta de dados do escritório
+(`dados/` por padrão, fora do controle de versão):
+
+```
+dados/nx/empresa.json   nome, CNPJ, conta do banco, prefixo da marca, formato do plano
+dados/nx/plano.csv      plano de contas da empresa
+dados/nx/regras.json    regras de classificação da empresa
+dados/nx/motor.db       movimentos, lançamentos, lotes e trilha de auditoria
+dados/nx/arquivos/      extratos e planilhas recebidos, como chegaram (por mês)
+```
+
+Não há banco compartilhado: o motor de uma empresa só abre a pasta dela, e o
+controle de duplicidade é de cada empresa. No cadastro, o plano e as regras são
+validados juntos (conta do banco e conta de cada regra precisam existir no
+plano e ser analíticas), e CNPJ e prefixo da marca não podem se repetir. Ao
+receber um arquivo idêntico a um já guardado em outra empresa, o aplicativo
+avisa, porque provavelmente foi enviado na empresa errada.
+
+```bash
+python -m motor_contabil.cli --dados dados cadastrar-empresa nx --nome "N X ARAUJO LTDA" \
+    --cnpj 62.064.868/0001-02 --conta 362 --prefixo NX --plano plano_fortes.csv --regras regras.json
+python -m motor_contabil.cli --dados dados --empresa nx importar extrato.pdf
+python -m motor_contabil.cli --dados dados --empresa nx exportar lote.csv
+```
+
+Na interface, a empresa é escolhida na barra lateral, e o cadastro também pode
+ser feito por lá. O backup copia a pasta `dados/` inteira, com todas as
+empresas.

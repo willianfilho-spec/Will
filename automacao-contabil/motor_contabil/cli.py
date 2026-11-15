@@ -7,6 +7,11 @@
   python -m motor_contabil.cli exportar lancamentos.csv
 
 Opções comuns: --banco-dados, --plano, --regras, --usuario, --ia.
+Com --dados e --empresa, usa a pasta da empresa (banco, plano e regras dela):
+
+  python -m motor_contabil.cli --dados dados --empresa nx importar extrato.pdf
+  python -m motor_contabil.cli --dados dados cadastrar-empresa nx --nome "N X ARAUJO LTDA" \
+      --cnpj 62.064.868/0001-02 --conta 362 --prefixo NX --plano plano.csv --regras regras.json
 """
 
 from __future__ import annotations
@@ -15,6 +20,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from . import empresas
 from .banco import BancoDeDados
 from .classificador_ia import ClassificadorClaude
 from .motor import Motor
@@ -26,6 +32,8 @@ EXEMPLOS = Path(__file__).resolve().parent.parent / "exemplos"
 
 def _motor(args) -> Motor:
     classificador = ClassificadorClaude() if args.ia else None
+    if args.empresa:
+        return empresas.abrir(args.dados, args.empresa).abrir_motor(args.usuario, classificador)
     return Motor(
         BancoDeDados(args.banco_dados),
         PlanoDeContas.carregar(args.plano),
@@ -42,6 +50,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--plano", default=str(EXEMPLOS / "plano_contas.csv"))
     p.add_argument("--regras", default=str(EXEMPLOS / "regras.json"))
     p.add_argument("--usuario", default="operador")
+    p.add_argument("--dados", default="dados", help="pasta de dados do escritório")
+    p.add_argument("--empresa", help="identificador da empresa (pasta dentro de --dados)")
     p.add_argument("--ia", action="store_true",
                    help="usa a IA para sugerir contas (requer pacote anthropic e credencial)")
     sub = p.add_subparsers(dest="comando", required=True)
@@ -49,6 +59,16 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("importar")
     s.add_argument("arquivo")
     s.add_argument("--conta-bancaria", help="obrigatório para CSV")
+
+    s = sub.add_parser("cadastrar-empresa")
+    s.add_argument("identificador")
+    s.add_argument("--nome", required=True)
+    s.add_argument("--cnpj", required=True)
+    s.add_argument("--conta", required=True, help="conta bancária como aparece nos extratos")
+    s.add_argument("--prefixo", required=True, help="prefixo da marca no histórico (ex.: NX)")
+    s.add_argument("--formato-plano", choices=["fortes", "motor"], default="fortes")
+    s.add_argument("--plano", dest="plano_empresa", required=True)
+    s.add_argument("--regras", dest="regras_empresa", required=True)
 
     s = sub.add_parser("listar")
     s.add_argument("--status", choices=["liberado", "pendente", "bloqueado", "descartado", "exportado"])
@@ -66,10 +86,31 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("destino")
 
     args = p.parse_args(argv)
-    motor = _motor(args)
+    if args.comando == "cadastrar-empresa":
+        try:
+            e = empresas.cadastrar(args.dados, args.identificador, args.nome, args.cnpj, args.conta,
+                                   args.prefixo, args.formato_plano, args.plano_empresa,
+                                   args.regras_empresa)
+        except (ValueError, OSError) as erro:
+            print(f"erro: {erro}", file=sys.stderr)
+            return 1
+        print(f"empresa {e.identificador} cadastrada em {e.pasta}")
+        return 0
+    try:
+        motor = _motor(args)
+    except (ValueError, OSError) as erro:
+        print(f"erro: {erro}", file=sys.stderr)
+        return 1
     try:
         if args.comando == "importar":
-            print(motor.importar(args.arquivo, args.conta_bancaria).resumo())
+            conta = args.conta_bancaria
+            arquivo = args.arquivo
+            if args.empresa:
+                empresa = empresas.abrir(args.dados, args.empresa)
+                conta = conta or empresa.conta_bancaria
+                arquivo, _ = empresas.guardar_original(empresa, Path(arquivo).name,
+                                                       Path(arquivo).read_bytes())
+            print(motor.importar(arquivo, conta).resumo())
         elif args.comando == "listar":
             for item in motor.listar(args.status):
                 print(
@@ -87,7 +128,12 @@ def main(argv: list[str] | None = None) -> int:
             motor.descartar(_resolver_chave(motor, args.chave), args.motivo)
             print("descartado")
         elif args.comando == "exportar":
-            lote, n = motor.exportar(args.destino)
+            exportador = None
+            if args.empresa:
+                from .exportador_fortes import ExportadorFortes
+
+                exportador = ExportadorFortes(motor.plano, empresas.abrir(args.dados, args.empresa).prefixo_marca)
+            lote, n = motor.exportar(args.destino, exportador)
             print(f"{n} lançamentos exportados" + (f" (lote {lote})" if lote else ""))
     except (ValueError, KeyError) as erro:
         print(f"erro: {erro}", file=sys.stderr)

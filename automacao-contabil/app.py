@@ -3,7 +3,8 @@
     streamlit run app.py
 
 Roda na máquina do escritório. Nenhum dado sai do computador, a não ser que a
-opção de sugestão por IA seja ligada na barra lateral.
+opção de sugestão por IA seja ligada na barra lateral. Cada empresa tem a sua
+pasta dentro da pasta de dados (ver motor_contabil/empresas.py).
 """
 
 from __future__ import annotations
@@ -15,12 +16,9 @@ from pathlib import Path
 
 import streamlit as st
 
-from motor_contabil import (
-    BancoDeDados, ConjuntoDeRegras, ExportadorFortes, Motor, PlanoDeContas, Status,
-)
+from motor_contabil import BancoDeDados, ExportadorFortes, Motor, Status
+from motor_contabil import empresas
 from motor_contabil.conciliacao import confrontar, ler_importados, resumo_mensal
-
-EXEMPLOS = Path(__file__).parent / "exemplos"
 
 
 def brl(valor: str) -> str:
@@ -47,15 +45,50 @@ st.caption("Prova de conceito. Os lançamentos só saem do sistema depois de lib
 
 with st.sidebar:
     st.header("Configuração")
-    caminho_db = st.text_input("Banco de dados", "motor_contabil.db")
-    caminho_plano = st.text_input("Plano de contas (CSV)", str(EXEMPLOS / "plano_contas.csv"))
-    formato_plano = st.radio(
-        "Formato do plano", ["Exemplo do motor", "Exportado do Fortes"], horizontal=True,
-        help="O plano exportado do Fortes já traz o código reduzido de cada conta.",
+    pasta_dados = Path(st.text_input("Pasta de dados do escritório", "dados"))
+    try:
+        cadastradas = empresas.listar(pasta_dados)
+    except ValueError as erro:
+        st.error(str(erro))
+        st.stop()
+    with st.expander("Cadastrar empresa", expanded=not cadastradas):
+        with st.form("cadastro", clear_on_submit=False):
+            novo_id = st.text_input("Identificador (pasta)", help="Ex.: nx. Letras minúsculas, números e hífen.")
+            novo_nome = st.text_input("Razão social")
+            novo_cnpj = st.text_input("CNPJ")
+            nova_conta = st.text_input("Conta bancária", help="Como o banco é identificado nos extratos; para o Fortes, o reduzido (ex.: 362).")
+            novo_prefixo = st.text_input("Prefixo da marca no histórico", max_chars=6, help="Ex.: NX")
+            novo_formato = st.radio("Plano de contas", ["Exportado do Fortes", "Exemplo do motor"], horizontal=True)
+            novo_plano = st.file_uploader("Plano de contas (CSV)", type=["csv", "txt"])
+            novas_regras = st.file_uploader("Regras (JSON)", type=["json"])
+            if st.form_submit_button("Cadastrar"):
+                if not (novo_plano and novas_regras):
+                    st.error("Envie o plano de contas e as regras.")
+                else:
+                    with tempfile.TemporaryDirectory() as pasta:
+                        caminho_p = Path(pasta) / "plano.csv"
+                        caminho_r = Path(pasta) / "regras.json"
+                        caminho_p.write_bytes(novo_plano.getvalue())
+                        caminho_r.write_bytes(novas_regras.getvalue())
+                        try:
+                            empresas.cadastrar(
+                                pasta_dados, novo_id.strip(), novo_nome, novo_cnpj, nova_conta,
+                                novo_prefixo.strip().upper(),
+                                "fortes" if novo_formato == "Exportado do Fortes" else "motor",
+                                caminho_p, caminho_r,
+                            )
+                            st.success("Empresa cadastrada.")
+                            st.rerun()
+                        except ValueError as erro:
+                            st.error(f"Não foi possível cadastrar: {erro}")
+    if not cadastradas:
+        st.info("Cadastre a primeira empresa para começar.")
+        st.stop()
+    empresa = st.selectbox(
+        "Empresa", cadastradas, format_func=lambda e: f"{e.nome} ({e.identificador})"
     )
+    st.caption(f"CNPJ {empresa.cnpj} · conta {empresa.conta_bancaria} · marca {empresa.prefixo_marca}")
     leiaute = st.radio("Leiaute de exportação", ["Fortes", "CSV genérico"], horizontal=True)
-    prefixo_marca = st.text_input("Prefixo da marca no histórico (Fortes)", "EXT", max_chars=6)
-    caminho_regras = st.text_input("Regras (JSON)", str(EXEMPLOS / "regras.json"))
     usuario = st.text_input("Responsável pela revisão", "operador")
     pasta_backup = st.text_input("Pasta de backup (para o aviso de cópia atrasada)", "")
     if pasta_backup.strip():
@@ -92,19 +125,10 @@ def obter_motor() -> Motor:
         from motor_contabil.classificador_ia import ClassificadorClaude
 
         classificador = ClassificadorClaude()
-    if formato_plano == "Exportado do Fortes":
-        plano = PlanoDeContas.carregar_fortes(caminho_plano)
-    else:
-        plano = PlanoDeContas.carregar(caminho_plano)
-    regras = ConjuntoDeRegras.carregar(caminho_regras)
-    banco = BancoDeDados(caminho_db)
-    try:
-        return Motor(banco, plano, regras, classificador=classificador, usuario=usuario)
-    except Exception:
-        banco.fechar()
-        raise
+    return empresa.abrir_motor(usuario, classificador)
 
 
+caminho_db = str(empresa.caminho_banco)
 try:
     motor = obter_motor()
 except Exception as erro:  # configuração inválida: mostrar e parar
@@ -113,22 +137,26 @@ except Exception as erro:  # configuração inválida: mostrar e parar
 
 try:
     # ------------------------------------------------------------------ importar
-    st.subheader("1. Importar extrato")
-    col1, col2 = st.columns([3, 2])
-    arquivo = col1.file_uploader(
-        "Extrato OFX, CSV ou planilha XLSX", type=["ofx", "ofc", "csv", "txt", "xlsx"]
+    st.subheader(f"1. Importar extrato · {empresa.nome}")
+    arquivo = st.file_uploader(
+        "Extrato OFX, CSV, planilha XLSX ou extrato Itaú em PDF",
+        type=["ofx", "ofc", "csv", "txt", "xlsx", "pdf"],
     )
-    conta_bancaria = col2.text_input("Conta bancária (obrigatória para CSV e XLSX)", "")
+    if arquivo:
+        conteudo = arquivo.getvalue()
+        if outras := empresas.empresas_com_o_arquivo(pasta_dados, conteudo, empresa.identificador):
+            st.warning(
+                f"Este mesmo arquivo já foi recebido na empresa {', '.join(outras)}. "
+                f"Confira se ele é mesmo de {empresa.nome} antes de processar."
+            )
     if arquivo and st.button("Processar extrato", type="primary"):
-        with tempfile.TemporaryDirectory() as pasta:
-            destino = Path(pasta) / Path(arquivo.name).name  # só o nome, nunca um caminho
-            destino.write_bytes(arquivo.getvalue())
-            try:
-                resultado = motor.importar(destino, conta_bancaria or None)
-                st.success("Extrato processado.")
-                st.code(resultado.resumo(), language=None)
-            except Exception as erro:
-                st.error(f"Erro ao processar: {erro}")
+        original, repetido = empresas.guardar_original(empresa, arquivo.name, conteudo)
+        try:
+            resultado = motor.importar(original, empresa.conta_bancaria)
+            st.success("Extrato processado." + (" O arquivo já tinha sido recebido antes." if repetido else ""))
+            st.code(resultado.resumo(), language=None)
+        except Exception as erro:
+            st.error(f"Erro ao processar: {erro}")
 
     # ------------------------------------------------------------------ conferir
     st.subheader("2. Conferir")
@@ -193,7 +221,7 @@ try:
         try:
             with tempfile.TemporaryDirectory() as pasta:
                 exportador = (
-                    ExportadorFortes(motor.plano, prefixo_marca.strip().upper() or "EXT")
+                    ExportadorFortes(motor.plano, empresa.prefixo_marca)
                     if leiaute == "Fortes" else None
                 )
                 lote, n = motor.exportar(Path(pasta) / "lancamentos.csv", exportador)
@@ -238,13 +266,13 @@ try:
         "fim de mês e movimento a movimento. Só o extrato completo (com entradas e saldos) "
         "permite essa conferência; a planilha de despesas não."
     )
-    c1, c2, c3 = st.columns([3, 3, 1])
+    c1, c2 = st.columns(2)
     extrato_pdf = c1.file_uploader("Extrato Itaú em PDF", type=["pdf"], key="conf-extrato")
     importados = c2.file_uploader(
         "Arquivos já importados no Fortes", type=["csv", "txt"], accept_multiple_files=True,
         key="conf-importados",
     )
-    reduzido_banco = c3.text_input("Reduzido do banco", "")
+    reduzido_banco = empresa.conta_bancaria
     if extrato_pdf and importados and reduzido_banco and st.button("Conferir"):
         from motor_contabil.leitores import ler_itau_pdf_completo
 
