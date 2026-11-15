@@ -174,3 +174,23 @@ lançamentos novamente. Faça backup do banco e dos arquivos originais.
 Exportação, aprovação e descarte usam transação com bloqueio de escrita antes
 da consulta, evitando decisões sobre estados desatualizados em acessos simultâneos.
 Valores não finitos e frações de centavo são recusados, sem arredondamento silencioso.
+
+## Exportação para o Fortes
+
+`motor_contabil/exportador_fortes.py` gera o arquivo no leiaute de importação
+de lançamentos que o Fortes Contábil já aceitou no escritório:
+`data;debito;credito;valor;historico;;;;`, sem cabeçalho, em ASCII, com fim de
+linha CRLF, contas pelo código reduzido e histórico de até 118 caracteres
+terminado por uma marca que identifica o lançamento.
+
+```python
+from motor_contabil import ExportadorFortes, PlanoDeContas
+plano = PlanoDeContas.carregar_fortes("plano_exportado_do_fortes.csv")
+motor.exportar("lote.csv", ExportadorFortes(plano, prefixo_marca="NX"))
+```
+
+Se uma conta do lote não existir no plano, for sintética ou estiver sem código
+reduzido, o lote inteiro é recusado com a lista dos problemas, e nenhum
+lançamento é marcado como exportado. O leiaute foi conferido contra arquivos
+reais, mas a aceitação pelo Fortes de um lote gerado por este exportador ainda
+precisa ser testada com uma importação real.
