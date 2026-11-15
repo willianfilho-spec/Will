@@ -12,8 +12,8 @@ contábeis revisados e prontos para importação, sem gerar duplicidades.
 
 | Faz | Não faz (ainda) |
 | --- | --- |
-| Lê OFX (1.x e 2.x), CSV e planilhas Excel (.xlsx) de extrato | Ler PDF ou relatórios de sistemas |
-| Impede lançamento duplicado ao reprocessar ou sobrepor extratos | Conciliação bancária completa (confronto com a contabilidade já escriturada) |
+| Lê OFX (1.x e 2.x), CSV, planilhas Excel (.xlsx) e o extrato Itaú em PDF | Ler PDF de outros bancos |
+| Impede lançamento duplicado ao reprocessar ou sobrepor extratos | Ler o razão emitido pelo Fortes (a conferência usa os arquivos importados) |
 | Classifica por regras aprovadas pelo contador | Decidir sozinho casos ambíguos |
 | Sugere contas por IA, sempre como pendência | Liberar lançamento sugerido pela IA sem aprovação |
 | Bloqueia contas inexistentes, sintéticas e valores zero | Validar documentação comprobatória (ITG 2000) |
@@ -223,3 +223,24 @@ menos duas vezes e foi lançado sempre na mesma conta. Contas passadas em
 `--nunca` (sócios, empréstimos, folha, guias de tributos) nunca viram regra.
 O arquivo gerado é uma sugestão para o contador revisar e contém nomes de
 favorecidos: guarde-o com os dados do cliente, fora do repositório.
+
+## Conferência do banco (conciliação)
+
+`motor_contabil/conciliacao.py` confronta o extrato completo com os
+lançamentos que movimentam a conta do banco nos arquivos já importados no
+Fortes: saldo em cada fim de mês e pareamento movimento a movimento (mesma
+data, mesmo valor, banco na partida certa). Saldo igual com sobras dos dois
+lados é tratado como não conciliado, porque são erros que se compensam.
+
+```bash
+python -m motor_contabil.conciliacao --extrato extrato_itau.pdf \
+    --importados lancamentos_importados.csv --banco 362
+```
+
+O extrato Itaú em PDF (`leitores/itau_pdf.py`, requer `pdfplumber`) é
+recusado inteiro se a soma dos movimentos de algum dia não der o saldo
+impresso pelo banco. Na interface, a conferência fica na seção 4.
+
+Limite atual: a contabilidade é representada pelos arquivos importados, não
+pelo razão emitido pelo Fortes. Lançamento apagado ou alterado à mão no Fortes
+não aparece aqui; para isso, compare também o saldo da conta no balancete.

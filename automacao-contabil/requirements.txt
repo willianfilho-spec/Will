@@ -2,3 +2,5 @@ streamlit>=1.40
 pytest>=8
 # opcional, só para a sugestão por IA:
 anthropic>=2.6
+# opcional, só para ler extrato do Itaú em PDF:
+pdfplumber>=0.11

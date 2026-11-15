@@ -31,44 +31,15 @@ import json
 import re
 import sys
 from collections import Counter, defaultdict
-from dataclasses import dataclass
-from datetime import datetime
-from decimal import Decimal
 from pathlib import Path
 
+from .conciliacao import LancamentoAceito, ler_importados
 from .leitores import ler_extrato
 from .modelo import Transacao
 from .plano_contas import PlanoDeContas
 from .texto import normalizar
 
 SEM_HISTORICO = "SEM HISTORICO NA PLANILHA"
-
-
-@dataclass(frozen=True)
-class LancamentoAceito:
-    data: object
-    debito: str
-    credito: str
-    valor: Decimal
-
-
-def ler_importados(caminho: str | Path) -> list[LancamentoAceito]:
-    """Lê um arquivo de importação do Fortes (data;debito;credito;valor;historico;...)."""
-    aceitos = []
-    texto = Path(caminho).read_bytes().decode("cp1252")
-    for numero, linha in enumerate(texto.splitlines(), start=1):
-        campos = linha.split(";")
-        if not linha.strip():
-            continue
-        if len(campos) < 5:
-            raise ValueError(f"{Path(caminho).name}, linha {numero}: esperado o leiaute do Fortes")
-        try:
-            data = datetime.strptime(campos[0], "%d/%m/%Y").date()
-            valor = Decimal(campos[3].replace(".", "").replace(",", "."))
-        except ValueError as erro:
-            raise ValueError(f"{Path(caminho).name}, linha {numero}: {erro}") from erro
-        aceitos.append(LancamentoAceito(data, campos[1].strip(), campos[2].strip(), valor))
-    return aceitos
 
 
 def chave_historico(historico: str) -> str:

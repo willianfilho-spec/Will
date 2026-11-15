@@ -15,7 +15,10 @@ from pathlib import Path
 
 import streamlit as st
 
-from motor_contabil import BancoDeDados, ConjuntoDeRegras, Motor, PlanoDeContas, Status
+from motor_contabil import (
+    BancoDeDados, ConjuntoDeRegras, ExportadorFortes, Motor, PlanoDeContas, Status,
+)
+from motor_contabil.conciliacao import confrontar, ler_importados, resumo_mensal
 
 EXEMPLOS = Path(__file__).parent / "exemplos"
 
@@ -46,6 +49,12 @@ with st.sidebar:
     st.header("Configuração")
     caminho_db = st.text_input("Banco de dados", "motor_contabil.db")
     caminho_plano = st.text_input("Plano de contas (CSV)", str(EXEMPLOS / "plano_contas.csv"))
+    formato_plano = st.radio(
+        "Formato do plano", ["Exemplo do motor", "Exportado do Fortes"], horizontal=True,
+        help="O plano exportado do Fortes já traz o código reduzido de cada conta.",
+    )
+    leiaute = st.radio("Leiaute de exportação", ["Fortes", "CSV genérico"], horizontal=True)
+    prefixo_marca = st.text_input("Prefixo da marca no histórico (Fortes)", "EXT", max_chars=6)
     caminho_regras = st.text_input("Regras (JSON)", str(EXEMPLOS / "regras.json"))
     usuario = st.text_input("Responsável pela revisão", "operador")
     usar_ia = st.checkbox(
@@ -72,7 +81,10 @@ def obter_motor() -> Motor:
         from motor_contabil.classificador_ia import ClassificadorClaude
 
         classificador = ClassificadorClaude()
-    plano = PlanoDeContas.carregar(caminho_plano)
+    if formato_plano == "Exportado do Fortes":
+        plano = PlanoDeContas.carregar_fortes(caminho_plano)
+    else:
+        plano = PlanoDeContas.carregar(caminho_plano)
     regras = ConjuntoDeRegras.carregar(caminho_regras)
     banco = BancoDeDados(caminho_db)
     try:
@@ -169,7 +181,11 @@ try:
     if st.button("Gerar arquivo de importação", disabled=contagem[Status.LIBERADO] == 0):
         try:
             with tempfile.TemporaryDirectory() as pasta:
-                lote, n = motor.exportar(Path(pasta) / "lancamentos.csv")
+                exportador = (
+                    ExportadorFortes(motor.plano, prefixo_marca.strip().upper() or "EXT")
+                    if leiaute == "Fortes" else None
+                )
+                lote, n = motor.exportar(Path(pasta) / "lancamentos.csv", exportador)
             if n:
                 st.session_state["aviso_exportacao"] = f"Lote {lote} gerado com {n} lançamentos."
             st.rerun()
@@ -203,6 +219,63 @@ try:
             on_click=registrar_download,
             args=(caminho_db, usuario, lote["id"]),
         )
+
+    # ------------------------------------------------------------------ conferir o banco
+    st.subheader("4. Conferir o banco: extrato x contabilidade")
+    st.caption(
+        "Compara o extrato completo com os arquivos já importados no Fortes: saldo em cada "
+        "fim de mês e movimento a movimento. Só o extrato completo (com entradas e saldos) "
+        "permite essa conferência; a planilha de despesas não."
+    )
+    c1, c2, c3 = st.columns([3, 3, 1])
+    extrato_pdf = c1.file_uploader("Extrato Itaú em PDF", type=["pdf"], key="conf-extrato")
+    importados = c2.file_uploader(
+        "Arquivos já importados no Fortes", type=["csv", "txt"], accept_multiple_files=True,
+        key="conf-importados",
+    )
+    reduzido_banco = c3.text_input("Reduzido do banco", "")
+    if extrato_pdf and importados and reduzido_banco and st.button("Conferir"):
+        from motor_contabil.leitores import ler_itau_pdf_completo
+
+        try:
+            with tempfile.TemporaryDirectory() as pasta:
+                caminho_pdf = Path(pasta) / Path(extrato_pdf.name).name
+                caminho_pdf.write_bytes(extrato_pdf.getvalue())
+                extrato = ler_itau_pdf_completo(caminho_pdf, reduzido_banco.strip())
+                aceitos = []
+                for arquivo_imp in importados:
+                    caminho_imp = Path(pasta) / Path(arquivo_imp.name).name
+                    caminho_imp.write_bytes(arquivo_imp.getvalue())
+                    aceitos += ler_importados(caminho_imp)
+            linhas = resumo_mensal(extrato.transacoes, extrato.saldos, aceitos, reduzido_banco.strip())
+            total = confrontar(extrato.transacoes, aceitos, reduzido_banco.strip())
+            st.write(
+                f"{len(extrato.transacoes)} movimentos no extrato; {extrato.dias_conferidos} saldos "
+                "diários conferidos com a soma dos movimentos."
+            )
+            st.dataframe(
+                [{"Mês": l.mes, "Fim": data_br(l.fim.isoformat()),
+                  "Extrato": brl(str(l.saldo_extrato)), "Contábil": brl(str(l.saldo_contabil)),
+                  "Diferença": brl(str(l.diferenca)), "Só no extrato": l.so_extrato,
+                  "Só na contabilidade": l.so_contabil} for l in linhas],
+                hide_index=True, use_container_width=True,
+            )
+            if all(l.diferenca == 0 for l in linhas) and not total.so_no_extrato \
+                    and not total.so_na_contabilidade:
+                st.success(f"Conciliado: {total.pareados} movimentos pareados, saldo igual em todos os meses.")
+            else:
+                st.error("Não conciliado. Movimentos sem par abaixo.")
+                st.dataframe(
+                    [{"Lado": "só no extrato", "Data": data_br(x.data.isoformat()),
+                      "Valor": brl(str(x.valor)), "Histórico": x.historico}
+                     for x in total.so_no_extrato]
+                    + [{"Lado": "só na contabilidade", "Data": data_br(x.data.isoformat()),
+                        "Valor": brl(str(x.valor)), "Histórico": f"{x.historico} ({x.origem}:{x.linha})"}
+                       for x in total.so_na_contabilidade],
+                    hide_index=True, use_container_width=True,
+                )
+        except Exception as erro:
+            st.error(f"Não foi possível conferir: {erro}")
 
 finally:
     motor.banco.fechar()
