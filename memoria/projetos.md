@@ -22,4 +22,4 @@ Um bloco por projeto: objetivo, local, estado, próximos passos. Estado vem de e
 
 ## Sistema de memória persistente
 - Local: `CLAUDE.md`, `memoria/`, `.claude/hooks/memoria.py`, `.claude/settings.json`, `.claude/skills/salvar-memoria/`.
-- [2026-11-17] Estado: implementado e testado na branch `claude/kind-wright-oekdmi`; ainda não incorporado à branch principal (ver P-002) — origem: esta sessão; confiança: alta
+- [2026-11-17] Estado: implementado, testado em sessões novas e incorporado à `main` (P-002 concluída). Próximo passo: nenhum obrigatório; acompanhar se o lembrete do hook Stop ajuda ou incomoda — origem: esta sessão; confiança: alta

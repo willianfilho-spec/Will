@@ -21,3 +21,8 @@ Ferramentas de correção ortográfica simples ou dicionários de sinônimos pod
 ---
 
 > "Palavras são a fotografia do pensamento. Prefiro uma foto real, ainda que tremida, a uma imagem gerada por inteligência artificial."
+
+---
+
+### ⚙️ Exceção: arquivos de configuração e memória do assistente
+Os arquivos `CLAUDE.md`, a pasta `memoria/` e a pasta `.claude/` são escritos e mantidos com auxílio de IA (Claude Code), para guardar contexto entre sessões de trabalho. Eles não fazem parte do compromisso de autoria humana descrito acima.

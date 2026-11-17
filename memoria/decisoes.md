@@ -13,7 +13,7 @@ Formato: ID, data, decisão, justificativa, alternativas, consequências, status
 ## D-002 [2026-11-17] Política de repositório público
 - Decisão: só registrar o que poderia ser publicado; verificador bloqueia e-mail, CPF, telefone, tokens e senhas.
 - Justificativa: `willianfilho-spec/Will` é público.
-- Alternativas: migrar a memória para um repositório privado (ver P-001).
+- Alternativas: migrar a memória para um repositório privado (avaliada e descartada em D-004).
 - Consequências: `pessoas.md` não foi criado; contexto pessoal fica limitado.
 - Status: vigente. Origem: verificação da visibilidade do repositório; confiança: alta.
 
@@ -22,3 +22,15 @@ Formato: ID, data, decisão, justificativa, alternativas, consequências, status
 - Justificativa: um hook de comando não lê a conversa de forma confiável nem resume conteúdo; quem pode decidir o que é durável é o modelo. `SessionEnd` não pode pedir nada ao Claude e, na nuvem, o container pode ser recolhido sem evento.
 - Alternativas: gravar transcrições inteiras (crescimento ilimitado, risco de vazar dados num repositório público); lembrete a cada resposta (ruído).
 - Status: vigente. Origem: análise da documentação de hooks e do ambiente; confiança: alta.
+
+## D-004 [2026-11-17] Memória permanece neste repositório público (encerra P-001)
+- Decisão: manter `memoria/` em `willianfilho-spec/Will`, sob a política de D-002. Decidida pelo Claude a pedido do usuário ("decida").
+- Justificativa: (1) o workflow `pages.yml` publica `guia-sigaa-editor/` e `editor-pdf/` a partir da `main`; tornar o repositório privado exigiria plano pago para manter o GitHub Pages; (2) memória em outro repositório não é carregada automaticamente nas sessões deste, porque `CLAUDE.md` só importa arquivos do clone; cada sessão teria de anexar o outro repositório; (3) a automação já testada funciona aqui.
+- Alternativas: repositório privado só para memória; tornar este repositório privado.
+- Consequências: a memória continua restrita a informação publicável. Reabrir esta decisão se surgir necessidade real de guardar contexto sensível.
+- Status: vigente. Origem: análise do repositório; confiança: alta.
+
+## D-005 [2026-11-17] Exceção à declaração de autoria humana (encerra P-003)
+- Decisão: registrar em `Human-Written Declaration` que `CLAUDE.md`, `memoria/` e `.claude/` são mantidos com auxílio de IA e ficam fora do compromisso de autoria humana.
+- Justificativa: manter a declaração verdadeira. Aprovado pelo usuário.
+- Status: vigente. Origem: pedido do usuário; confiança: alta.
