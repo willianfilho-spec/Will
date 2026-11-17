@@ -49,18 +49,23 @@ em `testes/test_motor.py` que provem que a regra continua valendo.
 
 ## Pontos ainda indefinidos (não invente)
 
-- **Leiaute de exportação:** `exportador.py` é um CSV genérico provisório. Não
-  escreva um exportador para Domínio, Alterdata, Fortes, SCI ou outro sistema
-  de memória. Crie-o apenas a partir da documentação oficial de importação ou
-  de um arquivo real aceito pelo sistema, e mantenha a interface
-  `escrever(lancamentos, destino)`.
+- **Leiaute de exportação:** o Fortes tem exportador próprio
+  (`exportador_fortes.py`), tirado de arquivos reais aceitos pelo sistema e
+  protegido por `test_leiaute_fortes_byte_a_byte`. Não altere esse leiaute sem
+  um novo arquivo real aceito pelo Fortes. Para outro sistema (Domínio,
+  Alterdata, SCI), crie um exportador novo só a partir da documentação oficial
+  ou de um arquivo real aceito, mantendo a interface
+  `escrever(lancamentos, destino)`. `exportador.py` continua como CSV genérico.
 - **Provedor de IA:** o classificador atual usa a API da Anthropic. Para usar
   outro provedor, crie uma nova classe que implemente o protocolo
   `Classificador` (`sugerir(transacao, plano) -> Sugestao | None`) e mantenha
   as regras 2 e 7. Não remova a implementação existente sem decisão da equipe.
-- **Conciliação bancária:** o motor gera lançamentos a partir do extrato, mas
-  não concilia com a contabilidade já escriturada. Não descreva o produto como
-  conciliação.
+- **Conciliação bancária:** gerar lançamentos a partir do extrato não é
+  conciliar. A conciliação é a conferência de `conciliacao.py` (extrato
+  completo x arquivos importados no Fortes). Ela ainda não lê o razão emitido
+  pelo Fortes; não a descreva como conferência do razão.
+- **Dados por empresa:** cada empresa tem pasta própria em `dados/`
+  (`empresas.py`). Não crie banco compartilhado entre empresas.
 
 ## Dados
 
