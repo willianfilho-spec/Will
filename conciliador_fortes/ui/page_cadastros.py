@@ -143,16 +143,23 @@ def render() -> None:
 
     if aba == "Parâmetros":
         st.write(f"Prefixo da marca no histórico: **{c.prefixo}** (ex.: [{c.prefixo}-202609-000123])")
+        st.write(f"Limite do histórico no arquivo: **{o.limite_historico(c.con)}** caracteres")
         cb = conta_banco_padrao()
         st.write(f"Conta do banco padrão: **{opcoes_contas().get(cb, cb or 'não definida')}**")
         if pode:
+            lim = o.limite_historico(c.con)
             with st.form("param"):
                 pref = st.text_input("Prefixo (2 a 6 letras/números)", value=c.prefixo).strip().upper()
                 conta = seletor_conta("Conta do banco padrão", "param_banco", cb)
+                novo_lim = st.number_input("Limite de caracteres do histórico no arquivo do Fortes", 40, 250, lim,
+                                           help="Só o arquivo exportado é cortado; o histórico completo fica guardado. "
+                                                "A marca no fim nunca é cortada. Valor ainda não homologado (item H2).")
                 if st.form_submit_button("Salvar parâmetros"):
                     with tratar_erros("Parâmetros salvos."):
                         if pref != c.prefixo:
                             o.definir_prefixo(c, pref)
                         if conta and conta != cb:
                             o.definir_conta_banco_padrao(c, conta)
+                        if int(novo_lim) != lim:
+                            o.definir_limite_historico(c, int(novo_lim))
             st.caption("Trocar o prefixo depois de exportar não afeta os lotes já gerados (a marca fica gravada).")

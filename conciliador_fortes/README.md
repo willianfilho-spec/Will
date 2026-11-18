@@ -63,20 +63,26 @@ Conferido em arquivos reais aceitos pelo Fortes no escritório:
 pela marca `[PREFIXO-AAAAMM-NNNNNN]`. Importe com "Desconsiderar Identificador" e
 "Utilizar Código Reduzido" marcados.
 
-## O que ainda não está confirmado
+## Homologação (P-004)
 
-| Item | Situação | Como fechar |
-|---|---|---|
-| Aceitação de um lote gerado por este app | Não testado no Fortes | Importar um lote de teste numa empresa de homologação |
-| Limite do histórico (118 caracteres) | Herdado do exportador anterior; há arquivo real com 123 | Testar um histórico longo no Fortes |
-| Leiaute do Razão exportado pelo Fortes | Sem arquivo real; o leitor tabular é genérico | Enviar um Razão real (anonimizado) |
-| Extratos reais dos bancos do piloto | Testado só com OFX e CSV sintéticos | Rodar com 1 OFX e 1 CSV/XLSX reais |
-| Restauração de backup na máquina do escritório | Testada só em teste automatizado | Fazer uma restauração prática (critério de aceite) |
+A integração com o Fortes **não está homologada**. Cinco itens dependem da instalação real (H1 importação de
+lote, H2 limite do histórico, H3 formato do Razão, H4 restauração de backup na base do escritório, H5 extratos
+reais) e só viram "aprovado" com evidência anexada. O app mostra o aviso até todos serem aprovados.
+
+- Plano, matriz, instruções e relatório: `../docs/conciliador-fortes/homologacao/`
+- Atualizar matriz e relatório: `python scripts/relatorio_homologacao.py`
+- Teste de restauração isolada: `python scripts/teste_restauracao.py`
+- Arquivo de teste do limite do histórico: `python scripts/gerar_lote_homologacao.py --help`
+
+Já automatizado: limite do histórico configurável por empresa (40 a 250; padrão 118, não validado) com o
+histórico completo preservado; travas no banco contra alteração de origem, exportados, lotes e auditoria;
+bloqueio de duplicidade contra o Razão e contra lotes anteriores; releitura do arquivo gerado antes de liberar;
+conferência do lote no Razão depois da importação; verificação de SHA-256 dos originais e dos lotes.
 
 ## Testes
 
 ```bash
-python -m pytest          # 47 testes: dinheiro, leitores, fluxo completo, validadores, isolamento, backup
+python -m pytest          # 75 testes: dinheiro, leitores, fluxo, validadores, isolamento, backup, homologação
 ```
 
 Testes de navegador: ver `tests/e2e/LEIAME.md`.
@@ -92,7 +98,7 @@ exporters/             validador pré-exportação e gerador do leiaute
 ai/suggester.py        interface desligada; se ligada, só sugere
 storage/               database (central.db e contabil.db), usuarios, audit, backup
 ui/                    telas
-scripts/               seed_demo.py, restaurar_backup.py
+scripts/               seed_demo, restaurar_backup, teste_restauracao, gerar_lote_homologacao, relatorio_homologacao
 exemplos/              arquivos sintéticos
 ```
 

@@ -483,6 +483,7 @@ def carregar_razao(ctx: Contexto, nome: str, bruto: bytes, formato: str = "forte
             "VALUES (?, ?, ?, ?, ?, ?)",
             [(arq, p["data"], p["conta"], p["debito_centavos"], p["credito_centavos"], p["historico"]) for p in partidas],
         )
+        definir_parametro(ctx.con, "formato_razao", formato)
         audit.registrar(ctx.con, ctx.nome, "razao_carregado", "arquivo", arq, nome=nome, partidas=len(partidas),
                         formato=formato)
     return {"partidas": len(partidas)}
@@ -544,6 +545,9 @@ def conferir(ctx: Contexto, periodo: str, conta_banco: str) -> reconciler.Confer
         "AND status IN ('pendente', 'proposto', 'em_espera')", (conta_banco, ini, fim)).fetchone()[0]
     c = reconciler.conferir(periodo, conta_banco, s["saldo_inicial_centavos"], s["saldo_final_centavos"],
                             valores, saldo_razao, pendentes, sem)
+    from domain import homologacao
+    formato = parametro(ctx.con, "formato_razao")
+    razao_ok = 1 if homologacao.razao_homologado(ctx.central, formato) else 0
     with transacao(ctx.con):
         ant = ctx.con.execute("SELECT * FROM conciliacoes WHERE periodo = ? AND conta_banco = ?",
                               (periodo, conta_banco)).fetchone()
@@ -557,20 +561,23 @@ def conferir(ctx: Contexto, periodo: str, conta_banco: str) -> reconciler.Confer
         ctx.con.execute(
             "INSERT INTO conciliacoes (periodo, conta_banco, saldo_inicial_extrato, movimentacao_extrato, "
             "saldo_final_extrato, saldo_final_contabil, diferenca_centavos, justificativa, justificado_por, "
-            "segunda_revisao_por, status, atualizado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "segunda_revisao_por, status, atualizado_em, razao_homologado, formato_razao) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(periodo, conta_banco) DO UPDATE SET saldo_inicial_extrato = excluded.saldo_inicial_extrato, "
             "movimentacao_extrato = excluded.movimentacao_extrato, saldo_final_extrato = excluded.saldo_final_extrato, "
             "saldo_final_contabil = excluded.saldo_final_contabil, diferenca_centavos = excluded.diferenca_centavos, "
             "justificativa = excluded.justificativa, justificado_por = excluded.justificado_por, "
             "segunda_revisao_por = excluded.segunda_revisao_por, status = excluded.status, "
-            "atualizado_em = excluded.atualizado_em",
+            "atualizado_em = excluded.atualizado_em, razao_homologado = excluded.razao_homologado, "
+            "formato_razao = excluded.formato_razao",
             (periodo, conta_banco, c.saldo_inicial_extrato, c.movimentacao_extrato, c.saldo_final_extrato,
              c.saldo_final_contabil, c.diferenca_centavos,
              ant["justificativa"] if mantem else None, ant["justificado_por"] if mantem else None,
-             ant["segunda_revisao_por"] if mantem else None, status, agora()),
+             ant["segunda_revisao_por"] if mantem else None, status, agora(), razao_ok, formato),
         )
         audit.registrar(ctx.con, ctx.nome, "conferencia_saldo", "conciliacao", f"{periodo}/{conta_banco}",
-                        diferenca=c.diferenca_centavos, interna=c.diferenca_interna_extrato, status=status)
+                        diferenca=c.diferenca_centavos, interna=c.diferenca_interna_extrato, status=status,
+                        razao_homologado=bool(razao_ok), formato_razao=formato)
     return c
 
 
@@ -617,6 +624,41 @@ def movimentos_para_lote(con, periodo: str, conta_banco: str) -> list[dict]:
         "AND lote_id IS NULL ORDER BY data, id", (conta_banco, ini, fim))]
 
 
+def marcas_no_razao(con) -> dict[str, int]:
+    """marca -> quantas partidas do Razão a contêm."""
+    cont: dict[str, int] = {}
+    for (h,) in con.execute("SELECT historico FROM razao WHERE historico IS NOT NULL"):
+        for mk in set(MARCA_RE.findall(h)):
+            cont[mk] = cont.get(mk, 0) + 1
+    return cont
+
+
+def checar_duplicidade_exportacao(ctx: Contexto, movs: list[dict]) -> list[str]:
+    """Impede exportar de novo o que já está no Fortes ou num lote aceito."""
+    problemas = []
+    no_razao = marcas_no_razao(ctx.con)
+    for m in movs:
+        mk = fortes_exporter.marca(ctx.prefixo, m["data"], m["id"])
+        if mk in no_razao:
+            problemas.append(f"movimento {m['id']}: a marca {mk} já está no Razão do Fortes; exportar de novo duplicaria")
+        anterior = ctx.con.execute(
+            "SELECT l.id FROM lote_itens i JOIN lotes l ON l.id = i.lote_id "
+            "WHERE i.movimento_id = ? AND l.status = 'aceito'", (m["id"],)).fetchone()
+        if anterior:
+            problemas.append(f"movimento {m['id']}: já foi importado no lote aceito {anterior['id']}")
+        igual = ctx.con.execute(
+            "SELECT i.lote_id, i.movimento_id FROM lote_itens i JOIN lotes l ON l.id = i.lote_id "
+            "JOIN movimentos o ON o.id = i.movimento_id WHERE l.status IN ('aceito', 'gerado') AND o.id <> ? "
+            "AND o.data = ? AND o.valor_centavos = ? AND o.conta_debito = ? AND o.conta_credito = ? "
+            "AND o.historico = ?",
+            (m["id"], m["data"], m["valor_centavos"], m["conta_debito"], m["conta_credito"], m["historico"])).fetchone()
+        if igual and m["decisao_duplicidade"] != "manter":
+            problemas.append(f"movimento {m['id']}: igual ao movimento {igual['movimento_id']} do lote "
+                             f"{igual['lote_id']} (data, valor, contas e histórico). Se não for duplicado, "
+                             "registre a decisão na aba Duplicidades")
+    return problemas
+
+
 def pre_validar_lote(ctx: Contexto, periodo: str, conta_banco: str) -> tuple[list[dict], list[str]]:
     ini, fim = limites_periodo(periodo)
     movs = movimentos_para_lote(ctx.con, periodo, conta_banco)
@@ -632,6 +674,7 @@ def pre_validar_lote(ctx: Contexto, periodo: str, conta_banco: str) -> tuple[lis
         (conta_banco, ini, fim)).fetchone()[0]
     if dup:
         problemas.append(f"{dup} alerta(s) de duplicidade do período sem decisão")
+    problemas += checar_duplicidade_exportacao(ctx, movs)
     aberto = ctx.con.execute("SELECT * FROM travas_periodo WHERE periodo = ? AND conta_banco = ?",
                              (periodo, conta_banco)).fetchone()
     if aberto:
@@ -657,30 +700,149 @@ def _gerar_lote(ctx: Contexto, periodo: str, conta_banco: str) -> dict:
         movs, problemas = pre_validar_lote(ctx, periodo, conta_banco)
         if problemas:
             raise LoteBloqueado(problemas)
-        linhas = fortes_exporter.gerar_linhas(movs, plano_vigente(ctx.con), ctx.prefixo)
-        conteudo = fortes_exporter.conteudo_arquivo(linhas)
+        limite = limite_historico(ctx.con)
+        geradas = fortes_exporter.gerar_linhas(movs, plano_vigente(ctx.con), ctx.prefixo, limite)
+        conteudo = fortes_exporter.conteudo_arquivo(geradas)
+        ida_volta = fortes_exporter.conferir_ida_e_volta(conteudo, movs, geradas)
+        if ida_volta:
+            raise LoteBloqueado(["conferência de ida e volta do arquivo falhou: " + p for p in ida_volta])
         uid = uuid.uuid4().hex
         destino = ctx.pasta / "arquivos" / "exportacoes" / f"fortes_{periodo}_{conta_banco}_{uid[:8]}.csv"
         destino.write_bytes(conteudo)
+        os.chmod(destino, 0o444)
         try:
             total = sum(abs(m["valor_centavos"]) for m in movs)
+            truncados = sum(g.truncado for g in geradas)
+            sha = deduplicator.sha256(conteudo)
             cur = ctx.con.execute(
                 "INSERT INTO lotes (uuid, periodo, conta_banco, caminho, sha256, quantidade, total_centavos, gerado_por, "
-                "gerado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (uid, periodo, conta_banco, str(destino.relative_to(ctx.pasta)), deduplicator.sha256(conteudo),
-                 len(movs), total, ctx.nome, agora()))
+                "gerado_em, limite_historico, truncados) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (uid, periodo, conta_banco, str(destino.relative_to(ctx.pasta)), sha,
+                 len(movs), total, ctx.nome, agora(), limite, truncados))
             lote_id = cur.lastrowid
-            for m in movs:
+            for g in geradas:
+                ctx.con.execute(
+                    "INSERT INTO lote_itens (lote_id, movimento_id, marca, linha_exportada, historico_completo, "
+                    "historico_exportado, truncado) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (lote_id, g.movimento_id, g.marca, g.linha, g.historico_completo, g.historico_exportado,
+                     int(g.truncado)))
                 ctx.con.execute("UPDATE movimentos SET status = 'exportado', lote_id = ?, marca = ? WHERE id = ?",
-                                (lote_id, fortes_exporter.marca(ctx.prefixo, m["data"], m["id"]), m["id"]))
+                                (lote_id, g.marca, g.movimento_id))
             ctx.con.execute("INSERT INTO travas_periodo (periodo, conta_banco, usuario, desde) VALUES (?, ?, ?, ?)",
                             (periodo, conta_banco, ctx.nome, agora()))
             audit.registrar(ctx.con, ctx.nome, "lote_gerado", "lote", lote_id, periodo=periodo, quantidade=len(movs),
-                            total=total, sha256=deduplicator.sha256(conteudo))
+                            total=total, sha256=sha, limite_historico=limite, truncados=truncados)
         except BaseException:
+            destino.chmod(0o644)
             destino.unlink(missing_ok=True)
             raise
-    return {"lote_id": lote_id, "arquivo": destino, "quantidade": len(movs), "total_centavos": total}
+    return {"lote_id": lote_id, "arquivo": destino, "quantidade": len(movs), "total_centavos": total,
+            "truncados": truncados, "limite_historico": limite}
+
+
+def arquivo_lote(ctx: Contexto, lote_id: int) -> bytes:
+    """Conteúdo do lote só se o SHA-256 bater com o gravado na geração."""
+    ctx.exigir("ver")
+    l = ctx.con.execute("SELECT * FROM lotes WHERE id = ?", (lote_id,)).fetchone()
+    if l is None:
+        raise OperacaoInvalida("lote inexistente")
+    caminho = ctx.pasta / l["caminho"]
+    if not caminho.exists():
+        raise OperacaoInvalida(f"arquivo do lote {lote_id} sumiu; restaure do backup")
+    bruto = caminho.read_bytes()
+    if deduplicator.sha256(bruto) != l["sha256"]:
+        with transacao(ctx.con):
+            audit.registrar(ctx.con, ctx.nome, "lote_adulterado", "lote", lote_id)
+        raise OperacaoInvalida(f"arquivo do lote {lote_id} foi alterado depois de gerado (SHA-256 diferente); "
+                               "não importe este arquivo")
+    return bruto
+
+
+def verificar_integridade(ctx: Contexto) -> list[str]:
+    """Confere originais e lotes contra o SHA-256 gravado e o banco contra o integrity_check."""
+    ctx.exigir("ver")
+    problemas = []
+    r = ctx.con.execute("PRAGMA integrity_check").fetchone()[0]
+    if r != "ok":
+        problemas.append(f"banco da empresa: integrity_check = {r}")
+    for a in ctx.con.execute("SELECT id, nome_original, caminho, sha256 FROM arquivos"):
+        f = ctx.pasta / a["caminho"]
+        if not f.exists():
+            problemas.append(f"arquivo original {a['id']} ({a['nome_original']}) ausente")
+        elif deduplicator.sha256(f.read_bytes()) != a["sha256"]:
+            problemas.append(f"arquivo original {a['id']} ({a['nome_original']}) alterado")
+    for l in ctx.con.execute("SELECT id, caminho, sha256, quantidade FROM lotes"):
+        f = ctx.pasta / l["caminho"]
+        if not f.exists():
+            problemas.append(f"lote {l['id']}: arquivo ausente")
+        elif deduplicator.sha256(f.read_bytes()) != l["sha256"]:
+            problemas.append(f"lote {l['id']}: arquivo alterado depois de gerado")
+        n = ctx.con.execute("SELECT COUNT(*) FROM lote_itens WHERE lote_id = ?", (l["id"],)).fetchone()[0]
+        if n and n != l["quantidade"]:
+            problemas.append(f"lote {l['id']}: {n} itens registrados para {l['quantidade']} lançamentos")
+    with transacao(ctx.con):
+        audit.registrar(ctx.con, ctx.nome, "verificacao_integridade", "empresa", ctx.empresa["slug"],
+                        problemas=len(problemas))
+    return problemas
+
+
+def conferir_lote_no_razao(ctx: Contexto, lote_id: int) -> dict:
+    """Depois da importação real: cada lançamento do lote está no Razão do Fortes, uma vez só,
+    com a mesma data, valor e lado na conta do banco? (e nas contrapartidas, se o Razão as trouxer)."""
+    ctx.exigir("conciliar")
+    l = ctx.con.execute("SELECT * FROM lotes WHERE id = ?", (lote_id,)).fetchone()
+    if l is None:
+        raise OperacaoInvalida("lote inexistente")
+    if l["status"] != "aceito":
+        raise OperacaoInvalida("registre o retorno 'importado sem erro' antes de conferir no Razão")
+    carga_razao = ctx.con.execute("SELECT MAX(a.enviado_em) FROM arquivos a WHERE a.tipo = 'razao' "
+                                  "AND a.status = 'carregado'").fetchone()[0]
+    if not carga_razao or carga_razao < l["retorno_em"]:
+        raise OperacaoInvalida("carregue um Razão exportado do Fortes depois da importação deste lote")
+    itens = ctx.con.execute(
+        "SELECT i.*, m.data, m.valor_centavos, m.conta_debito, m.conta_credito, m.conta_banco "
+        "FROM lote_itens i JOIN movimentos m ON m.id = i.movimento_id WHERE i.lote_id = ?", (lote_id,)).fetchall()
+    ausentes, divergentes, duplicados, encontrados = [], [], [], 0
+    for it in itens:
+        partidas = ctx.con.execute("SELECT * FROM razao WHERE historico LIKE ?",
+                                   (f"%{it['marca']}%",)).fetchall()
+        banco = [p for p in partidas if p["conta"] == it["conta_banco"]]
+        if not banco:
+            ausentes.append(it["marca"])
+            continue
+        if len(banco) > 1:
+            duplicados.append(f"{it['marca']} aparece {len(banco)} vezes na conta do banco")
+        p = banco[0]
+        valor = abs(it["valor_centavos"])
+        lado_ok = (p["debito_centavos"] == valor) if it["conta_debito"] == it["conta_banco"] else (
+            p["credito_centavos"] == valor)
+        if p["data"] != it["data"] or not lado_ok:
+            divergentes.append(f"{it['marca']}: Razão {p['data']} D {p['debito_centavos']} C {p['credito_centavos']}; "
+                               f"esperado {it['data']} {valor} no lado {'D' if it['conta_debito'] == it['conta_banco'] else 'C'}")
+        contra = it["conta_credito"] if it["conta_debito"] == it["conta_banco"] else it["conta_debito"]
+        outras = [q for q in partidas if q["conta"] != it["conta_banco"]]
+        if outras and not any(q["conta"] == contra for q in outras):
+            divergentes.append(f"{it['marca']}: contrapartida no Razão é {outras[0]['conta']}, esperado {contra}")
+        if not (it["historico_exportado"].split(" [")[0][:20] in (p["historico"] or "")):
+            divergentes.append(f"{it['marca']}: histórico no Razão não corresponde ao exportado")
+        encontrados += 1
+    resultado = {
+        "lote_id": lote_id, "itens": len(itens), "encontrados": encontrados, "ausentes": ausentes,
+        "divergentes": divergentes, "duplicados": duplicados,
+        "aprovado": bool(itens) and not ausentes and not divergentes and not duplicados,
+        "formato_razao": parametro(ctx.con, "formato_razao"),
+    }
+    with transacao(ctx.con):
+        ctx.con.execute("UPDATE lotes SET conferencia_razao = ?, conferido_por = ?, conferido_em = ? WHERE id = ?",
+                        (json.dumps(resultado, ensure_ascii=False), ctx.nome, agora(), lote_id))
+        audit.registrar(ctx.con, ctx.nome, "lote_conferido_no_razao", "lote", lote_id,
+                        aprovado=resultado["aprovado"], ausentes=len(ausentes), divergentes=len(divergentes),
+                        duplicados=len(duplicados))
+    return resultado
+
+
+def itens_lote(con, lote_id: int) -> list[sqlite3.Row]:
+    return con.execute("SELECT * FROM lote_itens WHERE lote_id = ? ORDER BY movimento_id", (lote_id,)).fetchall()
 
 
 def registrar_retorno(ctx: Contexto, lote_id: int, aceito: bool, observacao: str) -> None:
@@ -720,6 +882,22 @@ def relatorio_pendencias(ctx: Contexto, periodo: str, conta_banco: str) -> Path:
     destino.write_text(buf.getvalue(), encoding="utf-8-sig")
     audit.registrar(ctx.con, ctx.nome, "relatorio_pendencias", "relatorio", destino.name, itens=len(linhas))
     return destino
+
+
+def limite_historico(con) -> int:
+    import config
+    return int(parametro(con, "limite_historico", str(config.LIMITE_HISTORICO)))
+
+
+def definir_limite_historico(ctx: Contexto, limite: int) -> None:
+    """Muda o limite só para lotes futuros; lotes já gerados guardam o limite que usaram."""
+    ctx.exigir("cadastrar")
+    fortes_exporter.validar_limite(limite)
+    anterior = limite_historico(ctx.con)
+    with transacao(ctx.con):
+        definir_parametro(ctx.con, "limite_historico", str(limite))
+        audit.registrar(ctx.con, ctx.nome, "limite_historico_definido", "parametro", "limite_historico",
+                        anterior=anterior, novo=limite)
 
 
 def definir_prefixo(ctx: Contexto, prefixo: str) -> None:

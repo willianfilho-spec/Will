@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from contextlib import contextmanager
 
 import pandas as pd
@@ -38,7 +39,7 @@ def tratar_erros(sucesso: str | None = None):
         st.markdown("\n".join(f"- {p}" for p in exc.problemas[:100]))
     except AcessoNegado as exc:
         st.error(f"Sem permissão: {exc}")
-    except (o.OperacaoInvalida, ValorInvalido, ValueError) as exc:
+    except (o.OperacaoInvalida, ValorInvalido, ValueError, sqlite3.IntegrityError) as exc:
         st.error(str(exc))
     else:
         if sucesso:

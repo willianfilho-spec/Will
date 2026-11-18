@@ -98,6 +98,11 @@ def main() -> None:
             registrar_acesso(central, usuario["id"], None, "logout", "ok")
             st.session_state.clear()
             st.rerun()
+        from domain import homologacao
+        if homologacao.integracao_liberada(central):
+            st.caption("Integração com o Fortes homologada.")
+        else:
+            st.warning("Integração com o Fortes **não homologada** (P-004). Veja Sessão > Homologação.")
         st.caption("Etapa A · uso interno · IA " + ("ligada (só sugere)" if config.ENABLE_AI else "desligada"))
 
     paginas = [

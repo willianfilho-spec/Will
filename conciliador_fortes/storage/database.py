@@ -46,6 +46,27 @@ CREATE TABLE IF NOT EXISTS permissoes_empresa (
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
     FOREIGN KEY (empresa_id) REFERENCES empresas(id)
 );
+CREATE TABLE IF NOT EXISTS homologacoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('aprovado', 'reprovado', 'em_teste')),
+    tipo_teste TEXT NOT NULL CHECK (tipo_teste IN ('automatizado', 'instalacao_real')),
+    teste TEXT NOT NULL,
+    resultado TEXT NOT NULL,
+    falha TEXT,
+    acao_corretiva TEXT,
+    evidencia_nome TEXT,
+    evidencia_sha256 TEXT,
+    evidencia_caminho TEXT,
+    referencia TEXT,
+    registrado_por TEXT NOT NULL,
+    registrado_em TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS trg_homologacoes_sem_update BEFORE UPDATE ON homologacoes
+BEGIN SELECT RAISE(ABORT, 'registro de homologação não pode ser alterado; registre um novo'); END;
+CREATE TRIGGER IF NOT EXISTS trg_homologacoes_sem_delete BEFORE DELETE ON homologacoes
+BEGIN SELECT RAISE(ABORT, 'registro de homologação não pode ser apagado'); END;
+
 CREATE TABLE IF NOT EXISTS audit_acesso (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL,
@@ -55,6 +76,10 @@ CREATE TABLE IF NOT EXISTS audit_acesso (
     resultado TEXT NOT NULL,
     detalhes TEXT
 );
+CREATE TRIGGER IF NOT EXISTS trg_audit_acesso_sem_update BEFORE UPDATE ON audit_acesso
+BEGIN SELECT RAISE(ABORT, 'auditoria não pode ser alterada'); END;
+CREATE TRIGGER IF NOT EXISTS trg_audit_acesso_sem_delete BEFORE DELETE ON audit_acesso
+BEGIN SELECT RAISE(ABORT, 'auditoria não pode ser apagada'); END;
 """
 
 SCHEMA_CONTABIL = """
@@ -216,6 +241,17 @@ CREATE TABLE IF NOT EXISTS lotes (
     retorno_obs TEXT
 );
 
+CREATE TABLE IF NOT EXISTS lote_itens (
+    lote_id INTEGER NOT NULL REFERENCES lotes(id),
+    movimento_id INTEGER NOT NULL REFERENCES movimentos(id),
+    marca TEXT NOT NULL,
+    linha_exportada TEXT NOT NULL,
+    historico_completo TEXT NOT NULL,
+    historico_exportado TEXT NOT NULL,
+    truncado INTEGER NOT NULL CHECK (truncado IN (0, 1)),
+    PRIMARY KEY (lote_id, movimento_id)
+);
+
 CREATE TABLE IF NOT EXISTS travas_periodo (
     periodo TEXT NOT NULL,
     conta_banco TEXT NOT NULL,
@@ -233,7 +269,71 @@ CREATE TABLE IF NOT EXISTS audit_log (
     entidade_id TEXT,
     detalhes TEXT
 );
+
+-- Proteções contra alteração indevida e perda de informação ------------------
+CREATE TRIGGER IF NOT EXISTS trg_audit_sem_update BEFORE UPDATE ON audit_log
+BEGIN SELECT RAISE(ABORT, 'auditoria não pode ser alterada'); END;
+CREATE TRIGGER IF NOT EXISTS trg_audit_sem_delete BEFORE DELETE ON audit_log
+BEGIN SELECT RAISE(ABORT, 'auditoria não pode ser apagada'); END;
+
+-- o que veio do extrato nunca muda
+CREATE TRIGGER IF NOT EXISTS trg_mov_origem_imutavel BEFORE UPDATE ON movimentos
+WHEN NEW.data IS NOT OLD.data OR NEW.valor_centavos IS NOT OLD.valor_centavos
+  OR NEW.historico IS NOT OLD.historico OR NEW.fitid IS NOT OLD.fitid
+  OR NEW.documento IS NOT OLD.documento OR NEW.arquivo_id IS NOT OLD.arquivo_id
+  OR NEW.conta_banco IS NOT OLD.conta_banco
+BEGIN SELECT RAISE(ABORT, 'dados de origem do extrato não podem ser alterados'); END;
+
+-- movimento exportado fica congelado até o retorno do Fortes
+CREATE TRIGGER IF NOT EXISTS trg_mov_exportado_imutavel BEFORE UPDATE ON movimentos
+WHEN OLD.status = 'exportado' AND (
+     NEW.conta_debito IS NOT OLD.conta_debito OR NEW.conta_credito IS NOT OLD.conta_credito
+  OR NEW.historico_contabil IS NOT OLD.historico_contabil OR NEW.natureza IS NOT OLD.natureza
+  OR NEW.revisado_por IS NOT OLD.revisado_por OR NEW.segunda_confirmacao_por IS NOT OLD.segunda_confirmacao_por
+  OR (NEW.status <> 'classificado' AND NEW.status <> OLD.status))
+BEGIN SELECT RAISE(ABORT, 'movimento exportado não pode ser alterado'); END;
+
+-- movimento de lote aceito pelo Fortes não volta atrás
+CREATE TRIGGER IF NOT EXISTS trg_mov_aceito_imutavel BEFORE UPDATE ON movimentos
+WHEN OLD.lote_id IS NOT NULL AND (SELECT status FROM lotes WHERE id = OLD.lote_id) = 'aceito'
+BEGIN SELECT RAISE(ABORT, 'movimento de lote aceito no Fortes não pode ser alterado'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_mov_sem_delete BEFORE DELETE ON movimentos
+BEGIN SELECT RAISE(ABORT, 'movimento não pode ser apagado; use descartar'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_arquivos_imutavel BEFORE UPDATE ON arquivos
+WHEN NEW.sha256 IS NOT OLD.sha256 OR NEW.caminho IS NOT OLD.caminho OR NEW.tamanho IS NOT OLD.tamanho
+BEGIN SELECT RAISE(ABORT, 'registro do arquivo original não pode ser alterado'); END;
+CREATE TRIGGER IF NOT EXISTS trg_arquivos_sem_delete BEFORE DELETE ON arquivos
+BEGIN SELECT RAISE(ABORT, 'arquivo original não pode ser apagado'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_lotes_imutavel BEFORE UPDATE ON lotes
+WHEN NEW.sha256 IS NOT OLD.sha256 OR NEW.caminho IS NOT OLD.caminho OR NEW.quantidade IS NOT OLD.quantidade
+  OR NEW.total_centavos IS NOT OLD.total_centavos OR NEW.gerado_por IS NOT OLD.gerado_por
+  OR (OLD.status <> 'gerado' AND NEW.status IS NOT OLD.status)
+BEGIN SELECT RAISE(ABORT, 'lote gerado não pode ser alterado'); END;
+CREATE TRIGGER IF NOT EXISTS trg_lotes_sem_delete BEFORE DELETE ON lotes
+BEGIN SELECT RAISE(ABORT, 'lote não pode ser apagado'); END;
+CREATE TRIGGER IF NOT EXISTS trg_lote_itens_sem_update BEFORE UPDATE ON lote_itens
+BEGIN SELECT RAISE(ABORT, 'item de lote não pode ser alterado'); END;
+CREATE TRIGGER IF NOT EXISTS trg_lote_itens_sem_delete BEFORE DELETE ON lote_itens
+BEGIN SELECT RAISE(ABORT, 'item de lote não pode ser apagado'); END;
 """
+
+# Colunas acrescentadas depois da primeira versão (bancos antigos são migrados ao abrir).
+MIGRACOES_CONTABIL = {
+    "lotes": {
+        "limite_historico": "INTEGER",
+        "truncados": "INTEGER NOT NULL DEFAULT 0",
+        "conferencia_razao": "TEXT",
+        "conferido_por": "TEXT",
+        "conferido_em": "TEXT",
+    },
+    "conciliacoes": {
+        "razao_homologado": "INTEGER NOT NULL DEFAULT 0",
+        "formato_razao": "TEXT",
+    },
+}
 
 SUBPASTAS = ("originais", "exportacoes", "relatorios")
 
@@ -282,7 +382,16 @@ def conectar_empresa(slug: str, data_dir: Path | None = None) -> sqlite3.Connect
         (pasta / "arquivos" / sub).mkdir(parents=True, exist_ok=True)
     con = _conectar(pasta / "contabil.db")
     con.executescript(SCHEMA_CONTABIL)
+    _migrar(con, MIGRACOES_CONTABIL)
     return con
+
+
+def _migrar(con: sqlite3.Connection, migracoes: dict) -> None:
+    for tabela, colunas in migracoes.items():
+        existentes = {r["name"] for r in con.execute(f"PRAGMA table_info({tabela})")}
+        for nome, tipo in colunas.items():
+            if nome not in existentes:
+                con.execute(f"ALTER TABLE {tabela} ADD COLUMN {nome} {tipo}")
 
 
 @contextmanager

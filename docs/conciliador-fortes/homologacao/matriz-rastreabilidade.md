@@ -1,0 +1,18 @@
+# Matriz de rastreabilidade (gerada em 2026-11-18 21:19 UTC)
+
+Gerada por `scripts/relatorio_homologacao.py`; não edite à mão. A coluna de testes mostra o resultado da execução real da suíte. A última coluna lista o que só a instalação real do Fortes comprova: **teste automatizado nunca aprova esses itens**.
+
+| Requisito | Item | Diretriz | Testes automatizados (resultado) | Só a instalação real comprova |
+|---|---|---|---|---|
+| R1 Integração com o Fortes não é dada como validada sem importação real | H1 | 1 | `test_aut_hom_01_h1_exige_lote_aceito_e_conferido`  passou<br>`test_aut_hom_01b_regras_gerais`  passou | Importar um lote no Fortes de teste e conferir o Razão exportado (procedimento H1) |
+| R2 Conferência do lote no Razão depois da importação (ausente, duplicado, valor, conta) | H1 | 1, 5 | `test_aut_dup_03_conferencia_pos_importacao_aprova`  passou<br>`test_aut_dup_03_conferencia_pos_importacao_detecta` ×4 passou | O Razão real do Fortes ter o formato que o leitor entende (H3) |
+| R3 Limite do histórico configurável (40 a 250) e auditado | H2 | 2 | `test_aut_hist_01_limite_configuravel_e_faixa`  passou | Descobrir o limite que o Fortes aceita (procedimento H2) |
+| R4 Histórico original preservado; marca nunca cortada; corte só no arquivo | H2 | 2, 5 | `test_aut_hist_02_historico_completo_preservado`  passou<br>`test_aut_hist_03_mudar_limite_nao_altera_lote_gerado`  passou | Fortes não rejeitar nem cortar o histórico no limite escolhido |
+| R5 Razão não é tratado como compatível sem arquivo real (aviso e flag na conferência) | H3 | 3 | `test_aut_raz_01_conferencia_provisoria_sem_homologacao`  passou | Carregar um Razão real e comparar o saldo (procedimento H3) |
+| R6 Backup e restauração em pasta isolada, com relatório verificável | H4 | 4 | `test_aut_bk_01_restauracao_isolada`  passou<br>`test_aut_bk_02_restauracao_detecta_original_corrompido`  passou<br>`test_backup_e_restauracao`  passou<br>`test_backup_corrompido_e_detectado`  passou | Rodar scripts/teste_restauracao.py na base do escritório (procedimento H4) |
+| R7 Duplicidade: arquivo, FITID, semelhança, marca já no Razão, igual a lote anterior | H1 | 5 | `test_arquivo_repetido_bloqueado_e_fitid_alerta`  passou<br>`test_semelhanca_entre_arquivos_tabulares`  passou<br>`test_aut_dup_01_marca_ja_no_razao_bloqueia`  passou<br>`test_aut_dup_02_igual_a_lote_aceito_sem_decisao_bloqueia`  passou | Confirmar no Fortes que uma segunda importação do mesmo lote é recusada ou duplica (H1) |
+| R8 Alteração indevida: origem do extrato, exportados, lotes aceitos, auditoria, originais | H1 | 5 | `test_aut_int_01_travas_do_banco` ×7 passou<br>`test_aut_int_01b_exportado_e_aceito_congelados`  passou<br>`test_aut_int_02_arquivo_adulterado`  passou | - |
+| R9 Perda de informação: ida e volta do arquivo, itens do lote, migração de banco antigo | H1 | 5 | `test_aut_int_03_ida_e_volta_detecta_diferenca`  passou<br>`test_aut_int_03b_falha_de_ida_e_volta_bloqueia_lote`  passou<br>`test_aut_mig_01_banco_antigo_e_migrado_sem_perder_dados`  passou | - |
+| R10 Leiaute conhecido preservado byte a byte | H1 | Restrição | `test_lote_fortes_completo_byte_a_byte`  passou<br>`test_validadores_bloqueantes` ×5 passou | Aceitação do arquivo pelo Fortes (H1) |
+| R11 Nenhuma pendência é aprovada sem evidência verificável | H1-H5 | 8 | `test_aut_hom_01_h1_exige_lote_aceito_e_conferido`  passou<br>`test_aut_hom_01b_regras_gerais`  passou<br>`test_aut_hom_02_h4_aceita_so_relatorio_real_aprovado`  passou | - |
+| R12 Extratos reais do piloto carregam e fecham o saldo | H5 | - | `test_ofx_exemplo`  passou<br>`test_csv_com_mapeamento`  passou<br>`test_xlsx_entrada_saida`  passou | Carregar um OFX e um CSV/XLSX reais de cada banco (procedimento H5) |

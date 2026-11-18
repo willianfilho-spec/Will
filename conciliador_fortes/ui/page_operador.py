@@ -7,6 +7,8 @@ import streamlit as st
 
 import config
 from domain.money import formatar_br
+from domain import homologacao as hom
+from domain import operacoes as o
 from storage import audit, backup, usuarios
 from ui.comum import abas, aviso_pendente, campo_valor, ctx, pode_fazer, tratar_erros
 
@@ -38,6 +40,15 @@ def render() -> None:
         _admin(central)
     if c is not None and pode_fazer("backup"):
         _backup()
+    if c is not None:
+        st.divider()
+        st.subheader("Integridade")
+        st.caption("Confere os arquivos originais e os lotes contra o SHA-256 gravado e o banco contra o integrity_check.")
+        if st.button("Verificar integridade da empresa"):
+            with tratar_erros():
+                prob = o.verificar_integridade(c)
+                st.success("Nenhum problema encontrado.") if not prob else st.error("\n".join(f"- {p}" for p in prob))
+    _homologacao(central, usuario)
     if c is not None:
         with st.expander("Auditoria da empresa (últimas 200 ações)"):
             st.dataframe(pd.DataFrame([dict(r) for r in audit.listar(c.con)]), hide_index=True)
@@ -111,3 +122,42 @@ def _backup() -> None:
                 st.success("Íntegro.") if not prob else st.error("; ".join(prob))
             st.caption("Para restaurar: `python scripts/restaurar_backup.py <pasta-do-backup> <nova-pasta-de-dados>` "
                        "e aponte CONCILIADOR_DATA_DIR para a nova pasta.")
+
+
+def _homologacao(central, usuario) -> None:
+    st.divider()
+    st.subheader("Homologação (P-004)")
+    st.caption("Itens que dependem da instalação real do Fortes. Só viram 'aprovado' com evidência anexada; "
+               "testes automatizados não aprovam nenhum deles. Procedimento: docs/conciliador-fortes/homologacao/.")
+    est = hom.estado(central)
+    linhas = []
+    for cod, item in hom.ITENS.items():
+        r = est[cod]
+        linhas.append({"item": cod, "título": item.titulo, "status": r["status"] if r else "não testado",
+                       "referência": r["referencia"] if r else "", "por": r["registrado_por"] if r else "",
+                       "em": r["registrado_em"] if r else "",
+                       "evidência íntegra": {True: "sim", False: "NÃO", None: "-"}[hom.evidencia_integra(r)] if r else "-"})
+    st.dataframe(pd.DataFrame(linhas), hide_index=True)
+    (st.success if hom.integracao_liberada(central) else st.warning)(
+        "Integração liberada: todos os itens aprovados." if hom.integracao_liberada(central)
+        else "Integração com o Fortes NÃO liberada: há itens não aprovados.")
+    if usuario["papel_global"] != "admin":
+        return
+    with st.expander("Registrar resultado de teste"):
+        with st.form("hom", clear_on_submit=True):
+            cod = st.selectbox("Item", list(hom.ITENS), format_func=lambda k: f"{k} · {hom.ITENS[k].titulo}")
+            st.caption("Critério e referência de cada item: " + " | ".join(
+                f"{k}: {i.referencia}" for k, i in hom.ITENS.items()))
+            status = st.selectbox("Status", ["em_teste", "aprovado", "reprovado"])
+            teste = st.text_area("Teste realizado (o que foi feito, em qual empresa/arquivo)")
+            resultado = st.text_area("Resultado observado")
+            falha = st.text_input("Falha identificada (obrigatória se reprovado)")
+            acao = st.text_input("Ação corretiva (obrigatória se reprovado)")
+            ref = st.text_input("Referência")
+            ev = st.file_uploader("Evidência (print, PDF do Razão, JSON do teste de restauração...)")
+            if st.form_submit_button("Registrar"):
+                with tratar_erros(f"Resultado do {cod} registrado."):
+                    hom.registrar(central, usuario, cod, status, teste, resultado, falha, acao,
+                                  ev.name if ev else None, ev.getvalue() if ev else None, ref)
+    with st.expander("Histórico completo dos registros"):
+        st.dataframe(pd.DataFrame([dict(r) for r in hom.historico(central)]), hide_index=True)

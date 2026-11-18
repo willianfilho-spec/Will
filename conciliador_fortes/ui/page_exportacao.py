@@ -5,7 +5,11 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+import json
+
+from domain import homologacao
 from domain import operacoes as o
+from exporters import fortes_exporter
 from domain.money import formatar_br
 from ui.comum import (aviso_pendente, campo_valor, conta_banco_padrao, exigir_contexto, pode_fazer, seletor_conta,
                       tratar_erros)
@@ -15,6 +19,9 @@ def render() -> None:
     c = exigir_contexto()
     aviso_pendente()
     st.header("Conferência mensal e exportação para o Fortes")
+    if not homologacao.aprovado(c.central, "H1"):
+        st.warning("**Integração com o Fortes não homologada.** Nenhum lote gerado por este app foi conferido "
+                   "depois de uma importação real. Use uma empresa de teste no Fortes até o item H1 ser aprovado.")
     periodos = [r[0] for r in c.con.execute(
         "SELECT DISTINCT substr(data, 1, 7) FROM movimentos ORDER BY 1 DESC").fetchall()]
     if not periodos:
@@ -62,6 +69,9 @@ def render() -> None:
         if interna:
             st.error(f"O extrato não fecha com ele mesmo: diferença de {formatar_br(interna)}. "
                      "Falta movimento carregado ou o saldo informado está errado.")
+        if not conc["razao_homologado"]:
+            st.info(f"Conferência provisória: o Razão foi lido no formato '{conc['formato_razao'] or 'nenhum'}', "
+                    "que ainda não foi homologado com um arquivo real do Fortes (item H3).")
         if conc["diferenca_centavos"]:
             st.error(f"Diferença extrato x contábil: **{formatar_br(conc['diferenca_centavos'])}** · "
                      f"status: {conc['status']}")
@@ -99,6 +109,19 @@ def render() -> None:
         st.markdown("\n".join(f"- {p}" for p in problemas[:60]))
     else:
         st.success("Todas as validações passaram.")
+    if movs:
+        lim = o.limite_historico(c.con)
+        cortes = []
+        for m in movs:
+            mk = fortes_exporter.marca(c.prefixo, m["data"], m["id"])
+            _, cortado = fortes_exporter.montar_historico(m["historico_contabil"] or m["historico"], mk, lim)
+            if cortado:
+                cortes.append({"id": m["id"], "histórico completo (fica guardado)": m["historico_contabil"] or m["historico"]})
+        st.caption(f"Limite do histórico: {lim} caracteres (Cadastros > Parâmetros).")
+        if cortes:
+            st.warning(f"{len(cortes)} histórico(s) serão encurtados no arquivo. O texto completo fica no banco "
+                       "e na lista de itens do lote.")
+            st.dataframe(cortes, hide_index=True)
     if pode_fazer("exportar"):
         if st.button("Gerar lote", type="primary", disabled=bool(problemas)):
             with tratar_erros():
@@ -117,10 +140,18 @@ def render() -> None:
         with st.container(border=True):
             st.write(f"**Lote {lt['id']}** · {lt['quantidade']} lançamentos · {formatar_br(lt['total_centavos'])} · "
                      f"gerado por {lt['gerado_por']} em {lt['gerado_em']} · **{lt['status']}**")
-            arq = c.pasta / lt["caminho"]
-            if arq.exists():
-                st.download_button("Baixar arquivo", arq.read_bytes(), file_name=arq.name, mime="text/csv",
+            st.caption(f"Limite do histórico usado: {lt['limite_historico'] or '-'} · históricos encurtados: "
+                       f"{lt['truncados'] or 0} · SHA-256 {lt['sha256'][:16]}…")
+            try:
+                bruto = o.arquivo_lote(c, lt["id"])
+                st.download_button("Baixar arquivo", bruto, file_name=(c.pasta / lt["caminho"]).name, mime="text/csv",
                                    key=f"dl{lt['id']}")
+            except o.OperacaoInvalida as exc:
+                st.error(str(exc))
+            with st.expander("Itens do lote (linha exportada e histórico completo)"):
+                st.dataframe([{"movimento": i["movimento_id"], "marca": i["marca"], "encurtado": bool(i["truncado"]),
+                               "histórico completo": i["historico_completo"], "linha exportada": i["linha_exportada"]}
+                              for i in o.itens_lote(c.con, lt["id"])], hide_index=True)
             if lt["status"] == "gerado" and pode_fazer("registrar_retorno"):
                 obs = st.text_input("Observação / mensagem do Fortes", key=f"obs{lt['id']}")
                 x, y = st.columns(2)
@@ -132,6 +163,21 @@ def render() -> None:
                         o.registrar_retorno(c, lt["id"], False, obs)
             elif lt["retorno_por"]:
                 st.caption(f"Retorno de {lt['retorno_por']} em {lt['retorno_em']}: {lt['retorno_obs']}")
+            if lt["status"] == "aceito":
+                conf = json.loads(lt["conferencia_razao"]) if lt["conferencia_razao"] else None
+                if conf:
+                    (st.success if conf["aprovado"] else st.error)(
+                        f"Conferência no Razão ({lt['conferido_por']}, {lt['conferido_em']}): "
+                        f"{conf['encontrados']}/{conf['itens']} encontrados · ausentes {len(conf['ausentes'])} · "
+                        f"divergentes {len(conf['divergentes'])} · duplicados {len(conf['duplicados'])}")
+                    for p in (conf["ausentes"] + conf["divergentes"] + conf["duplicados"])[:30]:
+                        st.markdown(f"- {p}")
+                else:
+                    st.info("Falta conferir este lote no Razão: exporte o Razão do Fortes depois da importação, "
+                            "carregue em Cadastros > Razão e clique abaixo.")
+                if pode_fazer("conciliar") and st.button("Conferir lote no Razão", key=f"cr{lt['id']}"):
+                    with tratar_erros("Conferência no Razão registrada."):
+                        o.conferir_lote_no_razao(c, lt["id"])
     if not lotes:
         st.caption("Nenhum lote neste período.")
 
