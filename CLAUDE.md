@@ -29,41 +29,58 @@ O procedimento completo está na skill `salvar-memoria` (`/salvar-memoria`). O h
 - Contradição com a memória: registre a nova informação e a anterior lado a lado, sem sobrescrever em silêncio.
 - Formato de entrada: `- [AAAA-MM-DD] texto — origem: …; confiança: alta|média|baixa`.
 
-## Orquestração: Opus coordena, subagentes executam
+## Política de execução e delegação
 
-Implantado em 2026-11-18. Vale para demandas no **modo EXECUTAR** ou que toquem mais de uma frente (tela, testes, documentação). Ajuste pequeno em um arquivo só: faça direto, sem delegar, porque cada subagente começa do zero e consome contexto.
+Atualizada em 2026-11-18. Princípio: usar a menor complexidade operacional capaz de entregar uma solução correta, verificável e fácil de manter. **Não criar subagentes por padrão.** Delegar é decisão técnica, baseada em independência, custo, risco e benefício verificável, nunca obrigação.
 
-### Papéis e modelos
+### 1. Inspeção inicial
 
-- **Sessão principal (coordenador):** Opus quando disponível. Planeja, decide o que é compartilhado, integra e verifica. Só informe o modelo efetivamente usado quando puder confirmá-lo (por exemplo, com `get_session`).
-- **Subagentes do projeto** em `.claude/agents/`: `tela`, `testes` e `documentacao`, todos com `model: sonnet`.
-- **Haiku:** apenas para inventário ou conferência simples e bem delimitada, passando `model: "haiku"` na chamada do `Agent`.
+Antes de qualquer tarefa: identificar o repositório e seu objetivo; inspecionar a estrutura que realmente existe (`git ls-files`, `git status`); identificar os arquivos que podem ser alterados; ler as instruções e os testes disponíveis; mapear dependências, conflitos e riscos. **Não presumir que existem os arquivos descritos no README.** Demanda em branco: peça a descrição. Critérios de aceitação em branco: derive-os da demanda e registre as suposições.
 
-### Procedimento (modo EXECUTAR)
+### 2. Seleção da estratégia
 
-1. **Inspecione.** Leia as instruções, rode `git status`, identifique os comandos de verificação (seção abaixo) e os arquivos afetados. Demanda em branco: peça a descrição antes de começar. Critérios em branco: derive-os da demanda e registre as suposições.
-2. **Planeje** numa tabela com ID, frente, entrega, dependências, arquivos sob responsabilidade, modelo e critério de conclusão. Ative só as subtarefas necessárias; um agente pode acumular subtarefas que compartilham contexto.
+| Estratégia | Quando usar |
+|---|---|
+| **Direta** (sessão principal, sem subagente) | correção pequena e localizada, mudança simples em um arquivo, ajuste de documentação, tarefa com baixo custo de análise |
+| **Sequencial** | tarefas interdependentes, alterações concentradas no mesmo arquivo, etapas que dependem do resultado anterior, refatoração com risco de regressão |
+| **Paralela** | só quando **todas** valem: tarefas de fato independentes; interfaces e responsabilidades definidas; arquivos ou áreas de escrita isolados; custo de integração aceitável; ganho provável maior que o custo extra de contexto |
 
-   | ID | Frente | Entrega de referência |
-   |---|---|---|
-   | T1 | Tela | Mapear o fluxo do usuário e os componentes afetados |
-   | T2 | Tela | Implementar o comportamento solicitado na interface |
-   | T3 | Tela | Verificar os estados relevantes e a acessibilidade |
-   | Q1 | Testes | Traduzir os critérios de aceitação em cenários verificáveis |
-   | Q2 | Testes | Criar ou ajustar testes para as regressões pertinentes |
-   | Q3 | Testes | Executar as verificações e registrar o resultado |
-   | D1 | Documentação | Identificar os trechos afetados pela mudança |
-   | D2 | Documentação | Atualizar instruções e exemplos de uso |
-   | D3 | Documentação | Conferir exemplos e instruções com o código integrado |
+Registre a estratégia escolhida e o motivo antes de executar.
 
-3. **Delegue por dependência** com a ferramenta `Agent`.
-   - Mande a cada agente só o necessário: ID, objetivo, arquivos autorizados, dependências, resultado esperado e como validar. Peça a devolução no formato do perfil.
-   - Paralelo só para o que é independente: T1, Q1 e D1 podem começar juntos; Q3 e D3 esperam a implementação correspondente.
-   - Um único responsável por arquivo em cada rodada.
-   - **Worktrees:** em edições paralelas com risco de conflito, chame o `Agent` com `isolation: "worktree"`. O worktree nasce do último commit, então não leva alterações não commitadas: se a subtarefa depende delas, commite antes (com o aval do usuário) ou rode em sequência. Bases divergentes ou mesmos arquivos: sequência. O resultado devolve caminho e branch do worktree; integre com `git merge` ou `git cherry-pick`.
-   - Sem a ferramenta `Agent`: execute as frentes em sequência na sessão principal e informe que a delegação estava indisponível. Sem seleção de modelo: registre o modelo usado quando conhecido.
-4. **Integre e verifique.** Revise os diffs, incorpore na ordem das dependências, preserve o trabalho local do usuário e limite as mudanças ao escopo. Rode as verificações no estado integrado; se falharem, corrija a causa (nunca enfraqueça o teste) e rode de novo. Confirme cada critério de aceitação com evidência observável.
-5. **Entregue** o que mudou, os agentes e modelos usados (quando confirmados), as verificações executadas e seus resultados, as pendências e os critérios ainda sem evidência, e o progresso em tarefas verificadas sobre ativadas (por exemplo, `6 de 7`). `9 de 9` só com as nove verificadas.
+### 3. Controle de subagentes (só quando a estratégia justificar)
+
+- Perfis do projeto em `.claude/agents/`: `tela`, `testes` e `documentacao` (`model: sonnet`). Haiku só para inventário ou conferência simples, com `model: "haiku"` na chamada do `Agent`. A sessão principal (Opus, quando disponível) coordena e integra; informe o modelo só quando puder confirmá-lo (por exemplo, com `get_session`).
+- Envie só o contexto necessário: objetivo, escopo, arquivos autorizados e critérios de aceitação. Não duplique análises já feitas.
+- Um único responsável por arquivo; nunca edições concorrentes no mesmo arquivo.
+- Paralelo com risco de conflito: `Agent` com `isolation: "worktree"`. O worktree nasce do último commit e não leva alterações não commitadas; se a subtarefa depende delas, rode em sequência. Integre com `git merge` ou `git cherry-pick`.
+- **Sessão com vários repositórios:** perfis de mesmo nome colidem e só uma versão é carregada. Confira se a descrição do perfil carregado cita este repositório; se não citar, não o use. Execute direto ou passe ao `general-purpose` o texto do perfil correto (`.claude/agents/<perfil>.md`).
+- Sem a ferramenta `Agent`: execute em sequência na sessão principal e informe.
+
+Subtarefas de referência, para planejar quando houver mais de uma frente (ative só as necessárias; um mesmo agente pode acumular várias):
+
+| ID | Frente | Entrega de referência |
+|---|---|---|
+| T1 / T2 / T3 | Tela | mapear fluxo e componentes / implementar / verificar estados e acessibilidade |
+| Q1 / Q2 / Q3 | Testes | critérios em cenários verificáveis / criar ou ajustar testes / executar e registrar |
+| D1 / D2 / D3 | Documentação | identificar trechos afetados / atualizar instruções e exemplos / conferir com o código integrado |
+
+### 4. Validação
+
+Depois das alterações: revisar o diff; executar os testes relevantes disponíveis; verificar regressões quando aplicável; identificar alterações fora do escopo; registrar os testes não executados e o motivo. Teste que falha: corrigir a causa, nunca enfraquecer o teste. **Não declarar sucesso sem evidência.**
+
+### 5. Relatório final
+
+1. O que foi alterado.
+2. Quais arquivos foram modificados.
+3. Qual estratégia foi usada e por quê (e, se houve subagentes, quais e com que modelo, quando confirmado).
+4. Quais testes foram executados, com resultado; quais não foram e por quê.
+5. Riscos e pendências, incluindo critérios de aceitação ainda sem evidência.
+
+Se houve subtarefas, informe o progresso em verificadas sobre ativadas (por exemplo, `3 de 4`).
+
+### Regras deste repositório (Will)
+
+- Considere delegação para componentes independentes (por exemplo, `editor-pdf/` e `guia-sigaa-editor/` são apps separados). A integração fica sempre com o coordenador.
 
 ### Comandos de verificação deste repositório
 
