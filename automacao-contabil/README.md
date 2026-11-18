@@ -4,9 +4,11 @@ Prova de conceito do projeto de Daiane, Luciana e Willian (proposta revisada
 após a reunião de 9/11/2026). Transforma extratos bancários em lançamentos
 contábeis revisados e prontos para importação, sem gerar duplicidades.
 
-> **Estado atual:** protótipo testado apenas com dados fictícios. O leiaute de
-> exportação é provisório e não corresponde a nenhum sistema contábil
-> específico. Não usar com dados de clientes antes do piloto descrito abaixo.
+> **Estado atual:** fase 1 (piloto interno), testada com dados fictícios. O
+> arquivo exportado segue o leiaute de importação de lançamentos do Fortes,
+> tirado de arquivos que o Fortes do escritório aceitou (ver "Exportação para o
+> Fortes"); o CSV genérico continua provisório. Use com dados de clientes só no
+> computador do escritório, seguindo o `INSTALACAO.md`.
 
 ## O que faz e o que não faz
 
@@ -174,7 +176,9 @@ Na linha de comando (`motor_contabil.cli importar`), esta tela não é usada.
 - `exemplos/regras.json`: a conta do banco e as regras (`padrao` é expressão
   regular sobre o histórico sem acentos, em maiúsculas).
 
-Todos os arquivos de exemplo são fictícios.
+Todos os arquivos de exemplo são fictícios. Para testar com um plano no
+formato do Fortes, com extrato em OFX, CSV e planilha e com o arquivo de
+importação do Fortes já gerado, veja `exemplos/fortes/LEIAME.md`.
 
 ## IA: como está configurada
 
