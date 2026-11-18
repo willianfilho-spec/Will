@@ -27,4 +27,4 @@ Um bloco por projeto: objetivo, local, estado, próximos passos. Estado vem de e
 ## Conciliador Fortes (MVP Etapa A)
 - Local: `conciliador_fortes/` (Streamlit + SQLite; README com estrutura, travas e lacunas).
 - Objetivo: conciliar extratos (OFX/CSV/XLSX) com a contabilidade e gerar lotes no leiaute de importação do Fortes, com segunda revisão e auditoria.
-- [2026-11-18] Estado: primeira versão funcional; 75 testes pytest e 2 fluxos Playwright passando com dados sintéticos. Preparado para homologação (P-004): travas no banco, limite de histórico configurável, conferência do lote no Razão, restauração isolada. Integração com o Fortes NÃO homologada: nenhum teste na instalação real — origem: esta sessão; confiança: alta
+- [2026-11-18] Estado: web app FastAPI com portal do cliente, 2FA, lançamentos manuais, conciliação extrato × Razão, criptografia de arquivos e auditoria encadeada; suíte pytest e fluxo Playwright passando com dados sintéticos. Lotes reais lidos: saldo do banco bate em 7 versões. Integração com o Fortes NÃO homologada; sem pentest — origem: esta sessão; confiança: alta

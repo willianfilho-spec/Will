@@ -48,3 +48,16 @@ Formato: ID, data, decisão, justificativa, alternativas, consequências, status
 - Alternativas: marcar como concluído pelos testes sintéticos (descartada: não prova compatibilidade com o Fortes).
 - Consequências: a P-004 só sai de `pendencias.md` quando o relatório mostrar H1 a H5 aprovados.
 - Status: vigente. Origem: pedido do usuário; confiança: alta.
+
+## D-008 [2026-11-18] Web app em FastAPI para uso externo; Streamlit fica como modo local
+- Decisão: a interface para equipe e clientes externos é um web app FastAPI (`conciliador_fortes/web/`), com sessões no servidor, CSRF, 2FA TOTP obrigatório para a equipe, bloqueio de login, CSP restritiva e portal do cliente. O Streamlit continua só como modo local legado.
+- Justificativa: o Streamlit não oferece controle de sessão, CSRF, limite de requisições nem cabeçalhos de segurança adequados para expor a clientes.
+- Alternativas: endurecer o Streamlit (descartada: sem controle sobre o ciclo HTTP).
+- Consequências: HTTPS depende de proxy na implantação; a criptografia de arquivos exige `CONCILIADOR_CHAVE`; o banco SQLite continua sem criptografia própria (usar criptografia de disco); nenhum pentest independente foi feito.
+- Status: vigente. Origem: pedido do usuário (uso interno e externo); confiança: alta.
+
+## D-009 [2026-11-18] Identidade do operador inclui o id; lançamentos manuais sempre exigem segunda confirmação
+- Decisão: toda ação grava `Nome #id` (a segregação de função compara esse valor, não só o nome). Lançamento sem conta de banco (provisão, reclassificação, ajuste) é criado por uma pessoa e confirmado por outra, sem exceção de valor.
+- Justificativa: homônimos entre usuários externos quebrariam a segregação; lançamento manual não tem extrato como evidência.
+- Status: vigente. Origem: revisão de projeto nesta sessão; confiança: alta.
+
