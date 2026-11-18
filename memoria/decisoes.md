@@ -41,3 +41,10 @@ Formato: ID, data, decisão, justificativa, alternativas, consequências, status
 - Alternativas: anonimizar os arquivos reais (dá trabalho e há risco de sobrar dado identificável).
 - Consequências: o leiaute do Fortes foi copiado dos arquivos reais, mas a validação final precisa ser feita localmente, com arquivos reais fora do repositório.
 - Status: vigente. Origem: esta sessão; confiança: alta.
+
+## D-007 [2026-11-18] Item de instalação real só é aprovado com evidência registrada no app
+- Decisão: os itens H1 a H5 da P-004 só viram "aprovado" por administrador, com evidência anexada (SHA-256) e as condições conferidas em código; teste automatizado nunca os aprova. O registro é só de inclusão. O app mostra aviso de integração não homologada até os cinco estarem aprovados.
+- Justificativa: pedido do usuário (homologação P-004) e preferência já registrada de não declarar sucesso sem evidência.
+- Alternativas: marcar como concluído pelos testes sintéticos (descartada: não prova compatibilidade com o Fortes).
+- Consequências: a P-004 só sai de `pendencias.md` quando o relatório mostrar H1 a H5 aprovados.
+- Status: vigente. Origem: pedido do usuário; confiança: alta.
