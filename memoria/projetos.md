@@ -1,6 +1,6 @@
 # Projetos
 
-Atualizado em: 2026-11-17
+Atualizado em: 2026-11-18
 Um bloco por projeto: objetivo, local, estado, próximos passos. Estado vem de evidência (commit, teste, README); quando não houver, dizer "não verificado".
 
 ## Folha Clara (editor de PDF no navegador)
@@ -23,3 +23,8 @@ Um bloco por projeto: objetivo, local, estado, próximos passos. Estado vem de e
 ## Sistema de memória persistente
 - Local: `CLAUDE.md`, `memoria/`, `.claude/hooks/memoria.py`, `.claude/settings.json`, `.claude/skills/salvar-memoria/`.
 - [2026-11-17] Estado: implementado, testado em sessões novas e incorporado à `main` (P-002 concluída). Próximo passo: nenhum obrigatório; acompanhar se o lembrete do hook Stop ajuda ou incomoda — origem: esta sessão; confiança: alta
+
+## Conciliador Fortes (MVP Etapa A)
+- Local: `conciliador_fortes/` (Streamlit + SQLite; README com estrutura, travas e lacunas).
+- Objetivo: conciliar extratos (OFX/CSV/XLSX) com a contabilidade e gerar lotes no leiaute de importação do Fortes, com segunda revisão e auditoria.
+- [2026-11-18] Estado: primeira versão funcional; 47 testes pytest e 2 fluxos Playwright passando com dados sintéticos. Não testado com o Fortes real — origem: esta sessão; confiança: alta

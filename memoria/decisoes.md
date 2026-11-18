@@ -1,6 +1,6 @@
 # Decisões
 
-Atualizado em: 2026-11-17
+Atualizado em: 2026-11-18
 Formato: ID, data, decisão, justificativa, alternativas, consequências, status (vigente | substituída por D-XXX). Nunca apagar; substituir.
 
 ## D-001 [2026-11-17] Memória vive no repositório git
@@ -34,3 +34,10 @@ Formato: ID, data, decisão, justificativa, alternativas, consequências, status
 - Decisão: registrar em `Human-Written Declaration` que `CLAUDE.md`, `memoria/` e `.claude/` são mantidos com auxílio de IA e ficam fora do compromisso de autoria humana.
 - Justificativa: manter a declaração verdadeira. Aprovado pelo usuário.
 - Status: vigente. Origem: pedido do usuário; confiança: alta.
+
+## D-006 [2026-11-18] Conciliador usa só dados sintéticos no repositório
+- Decisão: arquivos reais de clientes (extratos, planos, lotes, pareceres) ficam fora do git; testes e exemplos usam dados inventados. A pasta `data/` do app está no `.gitignore`.
+- Justificativa: o repositório é público (D-002) e os arquivos enviados têm dados contábeis de clientes.
+- Alternativas: anonimizar os arquivos reais (dá trabalho e há risco de sobrar dado identificável).
+- Consequências: o leiaute do Fortes foi copiado dos arquivos reais, mas a validação final precisa ser feita localmente, com arquivos reais fora do repositório.
+- Status: vigente. Origem: esta sessão; confiança: alta.
