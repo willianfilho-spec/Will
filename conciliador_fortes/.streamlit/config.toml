@@ -1,0 +1,10 @@
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false
+
+[server]
+# Etapa A: só nesta máquina. Não exponha na rede sem HTTPS e sem revisar a Etapa B.
+address = "localhost"
+maxUploadSize = 50

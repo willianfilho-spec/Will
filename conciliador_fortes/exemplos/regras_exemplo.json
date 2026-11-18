@@ -1,0 +1,8 @@
+{
+ "regras": [
+  {"id": "tarifa", "padrao": "TARIFA", "sentido": "saida", "conta": "333", "historico": "TARIFA BANCARIA", "prioridade": 10},
+  {"id": "energia", "padrao": "ENERGIA ELETRICA", "sentido": "saida", "conta": "3.01.01.07.01.0050-9", "historico": null, "prioridade": 20},
+  {"id": "das", "padrao": "SIMPLES NACIONAL", "sentido": "saida", "conta": "78", "historico": "PAGTO SIMPLES NACIONAL", "prioridade": 20},
+  {"id": "cliente", "padrao": "^TED RECEBIDA", "sentido": "entrada", "conta": "2", "historico": null, "prioridade": 50}
+ ]
+}
