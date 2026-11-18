@@ -3,6 +3,7 @@
 Atualizado em: 2026-11-18
 Uma linha por mudança relevante, mais recente no topo. Ao passar de 250 linhas, resumir os anos anteriores em um parágrafo.
 
+- [2026-11-18] Política de execução e delegação substitui a delegação por padrão nos três repositórios (D-007).
 - [2026-11-18] Implantado o fluxo de orquestração (Opus coordena; perfis tela, testes e documentacao em Sonnet) nos três repositórios (D-006).
 - [2026-11-17] P-001 decidida (D-004: memória fica neste repositório) e P-003 resolvida (D-005: exceção na declaração de autoria humana). P-002 concluída: sistema de memória incorporado à `main`.
 - [2026-11-17] Criado o sistema de memória persistente (CLAUDE.md, memoria/, hooks SessionStart e Stop, skill salvar-memoria). Marcador de teste de persistência: `girassol-azul-1117`.

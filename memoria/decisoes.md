@@ -41,4 +41,11 @@ Formato: ID, data, decisão, justificativa, alternativas, consequências, status
 - Justificativa: cada sessão clona só os repositórios dela, e `~/.claude` é descartado (D-001); configuração por repositório é a única que persiste. Escolher o worktree por chamada evita subagente trabalhar numa base sem as mudanças locais.
 - Alternativas: skill compartilhada entre repositórios (não carrega fora do repositório onde está); worktree fixo nos perfis (risco de base desatualizada).
 - Consequências: atualizar o fluxo exige editar os três repositórios. Haiku entra só por `model: "haiku"` na chamada do `Agent`.
-- Status: vigente. Origem: pedido do usuário (modo IMPLANTAR); confiança: alta.
+- Status: vigente quanto aos perfis e ao isolamento por worktree; a regra "delegar sempre que houver mais de uma frente" foi substituída por D-007. Origem: pedido do usuário (modo IMPLANTAR); confiança: alta.
+
+## D-007 [2026-11-18] Política de execução e delegação: subagente não é padrão
+- Decisão: a seção "Orquestração" dos três `CLAUDE.md` virou "Política de execução e delegação". Antes de executar, o coordenador escolhe entre execução direta, sequencial ou paralela, e registra o motivo. Paralelo só com tarefas independentes, áreas de escrita isoladas e ganho maior que o custo de contexto. Regras por repositório: Will pode delegar componentes independentes; laudo trabalha em sequência, sem concorrência em `gerar_laudo.py`; dataset não gera código sem requisitos e corrige só divergências verificadas entre README e repositório.
+- Justificativa: política definida pelo usuário; reduz custo de contexto e risco de conflito.
+- Alternativas: manter a delegação por frente como padrão (D-006 original).
+- Consequências: os perfis continuam disponíveis, mas só são usados quando a estratégia justificar. Em sessão com vários repositórios, os perfis de mesmo nome colidem; a política manda conferir a descrição antes de usar.
+- Status: vigente. Origem: política de execução enviada pelo usuário em 2026-11-18; confiança: alta.
