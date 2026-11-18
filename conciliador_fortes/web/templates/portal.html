@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block nav %}<a href="/painel">Painel</a><strong>{{ emp.razao_social }}</strong>{% endblock %}
+{% block corpo %}<h1>Portal do cliente · {{ emp.razao_social }}</h1>
+<div class="card"><h2>Enviar arquivo</h2><form method="post" action="/c/{{ emp.slug }}/enviar" enctype="multipart/form-data">{{ csrf_campo() }}
+<div class="linha"><div><label>Arquivo (OFX, CSV, XLSX, PDF, imagem)</label><input type="file" name="arquivo" required></div>
+<div><label>Tipo</label><select name="categoria">{% for c in categorias %}<option>{{ c }}</option>{% endfor %}</select></div>
+<div><label>Descrição (opcional)</label><input type="text" name="descricao" maxlength="500"></div></div>
+<div class="acoes"><button type="submit">Enviar</button></div></form>
+<p class="mut">Os arquivos são guardados cifrados e só a equipe contábil desta empresa tem acesso.</p></div>
+<div class="card"><h2>Pedidos da equipe</h2>{% if not solic %}<p class="mut">Nenhum pedido.</p>{% endif %}
+{% for s in solic %}<div class="card"><div class="mut">#{{ s.id }} · {{ s.criada_em }} · {{ s.status }}</div><p>{{ s.mensagem }}</p>
+{% if s.resposta %}<p><strong>Sua resposta:</strong> {{ s.resposta }}</p>{% endif %}
+{% if s.status != 'encerrada' %}<form method="post" action="/c/{{ emp.slug }}/solicitacoes/{{ s.id }}/responder">{{ csrf_campo() }}
+<label>{{ 'Nova resposta' if s.resposta else 'Responder' }}</label><textarea name="texto" required></textarea>
+<label>Anexar um arquivo que você já enviou (opcional)</label><select name="documento_id"><option value="">(nenhum)</option>{% for d in docs %}<option value="{{ d.id }}">{{ d.nome }}</option>{% endfor %}</select>
+<div class="acoes"><button type="submit">Enviar resposta</button></div></form>{% endif %}</div>{% endfor %}</div>
+<div class="card"><h2>Seus envios</h2><div class="tw"><table><tr><th>Arquivo</th><th>Tipo</th><th>Enviado em</th><th>Situação</th><th></th></tr>
+{% for d in docs %}<tr><td>{{ d.nome }}</td><td>{{ d.categoria }}</td><td>{{ d.enviado_em }}</td><td>{{ d.status }}</td><td><a href="/c/{{ emp.slug }}/documentos/{{ d.id }}/baixar">baixar</a></td></tr>{% endfor %}</table></div></div>{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base_equipe.html" %}{% block corpo %}<h1>Cargas e documentos</h1>
+<div class="card"><h2>Enviar arquivo</h2><p class="mut">Extrato (OFX/CSV/XLSX), planilha de despesas, lançamentos no leiaute do Fortes, Razão ou documentos de apoio. Primeiro o arquivo é recebido e guardado; depois você o processa.</p>
+<form method="post" action="/e/{{ emp.slug }}/cargas/enviar" enctype="multipart/form-data">{{ csrf_campo() }}
+<div class="linha"><div><label>Arquivo</label><input type="file" name="arquivo" required></div>
+<div><label>Tipo</label><select name="categoria">{% for c in categorias %}<option>{{ c }}</option>{% endfor %}</select></div>
+<div><label>Descrição</label><input type="text" name="descricao" maxlength="500"></div></div><div class="acoes"><button type="submit">Receber arquivo</button></div></form></div>
+<div class="card"><h2>Documentos</h2><div class="tw"><table><tr><th>#</th><th>Arquivo</th><th>Tipo</th><th>Origem</th><th>Enviado por</th><th>Em</th><th>Situação</th><th></th></tr>
+{% for d in docs %}<tr><td>{{ d.id }}</td><td>{{ d.nome_original }}</td><td>{{ d.categoria }}</td><td>{{ d.origem }}</td><td>{{ d.enviado_por }}</td><td>{{ d.enviado_em }}</td><td>{{ status_tag(d.status) }}</td><td><a href="/e/{{ emp.slug }}/documentos/{{ d.id }}">abrir</a></td></tr>{% endfor %}</table></div></div>
+<div class="card"><h2>Arquivos já processados (originais imutáveis)</h2><div class="tw"><table><tr><th>#</th><th>Arquivo</th><th>Tipo</th><th>Por</th><th>Em</th><th>SHA-256</th></tr>
+{% for a in arquivos %}<tr><td>{{ a.id }}</td><td>{{ a.nome_original }}</td><td>{{ a.tipo }}</td><td>{{ a.enviado_por }}</td><td>{{ a.enviado_em }}</td><td class="mono">{{ a.sha256[:16] }}…</td></tr>{% endfor %}</table></div></div>{% endblock %}

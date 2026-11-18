@@ -66,6 +66,44 @@ MATRIZ = [
     ("R12 Extratos reais do piloto carregam e fecham o saldo", "H5", "-",
      ["test_ofx_exemplo", "test_csv_com_mapeamento", "test_xlsx_entrada_saida"],
      "Carregar um OFX e um CSV/XLSX reais de cada banco (procedimento H5)"),
+    ("R13 Lançamentos manuais (provisão, reclassificação, ajuste) com a mesma governança e entrada no lote", "H1", "5",
+     ["test_lanc_01_criar_exige_conta_valida_e_valor", "test_lanc_02_duplicidade_exige_justificativa",
+      "test_lanc_03_quem_criou_nao_confirma_e_triggers", "test_lanc_04_importar_leiaute_fortes_tudo_ou_nada",
+      "test_lanc_05_entra_no_lote_com_marca_propria_e_ida_e_volta",
+      "test_lanc_06_marca_ou_referencia_ja_no_razao_bloqueia",
+      "test_lanc_07_confere_no_razao_e_saldo_inclui_lancamento_no_banco",
+      "test_lanc_08_lote_aceito_com_lancamento_conferido_no_razao"],
+     "Fortes aceitar a marca [AJU/PRV/REC/TRP-AAAAMM-NNNNNN] no histórico (H1)"),
+    ("R14 Conciliação extrato × Razão movimento a movimento, com classificação das diferenças", "H3", "3",
+     ["test_conc_01_extrato_x_razao_classifica_as_diferencas", "test_conc_02_lote_do_proprio_app_concilia_limpo",
+      "test_conc_03_sem_razao_carregado_pede_o_razao"], "Razão real exportado do Fortes (H3)"),
+    ("R15 Web: autenticação, bloqueio, sessão, CSRF, 2FA, cabeçalhos", "-", "Segurança",
+     ["test_sec_01_politica_de_senha", "test_sec_02_bloqueio_por_falhas_sem_revelar_conta",
+      "test_sec_03_sessao_expira_por_inatividade_e_tempo_total", "test_sec_04_totp_rfc6238_e_sem_reuso",
+      "test_sec_05_2fa_codigos_de_recuperacao_uso_unico", "test_sec_06_promover_sessao_troca_o_token",
+      "test_web_01_cabecalhos_e_cookie", "test_web_02_sem_sessao_tudo_redireciona_para_login",
+      "test_web_03_login_csrf_e_mensagem_generica", "test_web_04_bloqueio_por_tentativas",
+      "test_web_05_csrf_nas_acoes", "test_web_06_logout_invalida_o_cookie", "test_web_07_sessao_ociosa_expira",
+      "test_web_08_2fa_obrigatorio_para_equipe", "test_web_09_trocar_senha_politica_e_sessoes"],
+     "Pentest independente e HTTPS real (não feitos)"),
+    ("R16 Web: isolamento entre empresas, entre clientes e por papel", "-", "Segurança",
+     ["test_sec_08_cliente_so_recebe_papel_cliente", "test_web_10_isolamento_entre_empresas_e_papeis",
+      "test_web_11_permissao_por_papel_dentro_da_equipe", "test_doc_02_cliente_ve_so_o_que_enviou_e_equipe_processa",
+      "test_doc_03_solicitacoes", "test_web_14_portal_cliente_e_isolamento_entre_clientes"],
+     "Teste de acesso cruzado com contas reais (Etapa B)"),
+    ("R17 Upload seguro, XSS e criptografia em repouso", "-", "Segurança",
+     ["test_doc_01_validacao_de_upload", "test_web_12_upload_malicioso_e_limites", "test_web_13_xss_nos_textos_do_extrato",
+      "test_cri_01_arquivos_cifrados_em_repouso", "test_web_15_arquivos_cifrados_em_disco"],
+     "Criptografia de disco do banco SQLite (implantação)"),
+    ("R18 Auditoria encadeada (detecta alteração, remoção, encadeamento forjado e linha inserida)", "-", "5",
+     ["test_aud_01_cadeia_detecta_adulteracao", "test_aud_02_cadeia_de_acesso_central",
+      "test_aud_03_cadeia_detecta_encadeamento_forjado_e_linha_inserida_por_fora"], "-"),
+    ("R19 Fluxo completo por HTTP: carga, revisão, 2ª confirmação, conferência, lote, retorno, conferência no Razão", "H1", "1, 5",
+     ["test_web_16_fluxo_completo_ate_o_lote", "test_web_17_lancamento_manual_importado_e_exportado",
+      "test_web_18_admin_cria_usuario_com_senha_temporaria", "test_web_19_homologacao_exige_evidencia_pela_tela",
+      "test_web_20_erros_nao_vazam_detalhes"], "Importação real do lote no Fortes (H1)"),
+    ("R20 Pré-validação de lotes já gerados (estrutura, duplicidade, plano, saldo)", "H1", "1",
+     ["test_scr_01_validador_de_lote_existente"], "Aceitação pelo Fortes (H1)"),
 ]
 
 
@@ -157,6 +195,11 @@ def main() -> None:
             "fica **não testado**.\n\n")
     rod = ("\n## 3. Falhas identificadas e ações corretivas (histórico da construção)\n\n"
            "| Falha | Como apareceu | Ação corretiva | Evidência |\n|---|---|---|---|\n"
+           "| Formulários do web app renderizavam `<Macro 'csrf'>` no lugar do token (nome da macro igual ao da variável); toda ação autenticada caía em 403 | teste HTTP `test_web_05` | macro renomeada para `csrf_campo` | `test_web_*` passando |\n"
+           "| Conexão SQLite criada numa thread e usada em outra (FastAPI) derrubava o login | teste HTTP `test_web_01` | `check_same_thread=False` (conexão por requisição, uso sequencial) | `test_web_*` |\n"
+           "| Mutação da cadeia de auditoria (desligar a checagem de encadeamento) sobreviveu | verificação por mutação | `test_aud_03` (hash próprio válido com elo forjado; linha sem hash inserida por fora) | mutação agora detectada |\n"
+           "| Segregação de função comparava o nome do usuário (homônimos se confundiriam) | revisão de projeto ao abrir o sistema a vários usuários | identidade passa a incluir o id (`Nome #id`) | `test_doc_02`, `test_segregacao_de_funcao` |\n"
+           "| Meu próprio validador tratava marca repetida como erro, mas na prática do escritório a reclassificação reaproveita a marca do movimento original | pré-validação dos lotes reais (4 casos em `COMPLETO_v13`) | marca repetida em lançamentos diferentes virou aviso; linha idêntica segue como erro | `test_scr_01` |\n"
            "| Registro de “lote bloqueado” sumia da auditoria (rollback junto com a operação) | teste de fluxo completo | "
            "registro feito em transação à parte | `test_lote_fortes_completo_byte_a_byte` |\n"
            "| Abas voltavam para a primeira após cada ação | teste de navegador | abas com estado preservado | "
@@ -164,7 +207,19 @@ def main() -> None:
            "| Teste de duplicidade mal desenhado (não exercitava o bloqueio) | mutação: a proteção foi desligada e o teste seguiu passando | "
            "teste reescrito (`test_aut_dup_02_...`); nova mutação passou a ser detectada | mutação documentada no plano de testes |\n"
            "\nNenhuma falha do app foi observada na instalação real, porque nenhum teste nela foi executado.\n")
-    (a.saida / "relatorio-homologacao.md").write_text(cab + "\n".join(sec) + rod, encoding="utf-8")
+    real = ("\n## 4. Verificação com arquivos reais do escritório (pré-validação; NÃO é o item H1)\n\n"
+            "Executada em 2026-11-18, em sessão de trabalho, com os arquivos enviados pelo escritório (não versionados). "
+            "Reproduzível com `scripts/validar_lote_existente.py`. O que prova: o leiaute e o leitor do app lidos sobre "
+            "lotes reais e a consistência contábil dos lotes. O que não prova: que o Fortes aceita um lote gerado pelo app.\n\n"
+            "| Verificação | Resultado |\n|---|---|\n"
+            "| 32 arquivos de lançamentos (`importacao_FORTES_NX_*.csv`) lidos pelo leitor do app | 32 lidos, 0 erros |\n"
+            "| `COMPLETO_v13`: 2.083 lançamentos, 9 campos, ASCII, CRLF, sem linha idêntica repetida | sem problemas |\n"
+            "| Saldo da conta 362 em 31/12/2025 e em 27/10/2026 (esperados +43.028,71 e −388,80, do prompt do agente) | bate em `COMPLETO_v10` a `v13`, `FINAL`, `CONSOLIDADO_COMPLETO` e `BASE_CORRIGIDA_SOCIOS`; **não** bate em `UNIFICADO_v9_FINAL` (iteração anterior) |\n"
+            "| Marcas repetidas em lançamentos diferentes | 4 casos (reclassificações `D 2 / C 375` reaproveitando a marca do recebimento); tratado como aviso |\n"
+            "| `AJUSTE_INSS_MULTA_JUROS_DARF` (12 lançamentos) | estrutura válida; contas não conferidas por falta do plano de contas |\n"
+            "| Contas contra o plano de contas real | **não feito** (o plano não foi enviado) |\n"
+            "| Extrato bruto (OFX/CSV/PDF) | **não feito** (não enviado) |\n")
+    (a.saida / "relatorio-homologacao.md").write_text(cab + "\n".join(sec) + rod + real, encoding="utf-8")
     print(f"{ok}/{total} testes passaram; matriz e relatório em {a.saida}")
     if inexistentes:
         sys.exit(f"testes da matriz que não existem: {inexistentes}")

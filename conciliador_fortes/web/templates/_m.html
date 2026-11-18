@@ -1,0 +1,6 @@
+{% macro csrf_campo() %}<input type="hidden" name="csrf" value="{{ csrf }}">{% endmacro %}
+{% macro conta_select(nome, contas, sel=None, vazio=False) %}
+<select name="{{ nome }}" required>{% if vazio %}<option value="">(nenhuma)</option>{% endif %}
+{% for c in contas %}<option value="{{ c.reduzido }}" {% if sel == c.reduzido %}selected{% endif %}>{{ c.reduzido }} · {{ c.classificacao }} · {{ c.descricao }}</option>{% endfor %}</select>
+{% endmacro %}
+{% macro status_tag(s) %}<span class="tag {% if s in ['exportado','classificado','confirmado','aceito','processado','respondida','concluida'] %}ok{% elif s in ['descartado','rejeitado','recusado','divergente'] %}er{% else %}wa{% endif %}">{{ s }}</span>{% endmacro %}

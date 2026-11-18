@@ -93,7 +93,7 @@ def test_segregacao_de_funcao(empresa_pronta):
         o.segunda_confirmacao(rev, socio["id"])
     o.classificar(op, socio["id"], "90", natureza="socio")
     o.segunda_confirmacao(rev, socio["id"])
-    assert movs(op, id=socio["id"])[0]["segunda_confirmacao_por"] == "Revisor B"
+    assert movs(op, id=socio["id"])[0]["segunda_confirmacao_por"] == "Revisor B #2"
 
 
 def test_lote_fortes_completo_byte_a_byte(empresa_pronta):

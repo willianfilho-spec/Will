@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block corpo %}<div class="card centro"><h1>Entrar</h1>
+{% if erro %}<div class="msg erro">{{ erro }}</div>{% endif %}
+<form method="post" action="/login" autocomplete="on"><input type="hidden" name="csrf_login" value="{{ csrf_login }}">
+<label for="email">E-mail</label><input id="email" type="email" name="email" required autocomplete="username">
+<label for="senha">Senha</label><input id="senha" type="password" name="senha" required autocomplete="current-password">
+<div class="acoes"><button type="submit">Entrar</button></div></form>
+<p class="mut">Acesso restrito. Todas as ações são registradas.</p></div>{% endblock %}

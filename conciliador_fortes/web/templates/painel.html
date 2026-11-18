@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% block corpo %}<h1>Suas empresas</h1>
+{% if not itens %}<div class="card">Nenhuma empresa liberada para você. Peça ao administrador.</div>{% endif %}
+<div class="grid">{% for i in itens %}<div class="card"><strong>{{ i.emp.razao_social }}</strong><div class="mut">Papel: {{ i.papel }}</div>
+<div class="acoes">{% if i.papel == 'cliente' %}<a class="btn" href="/c/{{ i.emp.slug }}">Abrir portal</a>{% else %}<a class="btn" href="/e/{{ i.emp.slug }}">Abrir</a>{% endif %}</div></div>{% endfor %}</div>{% endblock %}

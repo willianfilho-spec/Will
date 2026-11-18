@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% block corpo %}<div class="card centro"><h1>Verificação em duas etapas</h1>
+<p>Digite o código de 6 dígitos do aplicativo autenticador, ou um código de recuperação.</p>
+<form method="post" action="/2fa">{{ csrf_campo() }}<label for="codigo">Código</label><input id="codigo" type="text" name="codigo" required autocomplete="one-time-code" inputmode="numeric">
+<div class="acoes"><button type="submit">Verificar</button></div></form></div>{% endblock %}

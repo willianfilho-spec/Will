@@ -1,0 +1,23 @@
+{% extends "base_equipe.html" %}{% block corpo %}<h1>Documento #{{ d.id }} · {{ d.nome_original }}</h1>
+<div class="card"><p>Tipo: <strong>{{ d.categoria }}</strong> · origem: {{ d.origem }} · enviado por {{ d.enviado_por }} em {{ d.enviado_em }} · {{ status_tag(d.status) }}</p>
+<p class="mono">SHA-256 {{ d.sha256 }}</p>{% if d.descricao %}<p>{{ d.descricao }}</p>{% endif %}{% if d.observacao %}<p class="mut">{{ d.observacao }}</p>{% endif %}
+<div class="acoes"><a class="btn sec" href="/e/{{ emp.slug }}/documentos/{{ d.id }}/baixar">Baixar</a></div></div>
+{% if d.status == 'recebido' %}
+{% if d.categoria in ['extrato', 'planilha'] %}<div class="card"><h2>Processar como {{ 'extrato bancário' if d.categoria == 'extrato' else 'planilha de despesas' }}</h2>
+<form method="post" action="/e/{{ emp.slug }}/documentos/{{ d.id }}/processar">{{ csrf_campo() }}
+{% if d.categoria == 'extrato' %}<label>Conta do banco no plano</label>{{ conta_select('conta_banco', contas, conta_padrao) }}{% endif %}
+{% if not ofx %}{% if previa %}<div class="tw"><table><tr>{% for c in previa[0] %}<th>{{ c }}</th>{% endfor %}</tr>{% for l in previa %}<tr>{% for v in l.values() %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</table></div>{% endif %}
+<div class="linha"><div><label>Coluna da data</label><select name="col_data">{% for c in colunas %}<option {% if sug.data == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
+<div><label>Coluna do histórico</label><select name="col_historico">{% for c in colunas %}<option {% if sug.historico == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
+<div><label>Valor (uma coluna com sinal)</label><select name="col_valor"><option value="">(usar entrada/saída)</option>{% for c in colunas %}<option {% if sug.valor == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
+<div><label>Entrada</label><select name="col_entrada"><option value="">(nenhuma)</option>{% for c in colunas %}<option>{{ c }}</option>{% endfor %}</select></div>
+<div><label>Saída</label><select name="col_saida"><option value="">(nenhuma)</option>{% for c in colunas %}<option>{{ c }}</option>{% endfor %}</select></div>
+<div><label>Documento (opcional)</label><select name="col_documento"><option value="">(nenhuma)</option>{% for c in colunas %}<option>{{ c }}</option>{% endfor %}</select></div></div>
+<label><input type="checkbox" name="inverter" value="1" {% if d.categoria == 'planilha' %}checked{% endif %}> Os pagamentos vêm positivos (inverter o sinal)</label>{% endif %}
+<div class="acoes"><button type="submit">Validar e processar</button></div></form></div>
+{% elif d.categoria == 'lancamentos' %}<div class="card"><h2>Importar como lançamentos manuais</h2><p class="mut">Leiaute do Fortes (data;débito;crédito;valor;histórico;;;;). Tudo ou nada. Cada lançamento ainda precisa da confirmação de outra pessoa.</p>
+<form method="post" action="/e/{{ emp.slug }}/documentos/{{ d.id }}/processar">{{ csrf_campo() }}<label>Tipo (vazio = pela marca do histórico)</label><select name="tipo">{% for t in tipos %}<option value="{{ t }}">{{ t or '(automático)' }}</option>{% endfor %}</select><div class="acoes"><button type="submit">Importar</button></div></form></div>
+{% elif d.categoria == 'razao' %}<div class="card"><h2>Carregar como Razão</h2><p class="mut">Só o formato de lançamentos no leiaute de importação do Fortes. Para Razão em planilha, use Cadastros.</p>
+<form method="post" action="/e/{{ emp.slug }}/documentos/{{ d.id }}/processar">{{ csrf_campo() }}<button type="submit">Carregar Razão</button></form></div>{% endif %}
+<div class="card"><h2>Recusar</h2><form method="post" action="/e/{{ emp.slug }}/documentos/{{ d.id }}/recusar">{{ csrf_campo() }}<label>Motivo</label><input type="text" name="motivo" required minlength="5"><div class="acoes"><button class="perigo" type="submit">Recusar documento</button></div></form></div>
+{% endif %}{% endblock %}

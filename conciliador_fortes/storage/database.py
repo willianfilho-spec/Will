@@ -67,6 +67,32 @@ BEGIN SELECT RAISE(ABORT, 'registro de homologação não pode ser alterado; reg
 CREATE TRIGGER IF NOT EXISTS trg_homologacoes_sem_delete BEFORE DELETE ON homologacoes
 BEGIN SELECT RAISE(ABORT, 'registro de homologação não pode ser apagado'); END;
 
+CREATE TABLE IF NOT EXISTS sessoes (
+    token_hash TEXT PRIMARY KEY,
+    usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+    csrf TEXT NOT NULL,
+    criada_em REAL NOT NULL,
+    ultimo_uso REAL NOT NULL,
+    expira_em REAL NOT NULL,
+    mfa_ok INTEGER NOT NULL DEFAULT 0,
+    ip TEXT,
+    flash TEXT,
+    totp_pendente TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_sessoes_usuario ON sessoes(usuario_id);
+CREATE TABLE IF NOT EXISTS tentativas_login (
+    chave TEXT PRIMARY KEY,
+    falhas INTEGER NOT NULL DEFAULT 0,
+    janela_inicio REAL NOT NULL,
+    bloqueado_ate REAL NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS codigos_recuperacao (
+    usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+    codigo_hash TEXT NOT NULL,
+    usado_em TEXT,
+    PRIMARY KEY (usuario_id, codigo_hash)
+);
+
 CREATE TABLE IF NOT EXISTS audit_acesso (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL,
@@ -81,6 +107,17 @@ BEGIN SELECT RAISE(ABORT, 'auditoria não pode ser alterada'); END;
 CREATE TRIGGER IF NOT EXISTS trg_audit_acesso_sem_delete BEFORE DELETE ON audit_acesso
 BEGIN SELECT RAISE(ABORT, 'auditoria não pode ser apagada'); END;
 """
+
+MIGRACOES_CENTRAL = {
+    "usuarios": {
+        "totp_segredo": "TEXT",
+        "totp_ativo": "INTEGER NOT NULL DEFAULT 0",
+        "totp_ultimo_passo": "INTEGER NOT NULL DEFAULT 0",
+        "deve_trocar_senha": "INTEGER NOT NULL DEFAULT 0",
+        "senha_alterada_em": "TEXT",
+    },
+    "audit_acesso": {"hash_anterior": "TEXT", "hash": "TEXT"},
+}
 
 SCHEMA_CONTABIL = """
 CREATE TABLE IF NOT EXISTS parametros (
@@ -252,6 +289,74 @@ CREATE TABLE IF NOT EXISTS lote_itens (
     PRIMARY KEY (lote_id, movimento_id)
 );
 
+CREATE TABLE IF NOT EXISTS documentos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    uuid TEXT UNIQUE NOT NULL,
+    nome_original TEXT NOT NULL,
+    categoria TEXT NOT NULL CHECK (categoria IN ('extrato', 'planilha', 'folha', 'guia', 'recibo', 'contrato',
+                                                  'lancamentos', 'razao', 'outro')),
+    descricao TEXT,
+    sha256 TEXT NOT NULL,
+    tamanho INTEGER NOT NULL,
+    caminho TEXT NOT NULL,
+    origem TEXT NOT NULL CHECK (origem IN ('cliente', 'equipe')),
+    enviado_por TEXT NOT NULL,
+    usuario_id INTEGER NOT NULL,
+    enviado_em TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'recebido' CHECK (status IN ('recebido', 'processado', 'recusado')),
+    observacao TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_documentos_sha ON documentos(sha256);
+
+CREATE TABLE IF NOT EXISTS lancamentos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo TEXT NOT NULL CHECK (tipo IN ('ajuste', 'provisao', 'reclassificacao', 'transposicao', 'outro')),
+    data TEXT NOT NULL,
+    conta_debito TEXT NOT NULL,
+    conta_credito TEXT NOT NULL,
+    valor_centavos INTEGER NOT NULL CHECK (valor_centavos > 0),
+    historico TEXT NOT NULL,
+    ref_externa TEXT,
+    documento_id INTEGER REFERENCES documentos(id),
+    status TEXT NOT NULL DEFAULT 'aguardando_confirmacao'
+        CHECK (status IN ('aguardando_confirmacao', 'confirmado', 'exportado', 'descartado')),
+    criado_por TEXT NOT NULL,
+    criado_em TEXT NOT NULL,
+    confirmado_por TEXT,
+    confirmado_em TEXT,
+    observacao TEXT,
+    lote_id INTEGER REFERENCES lotes(id),
+    marca TEXT UNIQUE,
+    CHECK (conta_debito <> conta_credito)
+);
+CREATE INDEX IF NOT EXISTS ix_lanc_data ON lancamentos(data);
+
+CREATE TABLE IF NOT EXISTS lote_itens_lanc (
+    lote_id INTEGER NOT NULL REFERENCES lotes(id),
+    lancamento_id INTEGER NOT NULL REFERENCES lancamentos(id),
+    marca TEXT NOT NULL,
+    linha_exportada TEXT NOT NULL,
+    historico_completo TEXT NOT NULL,
+    historico_exportado TEXT NOT NULL,
+    truncado INTEGER NOT NULL CHECK (truncado IN (0, 1)),
+    PRIMARY KEY (lote_id, lancamento_id)
+);
+
+CREATE TABLE IF NOT EXISTS solicitacoes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    movimento_id INTEGER REFERENCES movimentos(id),
+    mensagem TEXT NOT NULL,
+    criada_por TEXT NOT NULL,
+    criada_em TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'aberta' CHECK (status IN ('aberta', 'respondida', 'encerrada')),
+    resposta TEXT,
+    respondida_por TEXT,
+    respondida_em TEXT,
+    documento_id INTEGER REFERENCES documentos(id),
+    encerrada_por TEXT,
+    encerrada_em TEXT
+);
+
 CREATE TABLE IF NOT EXISTS travas_periodo (
     periodo TEXT NOT NULL,
     conta_banco TEXT NOT NULL,
@@ -314,6 +419,32 @@ WHEN NEW.sha256 IS NOT OLD.sha256 OR NEW.caminho IS NOT OLD.caminho OR NEW.quant
 BEGIN SELECT RAISE(ABORT, 'lote gerado não pode ser alterado'); END;
 CREATE TRIGGER IF NOT EXISTS trg_lotes_sem_delete BEFORE DELETE ON lotes
 BEGIN SELECT RAISE(ABORT, 'lote não pode ser apagado'); END;
+CREATE TRIGGER IF NOT EXISTS trg_documentos_imutavel BEFORE UPDATE ON documentos
+WHEN NEW.sha256 IS NOT OLD.sha256 OR NEW.caminho IS NOT OLD.caminho OR NEW.tamanho IS NOT OLD.tamanho
+  OR NEW.usuario_id IS NOT OLD.usuario_id OR NEW.enviado_por IS NOT OLD.enviado_por
+BEGIN SELECT RAISE(ABORT, 'documento enviado não pode ser alterado'); END;
+CREATE TRIGGER IF NOT EXISTS trg_documentos_sem_delete BEFORE DELETE ON documentos
+BEGIN SELECT RAISE(ABORT, 'documento não pode ser apagado'); END;
+
+CREATE TRIGGER IF NOT EXISTS trg_lanc_origem_imutavel BEFORE UPDATE ON lancamentos
+WHEN NEW.data IS NOT OLD.data OR NEW.conta_debito IS NOT OLD.conta_debito OR NEW.conta_credito IS NOT OLD.conta_credito
+  OR NEW.valor_centavos IS NOT OLD.valor_centavos OR NEW.historico IS NOT OLD.historico
+  OR NEW.criado_por IS NOT OLD.criado_por OR NEW.tipo IS NOT OLD.tipo
+BEGIN SELECT RAISE(ABORT, 'lançamento manual não pode ser editado; descarte e crie outro'); END;
+CREATE TRIGGER IF NOT EXISTS trg_lanc_exportado_imutavel BEFORE UPDATE ON lancamentos
+WHEN OLD.status = 'exportado' AND NOT (NEW.status = 'exportado'
+     OR (NEW.status = 'confirmado' AND NEW.lote_id IS NULL AND NEW.marca IS NULL))
+BEGIN SELECT RAISE(ABORT, 'lançamento exportado não pode ser alterado'); END;
+CREATE TRIGGER IF NOT EXISTS trg_lanc_aceito_imutavel BEFORE UPDATE ON lancamentos
+WHEN OLD.lote_id IS NOT NULL AND (SELECT status FROM lotes WHERE id = OLD.lote_id) = 'aceito'
+BEGIN SELECT RAISE(ABORT, 'lançamento de lote aceito no Fortes não pode ser alterado'); END;
+CREATE TRIGGER IF NOT EXISTS trg_lanc_sem_delete BEFORE DELETE ON lancamentos
+BEGIN SELECT RAISE(ABORT, 'lançamento não pode ser apagado; use descartar'); END;
+CREATE TRIGGER IF NOT EXISTS trg_lote_itens_lanc_sem_update BEFORE UPDATE ON lote_itens_lanc
+BEGIN SELECT RAISE(ABORT, 'item de lote não pode ser alterado'); END;
+CREATE TRIGGER IF NOT EXISTS trg_lote_itens_lanc_sem_delete BEFORE DELETE ON lote_itens_lanc
+BEGIN SELECT RAISE(ABORT, 'item de lote não pode ser apagado'); END;
+
 CREATE TRIGGER IF NOT EXISTS trg_lote_itens_sem_update BEFORE UPDATE ON lote_itens
 BEGIN SELECT RAISE(ABORT, 'item de lote não pode ser alterado'); END;
 CREATE TRIGGER IF NOT EXISTS trg_lote_itens_sem_delete BEFORE DELETE ON lote_itens
@@ -329,6 +460,7 @@ MIGRACOES_CONTABIL = {
         "conferido_por": "TEXT",
         "conferido_em": "TEXT",
     },
+    "audit_log": {"hash_anterior": "TEXT", "hash": "TEXT"},
     "conciliacoes": {
         "razao_homologado": "INTEGER NOT NULL DEFAULT 0",
         "formato_razao": "TEXT",
@@ -350,7 +482,7 @@ def validar_slug(slug: str) -> str:
 
 def _conectar(caminho: Path) -> sqlite3.Connection:
     caminho.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(caminho, timeout=config.BUSY_TIMEOUT_MS / 1000, isolation_level=None)
+    con = sqlite3.connect(caminho, timeout=config.BUSY_TIMEOUT_MS / 1000, isolation_level=None, check_same_thread=False)
     con.row_factory = sqlite3.Row
     con.execute(f"PRAGMA busy_timeout = {config.BUSY_TIMEOUT_MS}")
     con.execute("PRAGMA journal_mode = WAL")
@@ -373,6 +505,7 @@ def caminho_contabil(slug: str, data_dir: Path | None = None) -> Path:
 def conectar_central(data_dir: Path | None = None) -> sqlite3.Connection:
     con = _conectar(caminho_central(data_dir))
     con.executescript(SCHEMA_CENTRAL)
+    _migrar(con, MIGRACOES_CENTRAL)
     return con
 
 

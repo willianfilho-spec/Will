@@ -1,0 +1,15 @@
+{% extends "base_equipe.html" %}{% block corpo %}<h1>Movimento #{{ m.id }}</h1>
+<div class="card"><p><strong>{{ m.data }}</strong> · {{ m.valor_centavos|brl }} · {{ status_tag(m.status) }}</p><p>{{ m.historico }}</p>{% if m.documento %}<p class="mut">Documento: {{ m.documento }}</p>{% endif %}
+{% if m.observacao %}<p class="mut">{{ m.observacao }}</p>{% endif %}{% if m.decisao_duplicidade == 'pendente' %}<div class="msg aviso">Alerta de duplicidade pendente (aba Duplicidades).</div>{% endif %}
+{% if pistas %}<div class="msg aviso">Pista na planilha de despesas: {% for p in pistas[:3] %}{{ p.data }} · {{ p.valor_centavos|brl }} · {{ p.descricao }}{% if not loop.last %} | {% endif %}{% endfor %}</div>{% endif %}</div>
+{% if m.status not in ['exportado', 'descartado'] %}<div class="card"><h2>Classificar</h2><p class="mut">{{ 'Saída: débito na contrapartida, crédito no banco.' if m.valor_centavos < 0 else 'Entrada: débito no banco, crédito na contrapartida.' }}</p>
+<form method="post" action="/e/{{ emp.slug }}/revisao/mov/{{ m.id }}/classificar">{{ csrf_campo() }}
+<label>Contrapartida</label>{{ conta_select('conta', contas, contra) }}
+<label>Histórico contábil</label><input type="text" name="historico" value="{{ m.historico_contabil or m.historico }}">
+<label>Natureza (sócio e incerta exigem segunda confirmação)</label><select name="natureza">{% for n in naturezas %}<option {% if m.natureza == n %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+<div class="acoes"><button type="submit">Classificar</button></div></form></div>
+<div class="card"><h2>Colocar em espera</h2><form method="post" action="/e/{{ emp.slug }}/revisao/mov/{{ m.id }}/espera">{{ csrf_campo() }}<label>O que falta para classificar</label><input type="text" name="texto" required minlength="3"><div class="acoes"><button class="sec" type="submit">Em espera</button></div></form></div>
+<div class="card"><h2>Perguntar ao cliente</h2><p class="mut">O cliente vê só a sua mensagem, sem os dados do movimento. Escreva o que for preciso para ele entender.</p>
+<form method="post" action="/e/{{ emp.slug }}/revisao/mov/{{ m.id }}/solicitar">{{ csrf_campo() }}<label>Mensagem</label><textarea name="texto" required minlength="5"></textarea><div class="acoes"><button class="sec" type="submit">Enviar pedido</button></div></form>
+{% for s in solic %}<p class="mut">#{{ s.id }} {{ s.status }}: {{ s.mensagem }}{% if s.resposta %} → {{ s.resposta }}{% endif %}</p>{% endfor %}</div>{% endif %}
+<p><a href="/e/{{ emp.slug }}/revisao">← voltar à revisão</a></p>{% endblock %}

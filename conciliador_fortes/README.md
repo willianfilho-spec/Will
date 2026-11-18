@@ -1,31 +1,39 @@
-# Conciliador Fortes (MVP · Etapa A)
+# Conciliador Fortes
 
-Aplicativo local para conciliar extratos bancários com a contabilidade e gerar
-lotes de lançamentos no leiaute de importação do Fortes Contábil. Feito para
-uso interno do escritório (Etapa A): roda numa máquina, abre no navegador e
-guarda tudo em SQLite.
+Aplicativo para conciliar extratos bancários com a contabilidade e gerar lotes de lançamentos no leiaute de
+importação do Fortes Contábil. Duas interfaces sobre o mesmo núcleo e os mesmos bancos SQLite:
 
-## Como rodar
+| Interface | Para quê | Como subir |
+|---|---|---|
+| **Web app** (FastAPI) | equipe **e clientes externos**: login, 2FA, portal do cliente, administração | `python scripts/rodar_web.py --demo` (demonstração) ou ver `../docs/conciliador-fortes/IMPLANTACAO.md` |
+| Streamlit (legado) | uso local rápido pela equipe, sem portal do cliente nem 2FA | `streamlit run app.py` |
+
+> **Estado honesto:** protótipo funcional, testado com dados sintéticos e com leitura de lotes reais. **A integração com
+> o Fortes não está homologada** (nenhum lote gerado aqui foi importado num Fortes real) e o sistema **não passou por
+> teste de intrusão independente**. Veja `../docs/conciliador-fortes/SEGURANCA.md` e
+> `../docs/conciliador-fortes/homologacao/relatorio-homologacao.md`.
+
+## Como rodar a demonstração
 
 ```bash
 cd conciliador_fortes
 pip install -r requirements.txt
-streamlit run app.py
+python scripts/rodar_web.py --demo
 ```
 
-Na primeira vez, a tela pede o administrador e a primeira empresa. Os dados
-ficam em `conciliador_fortes/data/` (ou na pasta de `CONCILIADOR_DATA_DIR`),
-que **nunca** deve ir para o git.
+Abre em `http://127.0.0.1:8000` com dados inventados. Senha de todos: `Demo-Conciliador-2026!`. Usuários:
+`admin@demo.test`, `operador@demo.test`, `revisor@demo.test`, `cliente@demo.test`. O modo demo desliga o 2FA e o cookie
+`Secure`; **não use em produção**.
 
-Para conhecer o fluxo com dados inventados:
+## Quem faz o quê
 
-```bash
-CONCILIADOR_DATA_DIR=/tmp/demo python scripts/seed_demo.py
-CONCILIADOR_DATA_DIR=/tmp/demo streamlit run app.py
-```
-
-Logins da demonstração (senha `demo-1234`): `operador@demo.test`,
-`revisor@demo.test`, `admin@demo.test`.
+| Papel | Pode |
+|---|---|
+| cliente | enviar arquivos, responder pedidos da equipe, baixar o que enviou. Nada além |
+| operador | carregar, classificar, criar lançamentos manuais, conferir saldos, registrar retorno do Fortes |
+| revisor | tudo do operador + segunda confirmação (movimentos e lançamentos), revisar diferença, gerar lote |
+| aprovador | tudo, inclusive backup |
+| admin (global) | usuários, empresas, permissões, desbloqueio, 2FA, homologação |
 
 ## Fluxo
 
@@ -38,9 +46,13 @@ Logins da demonstração (senha `demo-1234`): `operador@demo.test`,
 4. **Revisão**: aceite em bloco das propostas de regra, classificação manual,
    natureza (transferência, tributo, sócio, incerta), itens em espera,
    decisão de duplicidade e segunda confirmação por outra pessoa.
-5. **Conferência e exportação**: saldo inicial + movimentação = saldo final do
-   extrato; extrato x contabilidade; justificativa e segunda revisão de diferença;
-   geração do lote; registro de aceite ou rejeição no Fortes.
+5. **Lançamentos manuais** (web): provisões, reclassificações, transposições e ajustes que não vêm do extrato
+   (ex.: D despesa / C INSS a recolher). Criação por uma pessoa, confirmação obrigatória por outra, entrada no mesmo
+   lote. Aceita importar arquivo no leiaute do Fortes.
+6. **Conferência e exportação**: saldo inicial + movimentação = saldo final do extrato; extrato × contabilidade;
+   **extrato × Razão movimento a movimento** (diferenças classificadas); justificativa e segunda revisão;
+   geração do lote; registro de aceite ou rejeição no Fortes; conferência do lote no Razão depois da importação.
+7. **Portal do cliente** (web): envio de arquivos (cifrados em disco), pedidos da equipe e respostas.
 
 ## Travas que não dá para contornar pela tela
 
@@ -82,7 +94,7 @@ conferência do lote no Razão depois da importação; verificação de SHA-256 
 ## Testes
 
 ```bash
-python -m pytest          # 75 testes: dinheiro, leitores, fluxo, validadores, isolamento, backup, homologação
+python -m pytest          # inclui segurança web, fluxo completo por HTTP, lançamentos manuais, conciliação, homologação
 ```
 
 Testes de navegador: ver `tests/e2e/LEIAME.md`.
@@ -97,10 +109,11 @@ parsers/               ofx, tabular (CSV/XLSX), plano e razão do Fortes
 exporters/             validador pré-exportação e gerador do leiaute
 ai/suggester.py        interface desligada; se ligada, só sugere
 storage/               database (central.db e contabil.db), usuarios, audit, backup
-ui/                    telas
+web/                   web app (FastAPI): rotas, templates, segurança
+ui/                    telas do Streamlit (legado)
 scripts/               seed_demo, restaurar_backup, teste_restauracao, gerar_lote_homologacao, relatorio_homologacao
 exemplos/              arquivos sintéticos
 ```
 
-Etapa B (clientes enviando pelo navegador) não está pronta: o servidor escuta
-só em `localhost` e não há HTTPS, recuperação de senha nem testes de intrusão.
+Para clientes externos: o app tem o portal e os controles de segurança descritos em `SEGURANCA.md`, mas exige HTTPS
+via proxy, chave de criptografia configurada e disco cifrado. Faltam recuperação de senha por e-mail e teste de intrusão.

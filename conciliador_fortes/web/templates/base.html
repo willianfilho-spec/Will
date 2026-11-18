@@ -1,0 +1,12 @@
+{% from "_m.html" import csrf_campo with context %}<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>{% block titulo %}Conciliador Fortes{% endblock %}</title>
+<link rel="stylesheet" href="/static/app.css"></head><body>
+{% if usuario %}<header class="barra"><span class="marca">Conciliador Fortes</span>
+<nav>{% block nav %}<a href="/painel">Painel</a>{% if usuario.papel_global == 'admin' %}<a href="/admin">Administração</a>{% endif %}{% endblock %}</nav>
+<span class="mut">{{ usuario.nome }}</span><a href="/conta">Conta</a>
+<form method="post" action="/logout" class="inline">{{ csrf_campo() }}<button class="sec" type="submit">Sair</button></form></header>{% endif %}
+<main>
+{% if usuario and not homologada and usuario.papel_global != 'cliente' %}<div class="msg aviso"><strong>Integração com o Fortes não homologada.</strong> Nenhum lote gerado aqui foi conferido depois de uma importação real. Use uma empresa de teste no Fortes até o administrador registrar a homologação.</div>{% endif %}
+{% if flash %}<div class="msg {{ 'ok' if flash.tipo == 'ok' else 'erro' }}">{% if flash.mensagens|length == 1 %}{{ flash.mensagens[0] }}{% else %}<ul>{% for m in flash.mensagens %}<li>{{ m }}</li>{% endfor %}</ul>{% endif %}</div>{% endif %}
+{% block corpo %}{% endblock %}</main></body></html>

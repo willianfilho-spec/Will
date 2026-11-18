@@ -56,9 +56,19 @@ def marca(prefixo: str, data_iso: str, mov_id: int) -> str:
     return f"[{prefixo}-{data_iso[:4]}{data_iso[5:7]}-{mov_id:06d}]"
 
 
+MARCA_TIPO = {"ajuste": "AJU", "provisao": "PRV", "reclassificacao": "REC", "transposicao": "TRP", "outro": "OUT"}
+PREFIXOS_RESERVADOS = frozenset(MARCA_TIPO.values())
+
+
+def marca_lancamento(tipo: str, data_iso: str, lanc_id: int) -> str:
+    return f"[{MARCA_TIPO[tipo]}-{data_iso[:4]}{data_iso[5:7]}-{lanc_id:06d}]"
+
+
 def validar_prefixo(prefixo: str) -> str:
     if not re.fullmatch(r"[A-Z0-9]{2,6}", prefixo or ""):
         raise ValueError("o prefixo da marca deve ter de 2 a 6 letras maiúsculas ou números")
+    if prefixo in PREFIXOS_RESERVADOS:
+        raise ValueError(f"o prefixo {prefixo} é reservado aos lançamentos manuais")
     return prefixo
 
 
@@ -83,7 +93,7 @@ def validar(movimentos: list[dict], plano: dict[str, ContaPlano], conciliacao: d
     if not movimentos:
         problemas.append("nenhum movimento classificado para exportar no período")
     for m in movimentos:
-        ref = f"movimento {m['id']} de {date.fromisoformat(m['data']).strftime('%d/%m/%Y')}"
+        ref = f"{m.get('_rotulo', 'movimento ' + str(m['id']))} de {date.fromisoformat(m['data']).strftime('%d/%m/%Y')}"
         # partidas íntegras
         if not m.get("conta_debito") or not m.get("conta_credito"):
             problemas.append(f"{ref}: sem conta de débito ou de crédito")
@@ -134,6 +144,7 @@ class LinhaGerada:
     historico_completo: str
     historico_exportado: str
     truncado: bool
+    origem: str = "movimento"
 
 
 def gerar_linhas(movimentos: list[dict], plano: dict[str, ContaPlano], prefixo: str,
@@ -143,7 +154,7 @@ def gerar_linhas(movimentos: list[dict], plano: dict[str, ContaPlano], prefixo: 
     geradas, problemas = [], []
     for m in movimentos:
         d = date.fromisoformat(m["data"])
-        mk = marca(prefixo, m["data"], m["id"])
+        mk = m.get("_marca") or marca(prefixo, m["data"], m["id"])
         completo = m.get("historico_contabil") or m["historico"]
         hist, cortado = montar_historico(completo, mk, limite)
         campos = [
@@ -155,12 +166,12 @@ def gerar_linhas(movimentos: list[dict], plano: dict[str, ContaPlano], prefixo: 
         ] + [""] * CAMPOS_VAZIOS_NO_FIM
         linha = ";".join(campos)
         if len(linha.split(";")) != 9:
-            problemas.append(f"movimento {m['id']}: linha não tem 9 campos")
+            problemas.append(f"{m.get('_rotulo', 'movimento ' + str(m['id']))}: linha não tem 9 campos")
         if any(ord(c) > 127 for c in linha):
-            problemas.append(f"movimento {m['id']}: caractere fora do ASCII")
+            problemas.append(f"{m.get('_rotulo', 'movimento ' + str(m['id']))}: caractere fora do ASCII")
         if len(hist) > limite:
-            problemas.append(f"movimento {m['id']}: histórico com {len(hist)} caracteres, acima do limite {limite}")
-        geradas.append(LinhaGerada(m["id"], mk, linha, completo, hist, cortado))
+            problemas.append(f"{m.get('_rotulo', 'movimento ' + str(m['id']))}: histórico com {len(hist)} caracteres, acima do limite {limite}")
+        geradas.append(LinhaGerada(m["id"], mk, linha, completo, hist, cortado, m.get("_origem", "movimento")))
     linhas = [g.linha for g in geradas]
     if len(set(linhas)) != len(linhas):
         problemas.append("há linhas idênticas no lote")
@@ -191,9 +202,9 @@ def conferir_ida_e_volta(conteudo: bytes, movimentos: list[dict], geradas: list[
         esperado = (m["data"], str(m["conta_debito"]), str(m["conta_credito"]), abs(m["valor_centavos"]))
         lido = (d["data"], d["conta"], c["conta"], d["debito_centavos"])
         if lido != esperado or c["credito_centavos"] != abs(m["valor_centavos"]):
-            problemas.append(f"movimento {m['id']}: arquivo diz {lido}, origem diz {esperado}")
+            problemas.append(f"{m.get('_rotulo', 'movimento ' + str(m['id']))}: arquivo diz {lido}, origem diz {esperado}")
         if not d["historico"].endswith(g.marca):
-            problemas.append(f"movimento {m['id']}: marca {g.marca} não está no fim do histórico")
+            problemas.append(f"{m.get('_rotulo', 'movimento ' + str(m['id']))}: marca {g.marca} não está no fim do histórico")
     total = sum(p["debito_centavos"] for p in partidas)
     if total != sum(abs(m["valor_centavos"]) for m in movimentos):
         problemas.append("total do arquivo difere do total dos movimentos")

@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block corpo %}<h1>Minha conta</h1>
+{% if forcar_senha %}<div class="msg aviso">Você precisa trocar a senha antes de continuar.</div>{% endif %}
+{% if forcar_2fa %}<div class="msg aviso">Para a equipe, a verificação em duas etapas é obrigatória. Ative abaixo para continuar.</div>{% endif %}
+{% if codigos %}<div class="card"><h2>Códigos de recuperação</h2><p>Guarde em lugar seguro. Cada um vale uma vez e só aparece agora.</p><p class="mono">{% for c in codigos %}{{ c }}<br>{% endfor %}</p></div>{% endif %}
+<div class="card"><h2>Trocar senha</h2><form method="post" action="/conta/senha">{{ csrf_campo() }}
+<div class="linha"><div><label>Senha atual</label><input type="password" name="atual" required autocomplete="current-password"></div>
+<div><label>Nova senha</label><input type="password" name="nova" required autocomplete="new-password"></div>
+<div><label>Confirmar</label><input type="password" name="confirmar" required autocomplete="new-password"></div></div>
+<p class="mut">Mínimo de 10 caracteres, com ao menos 3 tipos (minúscula, maiúscula, número, símbolo). Trocar a senha encerra as outras sessões.</p>
+<div class="acoes"><button type="submit">Trocar senha</button></div></form></div>
+<div class="card"><h2>Verificação em duas etapas (2FA)</h2>
+{% if usuario.totp_ativo %}<p><span class="tag ok">ativada</span></p>
+{% if pode_desativar %}<form method="post" action="/conta/2fa/desativar">{{ csrf_campo() }}<button class="perigo" type="submit">Desativar</button></form>{% else %}<p class="mut">Obrigatória para a equipe.</p>{% endif %}
+{% elif segredo %}<p>1. No aplicativo autenticador, adicione uma conta com esta chave:</p><p class="mono">{{ segredo }}</p>
+<details><summary>Endereço otpauth</summary><p class="mono">{{ uri }}</p></details>
+<p>2. Digite o código de 6 dígitos que o aplicativo mostrar:</p>
+<form method="post" action="/conta/2fa">{{ csrf_campo() }}<div class="linha"><div><input type="text" name="codigo" required inputmode="numeric" autocomplete="one-time-code"></div></div><div class="acoes"><button type="submit">Ativar 2FA</button></div></form>{% endif %}</div>{% endblock %}

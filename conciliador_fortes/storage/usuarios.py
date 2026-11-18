@@ -28,6 +28,12 @@ PERMISSOES = {
     "exportar": {"aprovador", "revisor"},
     "registrar_retorno": {"operador", "revisor", "aprovador"},
     "backup": {"aprovador"},
+    "ver_equipe": {"operador", "revisor", "aprovador"},
+    "lancamento_manual": {"operador", "revisor", "aprovador"},
+    "enviar_documento": {"cliente", "operador", "revisor", "aprovador"},
+    "processar_documento": {"operador", "revisor", "aprovador"},
+    "criar_solicitacao": {"operador", "revisor", "aprovador"},
+    "responder_solicitacao": {"cliente", "operador", "revisor", "aprovador"},
 }
 
 
@@ -90,6 +96,11 @@ def criar_empresa(central: sqlite3.Connection, slug: str, razao_social: str, cnp
 def conceder(central: sqlite3.Connection, usuario_id: int, empresa_id: int, papel: str) -> None:
     if papel not in config.PAPEIS_EMPRESA:
         raise ValueError(f"papel de empresa inválido: {papel}")
+    u = central.execute("SELECT papel_global FROM usuarios WHERE id = ?", (usuario_id,)).fetchone()
+    if u is None:
+        raise ValueError("usuário inexistente")
+    if (u["papel_global"] == "cliente") != (papel == "cliente"):
+        raise ValueError("usuário cliente só recebe o papel 'cliente'; a equipe não recebe o papel 'cliente'")
     central.execute(
         "INSERT INTO permissoes_empresa (usuario_id, empresa_id, papel_empresa) VALUES (?, ?, ?) "
         "ON CONFLICT(usuario_id, empresa_id) DO UPDATE SET papel_empresa = excluded.papel_empresa",

@@ -1,0 +1,11 @@
+{% extends "base_equipe.html" %}{% block corpo %}<h1>Resumo · {{ emp.razao_social }}</h1><p class="mut">Seu papel: {{ papel_emp }}</p>
+<div class="grid">
+<div class="card"><div class="num">{{ fila }}</div>na fila de classificação<div class="acoes"><a href="/e/{{ emp.slug }}/revisao">Abrir</a></div></div>
+<div class="card"><div class="num">{{ segunda }}</div>aguardando segunda confirmação<div class="acoes"><a href="/e/{{ emp.slug }}/revisao?aba=segunda">Abrir</a></div></div>
+<div class="card"><div class="num">{{ dup_pendentes }}</div>alertas de duplicidade<div class="acoes"><a href="/e/{{ emp.slug }}/revisao?aba=duplicidades">Abrir</a></div></div>
+<div class="card"><div class="num">{{ lanc_aguardando }}</div>lançamentos manuais aguardando<div class="acoes"><a href="/e/{{ emp.slug }}/lancamentos">Abrir</a></div></div>
+<div class="card"><div class="num">{{ docs_recebidos }}</div>documentos a processar<div class="acoes"><a href="/e/{{ emp.slug }}/cargas">Abrir</a></div></div>
+<div class="card"><div class="num">{{ solic_abertas }} / {{ solic_respondidas }}</div>pedidos ao cliente (abertos / respondidos)<div class="acoes"><a href="/e/{{ emp.slug }}/solicitacoes">Abrir</a></div></div></div>
+<div class="card"><h2>Movimentos por situação</h2><table><tr><th>Situação</th><th class="v">Quantidade</th></tr>{% for s in por_status %}<tr><td>{{ s.status }}</td><td class="v">{{ s.n }}</td></tr>{% endfor %}</table></div>
+<div class="card"><h2>Integridade</h2><p class="mut">Confere arquivos originais, lotes, documentos e a cadeia de auditoria.</p>
+<form method="post" action="/e/{{ emp.slug }}/integridade">{{ csrf_campo() }}<button type="submit">Verificar integridade</button></form></div>{% endblock %}

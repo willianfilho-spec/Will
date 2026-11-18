@@ -1,0 +1,26 @@
+{% extends "base_equipe.html" %}{% block corpo %}<h1>Revisão e classificação</h1>
+{% set rotulos = {'fila': 'Fila', 'segunda': 'Segunda confirmação', 'duplicidades': 'Duplicidades', 'espera': 'Em espera', 'todos': 'Todos'} %}
+<div class="abas">{% for k, r in rotulos.items() %}<a href="/e/{{ emp.slug }}/revisao?aba={{ k }}" class="{{ 'atual' if aba == k }}">{{ r }} ({{ dados[k]|length }})</a>{% endfor %}</div>
+{% set lista = dados[aba] %}
+{% if aba == 'fila' %}
+{% set prop = lista|selectattr('status', 'equalto', 'proposto')|list %}{% set sem = lista|selectattr('status', 'equalto', 'pendente')|list %}
+{% if prop %}<div class="card"><h2>Propostas geradas por regra</h2><p class="mut">Confira e marque as que estão corretas. Regra só propõe; a revisão é sua.</p>
+<form method="post" action="/e/{{ emp.slug }}/revisao/aceitar">{{ csrf_campo() }}<div class="tw"><table><tr><th></th><th>#</th><th>Data</th><th class="v">Valor</th><th>Histórico</th><th>Débito</th><th>Crédito</th><th>Risco</th></tr>
+{% for m in prop %}<tr><td><input type="checkbox" name="ids" value="{{ m.id }}"></td><td><a href="/e/{{ emp.slug }}/revisao/mov/{{ m.id }}">{{ m.id }}</a></td><td>{{ m.data }}</td><td class="v">{{ m.valor_centavos|brl0 }}</td><td>{{ m.historico }}</td><td>{{ contas.get(m.conta_debito, m.conta_debito) }}</td><td>{{ contas.get(m.conta_credito, m.conta_credito) }}</td><td>{{ m.motivos_risco or '' }}</td></tr>{% endfor %}</table></div>
+{% if pode_classificar %}<div class="acoes"><button type="submit">Aceitar marcadas</button></div>{% endif %}</form></div>{% endif %}
+{% if sem %}<div class="card"><h2>Sem regra</h2><div class="tw"><table><tr><th>#</th><th>Data</th><th class="v">Valor</th><th>Histórico</th><th>Risco</th><th></th></tr>
+{% for m in sem %}<tr><td>{{ m.id }}</td><td>{{ m.data }}</td><td class="v">{{ m.valor_centavos|brl0 }}</td><td>{{ m.historico }}</td><td>{{ m.motivos_risco or '' }}</td><td><a href="/e/{{ emp.slug }}/revisao/mov/{{ m.id }}">classificar</a></td></tr>{% endfor %}</table></div></div>{% endif %}
+{% if not prop and not sem %}<div class="msg ok">Fila vazia.</div>{% endif %}
+{% elif aba == 'segunda' %}<div class="card"><p class="mut">Itens de risco precisam da confirmação de outra pessoa, diferente de quem fez a revisão inicial.</p>
+{% for m in lista %}<div class="card"><strong>#{{ m.id }}</strong> {{ m.data }} · {{ m.valor_centavos|brl }} · {{ m.historico }}<br>Débito {{ contas.get(m.conta_debito, m.conta_debito) }} · Crédito {{ contas.get(m.conta_credito, m.conta_credito) }}<br><span class="mut">Motivo: {{ m.motivos_risco }} · revisado por {{ m.revisado_por }}</span>
+{% if not pode_segunda %}<p class="mut">Seu papel não permite segunda confirmação.</p>{% elif m.revisado_por == eu %}<p class="mut">Você fez a revisão inicial; outra pessoa precisa confirmar.</p>
+{% else %}<form method="post" action="/e/{{ emp.slug }}/revisao/mov/{{ m.id }}/segunda">{{ csrf_campo() }}<label>Motivo (só para devolver)</label><input type="text" name="texto"><div class="acoes"><button type="submit">Confirmar</button><button class="sec" type="submit" formaction="/e/{{ emp.slug }}/revisao/mov/{{ m.id }}/devolver">Devolver à fila</button></div></form>{% endif %}</div>
+{% else %}<div class="msg ok">Nada aguardando segunda confirmação.</div>{% endfor %}</div>
+{% elif aba == 'duplicidades' %}<p class="mut">Nada é excluído automaticamente. Decida cada alerta; manter exige segunda confirmação.</p>
+{% for m in lista %}<div class="card"><strong>#{{ m.id }}</strong> {{ m.data }} · {{ m.valor_centavos|brl }} · {{ m.historico }}<br><span class="mut">{{ m.motivo_duplicidade }} (semelhante ao movimento #{{ m.duplicidade_de }})</span>
+{% if pode_dup %}<form method="post" action="/e/{{ emp.slug }}/revisao/mov/{{ m.id }}/manter">{{ csrf_campo() }}<label>Justificativa</label><input type="text" name="texto" required minlength="3"><div class="acoes"><button type="submit">Manter (não é duplicado)</button><button class="perigo" type="submit" formaction="/e/{{ emp.slug }}/revisao/mov/{{ m.id }}/descartar">Descartar (é duplicado)</button></div></form>{% endif %}</div>
+{% else %}<div class="msg ok">Nenhum alerta pendente.</div>{% endfor %}
+{% elif aba == 'espera' %}{% for m in lista %}<div class="card"><strong>#{{ m.id }}</strong> {{ m.data }} · {{ m.valor_centavos|brl }} · {{ m.historico }}<br><span class="mut">{{ m.observacao }}</span>
+<form method="post" action="/e/{{ emp.slug }}/revisao/mov/{{ m.id }}/retomar">{{ csrf_campo() }}<div class="acoes"><button class="sec" type="submit">Retomar</button></div></form></div>{% else %}<div class="msg ok">Nada em espera.</div>{% endfor %}
+{% else %}<div class="card tw"><table><tr><th>#</th><th>Data</th><th class="v">Valor</th><th>Histórico</th><th>Situação</th><th>Débito</th><th>Crédito</th><th>Natureza</th><th>Revisado</th><th>2ª conf.</th></tr>
+{% for m in lista %}<tr><td><a href="/e/{{ emp.slug }}/revisao/mov/{{ m.id }}">{{ m.id }}</a></td><td>{{ m.data }}</td><td class="v">{{ m.valor_centavos|brl0 }}</td><td>{{ m.historico }}</td><td>{{ status_tag(m.status) }}</td><td>{{ m.conta_debito or '' }}</td><td>{{ m.conta_credito or '' }}</td><td>{{ m.natureza }}</td><td>{{ m.revisado_por or '' }}</td><td>{{ m.segunda_confirmacao_por or '' }}</td></tr>{% endfor %}</table></div>{% endif %}{% endblock %}

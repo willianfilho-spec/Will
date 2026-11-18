@@ -21,7 +21,7 @@ from exporters import fortes_exporter
 from exporters.fortes_exporter import ContaPlano, LoteBloqueado
 from parsers import fortes_plano_parser, fortes_razao_parser, ofx_parser, tabular_parser
 from parsers.comum import ErroEstrutural, sanitizar_texto
-from storage import audit
+from storage import audit, cripto
 from storage.database import agora, conectar_empresa, definir_parametro, parametro, pasta_empresa, transacao
 from storage.usuarios import abrir_empresa_autorizada, exigir
 
@@ -47,7 +47,9 @@ class Contexto:
 
     @property
     def nome(self) -> str:
-        return self.usuario["nome"]
+        """Identidade gravada em toda ação. Inclui o id: dois usuários com o mesmo nome não se confundem
+        (a segregação de função compara este valor)."""
+        return f"{self.usuario['nome']} #{self.usuario['id']}"
 
     def exigir(self, acao: str) -> None:
         exigir(self.central, self.usuario["id"], self.empresa["id"], acao)
@@ -59,7 +61,17 @@ class Contexto:
     @property
     def prefixo(self) -> str:
         padrao = re.sub(r"[^A-Z0-9]", "", self.empresa["slug"].upper())[:6] or "EXT"
-        return parametro(self.con, "prefixo_marca", padrao if len(padrao) >= 2 else "EXT")
+        if len(padrao) < 2 or padrao in fortes_exporter.PREFIXOS_RESERVADOS:
+            padrao = "EXT"
+        return parametro(self.con, "prefixo_marca", padrao)
+
+    def gravar_arquivo(self, destino: Path, bruto: bytes) -> None:
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_bytes(cripto.proteger(self.empresa["slug"], bruto))
+        os.chmod(destino, 0o444)
+
+    def ler_arquivo(self, destino: Path) -> bytes:
+        return cripto.recuperar(self.empresa["slug"], destino.read_bytes())
 
 
 # ---------------------------------------------------------------- arquivos
@@ -68,8 +80,7 @@ def _guardar_original(ctx: Contexto, nome: str, bruto: bytes, tipo: str, hash_he
     uid = uuid.uuid4().hex
     ext = Path(nome).suffix.lower()[:6]
     destino = ctx.pasta / "arquivos" / "originais" / f"{uid}{ext}"
-    destino.write_bytes(bruto)
-    os.chmod(destino, 0o444)  # imutável
+    ctx.gravar_arquivo(destino, bruto)  # só leitura e, se a chave estiver configurada, cifrado
     cur = ctx.con.execute(
         "INSERT INTO arquivos (uuid, nome_original, tipo, sha256, tamanho, caminho, enviado_por, enviado_em) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -540,6 +551,13 @@ def conferir(ctx: Contexto, periodo: str, conta_banco: str) -> reconciler.Confer
             "AND status IN ('classificado', 'exportado')", (conta_banco, fim)):
         if (m["marca"] or fortes_exporter.marca(ctx.prefixo, m["data"], m["id"])) not in no_razao:
             pendentes += m["valor_centavos"]
+    for m in ctx.con.execute(
+            "SELECT id, tipo, data, valor_centavos, conta_debito, marca FROM lancamentos WHERE data <= ? "
+            "AND status IN ('confirmado', 'exportado') AND (conta_debito = ? OR conta_credito = ?)",
+            (fim, conta_banco, conta_banco)):
+        mk = m["marca"] or fortes_exporter.marca_lancamento(m["tipo"], m["data"], m["id"])
+        if mk not in no_razao:
+            pendentes += m["valor_centavos"] if m["conta_debito"] == conta_banco else -m["valor_centavos"]
     sem = ctx.con.execute(
         "SELECT COUNT(*) FROM movimentos WHERE conta_banco = ? AND data BETWEEN ? AND ? "
         "AND status IN ('pendente', 'proposto', 'em_espera')", (conta_banco, ini, fim)).fetchone()[0]
@@ -617,6 +635,24 @@ def revisar_diferenca(ctx: Contexto, periodo: str, conta_banco: str) -> None:
 
 # ---------------------------------------------------------------- exportação
 
+def lancamentos_para_lote(con, periodo: str) -> list[dict]:
+    """Lançamentos manuais confirmados do período, no mesmo formato dos movimentos, para o exportador."""
+    ini, fim = limites_periodo(periodo)
+    itens = []
+    for r in con.execute("SELECT * FROM lancamentos WHERE status = 'confirmado' AND lote_id IS NULL "
+                         "AND data BETWEEN ? AND ? ORDER BY data, id", (ini, fim)):
+        itens.append({
+            "id": r["id"], "_origem": "lancamento", "_rotulo": f"lançamento manual {r['id']}",
+            "_marca": fortes_exporter.marca_lancamento(r["tipo"], r["data"], r["id"]),
+            "data": r["data"], "valor_centavos": r["valor_centavos"], "historico": r["historico"],
+            "historico_contabil": r["historico"], "conta_debito": r["conta_debito"], "conta_credito": r["conta_credito"],
+            "exige_segunda_confirmacao": 1, "revisado_por": r["criado_por"],
+            "segunda_confirmacao_por": r["confirmado_por"], "decisao_duplicidade": "nao_aplica",
+            "ref_externa": r["ref_externa"],
+        })
+    return itens
+
+
 def movimentos_para_lote(con, periodo: str, conta_banco: str) -> list[dict]:
     ini, fim = limites_periodo(periodo)
     return [dict(r) for r in con.execute(
@@ -659,9 +695,28 @@ def checar_duplicidade_exportacao(ctx: Contexto, movs: list[dict]) -> list[str]:
     return problemas
 
 
+def checar_duplicidade_lancamentos(ctx: Contexto, lancs: list[dict]) -> list[str]:
+    problemas = []
+    no_razao = marcas_no_razao(ctx.con)
+    textos = [h for (h,) in ctx.con.execute("SELECT historico FROM razao WHERE historico IS NOT NULL")]
+    for m in lancs:
+        if m["_marca"] in no_razao:
+            problemas.append(f"{m['_rotulo']}: a marca {m['_marca']} já está no Razão do Fortes")
+        ref = m.get("ref_externa")
+        if ref and any(ref in t for t in textos):
+            problemas.append(f"{m['_rotulo']}: a referência {ref} já aparece no Razão do Fortes; exportar duplicaria")
+        igual = ctx.con.execute(
+            "SELECT id FROM lancamentos WHERE id <> ? AND status = 'exportado' AND data = ? AND valor_centavos = ? "
+            "AND conta_debito = ? AND conta_credito = ? AND historico = ?",
+            (m["id"], m["data"], m["valor_centavos"], m["conta_debito"], m["conta_credito"], m["historico"])).fetchone()
+        if igual:
+            problemas.append(f"{m['_rotulo']}: igual ao lançamento {igual['id']} já exportado")
+    return problemas
+
+
 def pre_validar_lote(ctx: Contexto, periodo: str, conta_banco: str) -> tuple[list[dict], list[str]]:
     ini, fim = limites_periodo(periodo)
-    movs = movimentos_para_lote(ctx.con, periodo, conta_banco)
+    movs = movimentos_para_lote(ctx.con, periodo, conta_banco) + lancamentos_para_lote(ctx.con, periodo)
     c = conciliacao(ctx.con, periodo, conta_banco)
     problemas = fortes_exporter.validar(movs, plano_vigente(ctx.con), dict(c) if c else None)
     soltos = ctx.con.execute(
@@ -674,7 +729,8 @@ def pre_validar_lote(ctx: Contexto, periodo: str, conta_banco: str) -> tuple[lis
         (conta_banco, ini, fim)).fetchone()[0]
     if dup:
         problemas.append(f"{dup} alerta(s) de duplicidade do período sem decisão")
-    problemas += checar_duplicidade_exportacao(ctx, movs)
+    problemas += checar_duplicidade_exportacao(ctx, [m for m in movs if m.get("_origem") != "lancamento"])
+    problemas += checar_duplicidade_lancamentos(ctx, [m for m in movs if m.get("_origem") == "lancamento"])
     aberto = ctx.con.execute("SELECT * FROM travas_periodo WHERE periodo = ? AND conta_banco = ?",
                              (periodo, conta_banco)).fetchone()
     if aberto:
@@ -708,8 +764,7 @@ def _gerar_lote(ctx: Contexto, periodo: str, conta_banco: str) -> dict:
             raise LoteBloqueado(["conferência de ida e volta do arquivo falhou: " + p for p in ida_volta])
         uid = uuid.uuid4().hex
         destino = ctx.pasta / "arquivos" / "exportacoes" / f"fortes_{periodo}_{conta_banco}_{uid[:8]}.csv"
-        destino.write_bytes(conteudo)
-        os.chmod(destino, 0o444)
+        ctx.gravar_arquivo(destino, conteudo)
         try:
             total = sum(abs(m["valor_centavos"]) for m in movs)
             truncados = sum(g.truncado for g in geradas)
@@ -721,6 +776,15 @@ def _gerar_lote(ctx: Contexto, periodo: str, conta_banco: str) -> dict:
                  len(movs), total, ctx.nome, agora(), limite, truncados))
             lote_id = cur.lastrowid
             for g in geradas:
+                if g.origem == "lancamento":
+                    ctx.con.execute(
+                        "INSERT INTO lote_itens_lanc (lote_id, lancamento_id, marca, linha_exportada, historico_completo, "
+                        "historico_exportado, truncado) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (lote_id, g.movimento_id, g.marca, g.linha, g.historico_completo, g.historico_exportado,
+                         int(g.truncado)))
+                    ctx.con.execute("UPDATE lancamentos SET status = 'exportado', lote_id = ?, marca = ? WHERE id = ?",
+                                    (lote_id, g.marca, g.movimento_id))
+                    continue
                 ctx.con.execute(
                     "INSERT INTO lote_itens (lote_id, movimento_id, marca, linha_exportada, historico_completo, "
                     "historico_exportado, truncado) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -742,14 +806,14 @@ def _gerar_lote(ctx: Contexto, periodo: str, conta_banco: str) -> dict:
 
 def arquivo_lote(ctx: Contexto, lote_id: int) -> bytes:
     """Conteúdo do lote só se o SHA-256 bater com o gravado na geração."""
-    ctx.exigir("ver")
+    ctx.exigir("ver_equipe")
     l = ctx.con.execute("SELECT * FROM lotes WHERE id = ?", (lote_id,)).fetchone()
     if l is None:
         raise OperacaoInvalida("lote inexistente")
     caminho = ctx.pasta / l["caminho"]
     if not caminho.exists():
         raise OperacaoInvalida(f"arquivo do lote {lote_id} sumiu; restaure do backup")
-    bruto = caminho.read_bytes()
+    bruto = ctx.ler_arquivo(caminho)
     if deduplicator.sha256(bruto) != l["sha256"]:
         with transacao(ctx.con):
             audit.registrar(ctx.con, ctx.nome, "lote_adulterado", "lote", lote_id)
@@ -758,9 +822,16 @@ def arquivo_lote(ctx: Contexto, lote_id: int) -> bytes:
     return bruto
 
 
+def _ler_ou_vazio(ctx: Contexto, f: Path) -> bytes:
+    try:
+        return ctx.ler_arquivo(f)
+    except cripto.ErroCripto:
+        return b"\x00ilegivel"
+
+
 def verificar_integridade(ctx: Contexto) -> list[str]:
     """Confere originais e lotes contra o SHA-256 gravado e o banco contra o integrity_check."""
-    ctx.exigir("ver")
+    ctx.exigir("ver_equipe")
     problemas = []
     r = ctx.con.execute("PRAGMA integrity_check").fetchone()[0]
     if r != "ok":
@@ -769,20 +840,27 @@ def verificar_integridade(ctx: Contexto) -> list[str]:
         f = ctx.pasta / a["caminho"]
         if not f.exists():
             problemas.append(f"arquivo original {a['id']} ({a['nome_original']}) ausente")
-        elif deduplicator.sha256(f.read_bytes()) != a["sha256"]:
-            problemas.append(f"arquivo original {a['id']} ({a['nome_original']}) alterado")
+        elif deduplicator.sha256(_ler_ou_vazio(ctx, f)) != a["sha256"]:
+            problemas.append(f"arquivo original {a['id']} ({a['nome_original']}) alterado ou ilegível")
     for l in ctx.con.execute("SELECT id, caminho, sha256, quantidade FROM lotes"):
         f = ctx.pasta / l["caminho"]
         if not f.exists():
             problemas.append(f"lote {l['id']}: arquivo ausente")
-        elif deduplicator.sha256(f.read_bytes()) != l["sha256"]:
+        elif deduplicator.sha256(_ler_ou_vazio(ctx, f)) != l["sha256"]:
             problemas.append(f"lote {l['id']}: arquivo alterado depois de gerado")
         n = ctx.con.execute("SELECT COUNT(*) FROM lote_itens WHERE lote_id = ?", (l["id"],)).fetchone()[0]
         if n and n != l["quantidade"]:
             problemas.append(f"lote {l['id']}: {n} itens registrados para {l['quantidade']} lançamentos")
+    for d in ctx.con.execute("SELECT id, nome_original, caminho, sha256 FROM documentos"):
+        f = ctx.pasta / d["caminho"]
+        if not f.exists():
+            problemas.append(f"documento {d['id']} ({d['nome_original']}) ausente")
+        elif deduplicator.sha256(_ler_ou_vazio(ctx, f)) != d["sha256"]:
+            problemas.append(f"documento {d['id']} ({d['nome_original']}) alterado ou ilegível")
+    problemas += audit.verificar_cadeia(ctx.con, "audit_log")
     with transacao(ctx.con):
         audit.registrar(ctx.con, ctx.nome, "verificacao_integridade", "empresa", ctx.empresa["slug"],
-                        problemas=len(problemas))
+                        problemas=len(problemas), hash_auditoria=audit.hash_final(ctx.con))
     return problemas
 
 
@@ -803,6 +881,22 @@ def conferir_lote_no_razao(ctx: Contexto, lote_id: int) -> dict:
         "SELECT i.*, m.data, m.valor_centavos, m.conta_debito, m.conta_credito, m.conta_banco "
         "FROM lote_itens i JOIN movimentos m ON m.id = i.movimento_id WHERE i.lote_id = ?", (lote_id,)).fetchall()
     ausentes, divergentes, duplicados, encontrados = [], [], [], 0
+    for it in ctx.con.execute(
+            "SELECT i.marca, i.historico_exportado, m.data, m.valor_centavos, m.conta_debito, m.conta_credito "
+            "FROM lote_itens_lanc i JOIN lancamentos m ON m.id = i.lancamento_id WHERE i.lote_id = ?", (lote_id,)):
+        partidas = ctx.con.execute("SELECT * FROM razao WHERE historico LIKE ?", (f"%{it['marca']}%",)).fetchall()
+        deb = [p for p in partidas if p["conta"] == it["conta_debito"] and p["debito_centavos"] == it["valor_centavos"]
+               and p["data"] == it["data"]]
+        cre = [p for p in partidas if p["conta"] == it["conta_credito"] and p["credito_centavos"] == it["valor_centavos"]
+               and p["data"] == it["data"]]
+        if not partidas:
+            ausentes.append(it["marca"])
+        elif len(deb) > 1 or len(cre) > 1:
+            duplicados.append(f"{it['marca']} aparece mais de uma vez no Razão")
+        elif not deb or not cre:
+            divergentes.append(f"{it['marca']}: data, valor ou contas no Razão diferem do lançamento manual")
+        else:
+            encontrados += 1
     for it in itens:
         partidas = ctx.con.execute("SELECT * FROM razao WHERE historico LIKE ?",
                                    (f"%{it['marca']}%",)).fetchall()
@@ -827,9 +921,9 @@ def conferir_lote_no_razao(ctx: Contexto, lote_id: int) -> dict:
             divergentes.append(f"{it['marca']}: histórico no Razão não corresponde ao exportado")
         encontrados += 1
     resultado = {
-        "lote_id": lote_id, "itens": len(itens), "encontrados": encontrados, "ausentes": ausentes,
+        "lote_id": lote_id, "itens": l["quantidade"], "encontrados": encontrados, "ausentes": ausentes,
         "divergentes": divergentes, "duplicados": duplicados,
-        "aprovado": bool(itens) and not ausentes and not divergentes and not duplicados,
+        "aprovado": bool(l["quantidade"]) and not ausentes and not divergentes and not duplicados,
         "formato_razao": parametro(ctx.con, "formato_razao"),
     }
     with transacao(ctx.con):
@@ -858,13 +952,15 @@ def registrar_retorno(ctx: Contexto, lote_id: int, aceito: bool, observacao: str
         if not aceito:
             ctx.con.execute("UPDATE movimentos SET status = 'classificado', lote_id = NULL, marca = NULL "
                             "WHERE lote_id = ?", (lote_id,))
+            ctx.con.execute("UPDATE lancamentos SET status = 'confirmado', lote_id = NULL, marca = NULL "
+                            "WHERE lote_id = ?", (lote_id,))
         ctx.con.execute("DELETE FROM travas_periodo WHERE periodo = ? AND conta_banco = ?",
                         (l["periodo"], l["conta_banco"]))
         audit.registrar(ctx.con, ctx.nome, "retorno_fortes", "lote", lote_id, aceito=aceito, observacao=observacao)
 
 
 def relatorio_pendencias(ctx: Contexto, periodo: str, conta_banco: str) -> Path:
-    ctx.exigir("ver")
+    ctx.exigir("ver_equipe")
     ini, fim = limites_periodo(periodo)
     linhas = ctx.con.execute(
         "SELECT id, data, valor_centavos, historico, status, decisao_duplicidade, motivos_risco, observacao "
@@ -879,7 +975,7 @@ def relatorio_pendencias(ctx: Contexto, periodo: str, conta_banco: str) -> Path:
                     "'" + r["historico"] if r["historico"][:1] in "=+-@" else r["historico"],
                     r["status"], r["decisao_duplicidade"], r["motivos_risco"] or "", r["observacao"] or ""])
     destino = ctx.pasta / "arquivos" / "relatorios" / f"pendencias_{periodo}_{conta_banco}_{uuid.uuid4().hex[:6]}.csv"
-    destino.write_text(buf.getvalue(), encoding="utf-8-sig")
+    ctx.gravar_arquivo(destino, buf.getvalue().encode("utf-8-sig"))
     audit.registrar(ctx.con, ctx.nome, "relatorio_pendencias", "relatorio", destino.name, itens=len(linhas))
     return destino
 

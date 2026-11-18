@@ -1,0 +1,3 @@
+{% extends "base.html" %}{% from "_m.html" import csrf_campo, conta_select, status_tag with context %}
+{% block nav %}{% set b = '/e/' ~ emp.slug %}<a href="/painel">Painel</a><strong>{{ emp.razao_social }}</strong>
+<a href="{{ b }}">Resumo</a><a href="{{ b }}/cadastros">Cadastros</a><a href="{{ b }}/cargas">Cargas</a><a href="{{ b }}/revisao">Revisão</a><a href="{{ b }}/lancamentos">Lançamentos manuais</a><a href="{{ b }}/conferencia">Conferência</a><a href="{{ b }}/exportacao">Exportação</a><a href="{{ b }}/solicitacoes">Solicitações</a>{% if usuario.papel_global == 'admin' %}<a href="/admin">Administração</a>{% endif %}{% endblock %}
