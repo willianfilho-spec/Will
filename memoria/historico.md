@@ -3,6 +3,7 @@
 Atualizado em: 2026-11-18
 Uma linha por mudança relevante, mais recente no topo. Ao passar de 250 linhas, resumir os anos anteriores em um parágrafo.
 
+- [2026-11-18] Pacote de teste para Windows (D-010): `scripts/montar_pacote.py`, `scripts/iniciar_mvp.py`, textos em `empacotar/`; testado em Python 3.12 de Linux, não em Windows.
 - [2026-11-18] Web app para uso externo (D-008, D-009), lançamentos manuais, conciliação extrato × Razão, segurança e pré-validação dos lotes reais; P-005 e P-006 abertas.
 - [2026-11-18] P-004 preparada para homologação (D-007): travas, limite de histórico configurável, restauração isolada, plano/matriz/relatório/instruções em `docs/conciliador-fortes/homologacao/`. Nenhum item executado no Fortes real.
 - [2026-11-18] Criado o Conciliador Fortes (MVP Etapa A) em `conciliador_fortes/`; D-006 e P-004 registradas; exceção de autoria ampliada para essa pasta.

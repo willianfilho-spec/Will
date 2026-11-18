@@ -25,6 +25,16 @@ Abre em `http://127.0.0.1:8000` com dados inventados. Senha de todos: `Demo-Conc
 `admin@demo.test`, `operador@demo.test`, `revisor@demo.test`, `cliente@demo.test`. O modo demo desliga o 2FA e o cookie
 `Secure`; **não use em produção**.
 
+## Pacote de teste para Windows (sem instalar nada)
+
+Para quem vai só testar: `python scripts/montar_pacote.py` gera `Conciliador-MVP-AAAAMMDD.zip` com Python 3.12 embutido
+(pacote `python` do NuGet) e todas as dependências. A pessoa extrai, dá dois cliques em `INICIAR.bat` e o navegador abre.
+Dados ficam na pasta `dados` ao lado do programa. Textos para o testador: `empacotar/` (LEIA-ME, roteiro de teste, scripts
+de backup e de teste do limite do histórico).
+**Verificado:** o código extraído do zip sobe e roda o fluxo completo no navegador com Python 3.12 de Linux e as mesmas versões
+de pacotes; a suíte passa em 3.12. **Não verificado:** a execução em Windows (o `python.exe` e as rodas compiladas para
+Windows foram empacotados, mas nunca executados aqui).
+
 ## Quem faz o quê
 
 | Papel | Pode |

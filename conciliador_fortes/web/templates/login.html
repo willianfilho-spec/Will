@@ -1,4 +1,5 @@
 {% extends "base.html" %}{% block corpo %}<div class="card centro"><h1>Entrar</h1>
+{% if dica %}<div class="msg aviso">{{ dica }}</div>{% endif %}
 {% if erro %}<div class="msg erro">{{ erro }}</div>{% endif %}
 <form method="post" action="/login" autocomplete="on"><input type="hidden" name="csrf_login" value="{{ csrf_login }}">
 <label for="email">E-mail</label><input id="email" type="email" name="email" required autocomplete="username">

@@ -34,10 +34,11 @@ def _cookie(resp: Response, nome: str, valor: str, **kw) -> None:
     resp.set_cookie(nome, valor, httponly=True, secure=config.COOKIE_SEGURO, samesite="strict", path="/", **kw)
 
 
-def criar_app(data_dir: Path | None = None) -> FastAPI:
+def criar_app(data_dir: Path | None = None, dica_login: str | None = None) -> FastAPI:
     app = FastAPI(title="Conciliador Fortes", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.data_dir = Path(data_dir) if data_dir else config.DATA_DIR
     app.state.limite = sg.LimiteRequisicoes()
+    app.state.dica_login = dica_login  # só no modo de teste local; nunca em produção
     app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
     app.include_router(equipe.router)
     app.include_router(portal.router)
@@ -82,7 +83,7 @@ def criar_app(data_dir: Path | None = None) -> FastAPI:
     def _login_page(request: Request, erro: str | None = None, status: int = 200):
         token = secrets.token_urlsafe(24)
         resp = templates.TemplateResponse(request, "login.html", {"atual": None, "usuario": None, "flash": None, "csrf": "",
-                                          "csrf_login": token, "erro": erro}, status_code=status)
+                                          "csrf_login": token, "erro": erro, "dica": app.state.dica_login}, status_code=status)
         _cookie(resp, COOKIE_LOGIN, token, max_age=900)
         return resp
 

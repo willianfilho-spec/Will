@@ -61,3 +61,10 @@ Formato: ID, data, decisão, justificativa, alternativas, consequências, status
 - Justificativa: homônimos entre usuários externos quebrariam a segregação; lançamento manual não tem extrato como evidência.
 - Status: vigente. Origem: revisão de projeto nesta sessão; confiança: alta.
 
+## D-010 [2026-11-18] MVP entregue como pacote Windows local (Python embutido), não como serviço hospedado
+- Decisão: o MVP de teste vai num zip que roda no computador de cada testador (`scripts/montar_pacote.py`), com Python 3.12 do NuGet e dependências dentro; modo de teste local (sem HTTPS, sem 2FA, dados de demonstração, arquivos cifrados com chave em `dados/chave.key`). Opção `--rede` para uso em rede interna.
+- Justificativa: pedido do usuário (apresentar pronto para testarem; não rodar no Claude). `python.org` é inacessível do ambiente de build; o NuGet serve o mesmo Python.
+- Alternativas: instalar Python na máquina de cada pessoa (mais atrito); hospedar (exige HTTPS e decisões de LGPD ainda abertas).
+- Consequências: execução em Windows não verificada (build feito em Linux); o zip não vai para o git; este pacote não é a implantação para clientes externos (P-005 continua aberta).
+- Status: vigente. Origem: pedido do usuário; confiança: alta.
+

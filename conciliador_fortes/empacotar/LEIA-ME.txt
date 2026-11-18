@@ -1,0 +1,43 @@
+﻿CONCILIADOR - VERSÃO DE TESTE (MVP)
+====================================
+
+Para que serve
+  Ler extratos bancários, classificar os lançamentos com revisão de uma segunda pessoa,
+  conferir saldos e gerar o arquivo de importação do Fortes. Roda no seu computador,
+  dentro do navegador. Não precisa de internet nem de instalar nada.
+
+IMPORTANTE (leia)
+  - Isto é uma versão de TESTE. A integração com o Fortes ainda NÃO foi validada.
+    Importe os arquivos gerados somente numa EMPRESA DE TESTE do Fortes, nunca numa empresa real.
+  - Os dados ficam só neste computador, na pasta "dados" (arquivos enviados são cifrados).
+  - Não envie esta pasta "dados" a ninguém: ela guarda o que você carregou.
+
+Como abrir (Windows 10 ou 11)
+  1. Extraia TODO o conteúdo do arquivo .zip numa pasta (botão direito > Extrair tudo).
+     Não execute de dentro do .zip.
+  2. Dê dois cliques em  INICIAR.bat
+  3. Uma janela preta abre e, em seguida, o navegador mostra o Conciliador.
+     Se o navegador não abrir, copie o endereço mostrado na janela preta (http://127.0.0.1:8000).
+  4. Entre com um dos usuários de teste (a própria tela de login mostra a senha).
+  5. Para encerrar, feche a janela preta.
+
+Se o Windows avisar "O Windows protegeu o computador"
+  O programa não é assinado digitalmente. Clique em "Mais informações" > "Executar assim mesmo".
+  Se o antivírus bloquear, avise quem preparou o teste.
+
+Testar com mais de uma pessoa
+  Cada pessoa pode usar o próprio computador (cada uma com a sua pasta e os seus dados).
+  Para vários computadores usarem o MESMO Conciliador, use INICIAR_NA_REDE.bat no computador
+  principal e abra, nos outros, o endereço mostrado na janela. Só em rede interna de confiança.
+
+Outros arquivos
+  ROTEIRO_DE_TESTE.txt                 o que testar, passo a passo, e como relatar problemas
+  Arquivos de exemplo\                 extrato, plano de contas e regras de mentira para treinar
+  TESTAR_BACKUP.bat                    testa backup e restauração
+  GERAR_ARQUIVO_TESTE_HISTORICO.bat    gera o arquivo para descobrir o limite de caracteres do histórico
+
+Recomeçar do zero
+  Feche o programa e apague a pasta "dados". Na próxima abertura, os dados de demonstração voltam.
+
+Problemas
+  Tire um print da tela (ou da janela preta) e envie com uma frase dizendo o que você estava fazendo.

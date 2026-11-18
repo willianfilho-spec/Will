@@ -1,0 +1,59 @@
+﻿ROTEIRO DE TESTE DO CONCILIADOR
+================================
+Tempo: parte 1 leva cerca de 20 minutos; parte 2, uma tarde com dados de uma empresa de teste.
+Anote tudo o que estranhar. Não existe "erro seu": o objetivo é achar o que está confuso ou errado.
+
+PARTE 1 - DEMONSTRAÇÃO COM DADOS DE MENTIRA
+-------------------------------------------
+1. Entre como  operador@demo.test  e abra a empresa "Empresa Demonstracao Ltda".
+2. Menu REVISÃO: marque todas as propostas geradas por regra e clique "Aceitar marcadas".
+3. Ainda em REVISÃO, abra os dois movimentos "sem regra" (SISPAG e PIX ENVIADO SOCIO).
+   - SISPAG: contrapartida "Fornecedores Diversos".
+   - PIX do sócio: contrapartida "Emprestimos de Socios", natureza "socio".
+   O PIX vai exigir segunda confirmação (é de sócio e passa de R$ 10 mil).
+4. Menu LANÇAMENTOS MANUAIS: crie uma provisão (débito 259, crédito 57, valor 1.234,56).
+5. Menu CONFERÊNCIA: clique "Gravar e conferir". O saldo deve bater.
+6. Menu EXPORTAÇÃO: o lote deve estar BLOQUEADO. Leia os motivos. (Falta a segunda confirmação.)
+7. Saia e entre como  revisor@demo.test . Em REVISÃO > Segunda confirmação, confirme o PIX.
+   Em LANÇAMENTOS MANUAIS, confirme a provisão. Note que quem criou não consegue confirmar.
+8. Em EXPORTAÇÃO, gere o lote e baixe o arquivo. Abra no Bloco de Notas: 9 campos por linha?
+9. Saia e entre como  cliente@demo.test . Envie um arquivo. Veja o que o cliente enxerga
+   (ele não deve ver movimentos, contas nem nomes da equipe).
+
+PARTE 2 - COM DADOS DA EMPRESA (EMPRESA DE TESTE NO FORTES)
+-----------------------------------------------------------
+Use uma empresa de TESTE no Fortes e, de preferência, uma cópia do plano de contas de um cliente real.
+1. Entre como  admin@demo.test . Em ADMINISTRAÇÃO crie uma empresa (identificador sem espaços)
+   e dê permissão ao operador, ao revisor e a você. Crie usuários com os e-mails reais da equipe.
+2. CADASTROS: importe o plano de contas exportado do Fortes (CSV). Defina a conta do banco padrão.
+   Cadastre os sócios e as regras que já usa (ou importe o JSON de regras).
+3. CARGAS: envie um extrato real (OFX, CSV ou XLSX) e processe. Teste também uma planilha de despesas.
+4. Classifique. Veja se a fila, as propostas e os alertas de duplicidade fazem sentido.
+5. LANÇAMENTOS MANUAIS: importe um arquivo no leiaute do Fortes com ajustes/provisões já prontos.
+6. CONFERÊNCIA: informe saldo inicial e final do extrato. Compare com o saldo que você confere à mão.
+7. EXPORTAÇÃO: gere o lote. Importe no Fortes (empresa de teste) com "Desconsiderar Identificador" e
+   "Utilizar Código Reduzido" marcados. Registre o retorno no Conciliador: aceito, ou rejeitado
+   com a mensagem EXATA que o Fortes mostrou.
+8. Exporte o Razão do Fortes (depois da importação), carregue em CADASTROS > Razão e use
+   "Conferir lote no Razão" e, em CONFERÊNCIA, "Comparar extrato com o Razão".
+
+TESTES QUE PRECISAMOS FECHAR (anote o resultado de cada um)
+-----------------------------------------------------------
+A. O Fortes aceitou o arquivo gerado? Todas as linhas? Os totais bateram?
+B. Limite do histórico: rode GERAR_ARQUIVO_TESTE_HISTORICO.bat, importe o arquivo no Fortes (empresa de teste)
+   e veja até quantos caracteres o histórico aparece inteiro, com a marca [XXX-AAAAMM-NNNNNN] no fim.
+C. O Razão exportado pelo Fortes carregou no Conciliador? Se não, guarde o arquivo (sem dados sensíveis).
+D. Backup: feche o Conciliador e rode TESTAR_BACKUP.bat. O resultado deve ser APROVADO.
+E. Extratos: teste um OFX e um CSV/XLSX de cada banco que vocês usam. Anote bancos e formatos.
+
+COMO RELATAR UM PROBLEMA
+------------------------
+Para cada problema: (1) em que tela estava, (2) o que fez, (3) o que esperava, (4) o que aconteceu,
+(5) print da tela. Se a tela mostrar uma lista vermelha de motivos, copie a lista inteira.
+
+O QUE NÃO ESTÁ PRONTO (não conte como defeito)
+----------------------------------------------
+- Leitura de extrato em PDF (use OFX, CSV ou XLSX).
+- Cálculo automático de folha, INSS, FGTS, Simples e ICMS (o programa só registra lançamentos manuais).
+- Recuperação de senha por e-mail (peça ao administrador).
+- Acesso pela internet (esta versão é para teste local).
