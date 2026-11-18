@@ -1,0 +1,54 @@
+{
+ "conta_banco": "1.01.01.02.01.0001-8",
+ "regras": [
+  {
+   "id": "tarifa",
+   "padrao": "^TAR\\b|TARIFA",
+   "sentido": "saida",
+   "conta": "3.01.01.09.01.0008-3",
+   "historico": "TARIFA BANCARIA"
+  },
+  {
+   "id": "iof-juros",
+   "padrao": "^IOF\\b|JUROS LIMITE",
+   "sentido": "saida",
+   "conta": "3.01.01.09.01.0006-7",
+   "historico": null
+  },
+  {
+   "id": "das",
+   "padrao": "\\bDAS\\b|SIMPLES NACIONAL",
+   "sentido": "saida",
+   "conta": "2.01.01.03.03.0010-3",
+   "historico": "PAGAMENTO DAS SIMPLES NACIONAL"
+  },
+  {
+   "id": "fornecedor-01",
+   "padrao": "FORNECEDOR EXEMPLO 01",
+   "sentido": "saida",
+   "conta": "2.01.01.01.01.0002-8",
+   "historico": null
+  },
+  {
+   "id": "fornecedor-02",
+   "padrao": "FORNECEDOR EXEMPLO 02",
+   "sentido": "saida",
+   "conta": "2.01.01.01.01.0003-6",
+   "historico": null
+  },
+  {
+   "id": "cliente-01",
+   "padrao": "CLIENTE EXEMPLO 01",
+   "sentido": "entrada",
+   "conta": "1.01.03.01.01.0002-0",
+   "historico": null
+  },
+  {
+   "id": "cliente-02",
+   "padrao": "CLIENTE EXEMPLO 02",
+   "sentido": "entrada",
+   "conta": "1.01.03.01.01.0003-8",
+   "historico": null
+  }
+ ]
+}

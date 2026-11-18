@@ -4,16 +4,18 @@ Prova de conceito do projeto de Daiane, Luciana e Willian (proposta revisada
 após a reunião de 9/11/2026). Transforma extratos bancários em lançamentos
 contábeis revisados e prontos para importação, sem gerar duplicidades.
 
-> **Estado atual:** protótipo testado apenas com dados fictícios. O leiaute de
-> exportação é provisório e não corresponde a nenhum sistema contábil
-> específico. Não usar com dados de clientes antes do piloto descrito abaixo.
+> **Estado atual:** fase 1 (piloto interno), testada com dados fictícios. O
+> arquivo exportado segue o leiaute de importação de lançamentos do Fortes,
+> tirado de arquivos que o Fortes do escritório aceitou (ver "Exportação para o
+> Fortes"); o CSV genérico continua provisório. Use com dados de clientes só no
+> computador do escritório, seguindo o `INSTALACAO.md`.
 
 ## O que faz e o que não faz
 
 | Faz | Não faz (ainda) |
 | --- | --- |
-| Lê OFX (1.x e 2.x) e CSV de extrato | Ler PDF, Excel (.xlsx) ou relatórios de sistemas |
-| Impede lançamento duplicado ao reprocessar ou sobrepor extratos | Conciliação bancária completa (confronto com a contabilidade já escriturada) |
+| Lê OFX (1.x e 2.x), CSV, planilhas Excel (.xlsx) e o extrato Itaú em PDF | Ler PDF de outros bancos |
+| Impede lançamento duplicado ao reprocessar ou sobrepor extratos | Ler o razão emitido pelo Fortes (a conferência usa os arquivos importados) |
 | Classifica por regras aprovadas pelo contador | Decidir sozinho casos ambíguos |
 | Sugere contas por IA, sempre como pendência | Liberar lançamento sugerido pela IA sem aprovação |
 | Bloqueia contas inexistentes, sintéticas e valores zero | Validar documentação comprobatória (ITG 2000) |
@@ -110,6 +112,61 @@ Testes:
 pytest
 ```
 
+## Importar extrato na interface
+
+É a seção "1. Importar extrato" do aplicativo. Passos: escolha o arquivo,
+clique em "Processar extrato" e leia o resultado.
+
+**Formatos aceitos:** `.ofx` e `.ofc` (o melhor, baixado no internet banking),
+`.csv` e `.txt` com cabeçalho (colunas data, histórico e valor), `.xlsx` com
+uma única planilha e `.pdf` do Itaú no modelo Entradas e Saídas. O tamanho
+máximo é 20 MB por arquivo.
+
+**O arquivo é testado antes de ser guardado.** O sistema lê o arquivo numa
+cópia temporária. Só se a leitura der certo ele guarda o original em
+`dados/<empresa>/arquivos` e cria o lote. Arquivo recusado não é guardado e
+não cria lote.
+
+**Quando a importação dá certo, o resultado mostra:**
+
+- o título "Extrato importado" e uma frase com o total de transações lidas, as
+  novas e as já importadas antes;
+- os números: Lidas, Novas, Já importadas, Liberados, Pendentes e Bloqueados;
+- Entradas no arquivo e Saídas no arquivo, em reais (as saídas aparecem com
+  sinal de menos, por exemplo `-R$ 3.245,00`);
+- o período: de que dia a que dia vão as transações do arquivo;
+- avisos ("Atenção: ..."), por exemplo lançamentos pendentes ou bloqueados que
+  pedem revisão na seção 2, ou arquivo idêntico já importado antes;
+- "O que fazer", quando há uma próxima ação.
+
+**Reimportar o mesmo arquivo** não cria nada. O título passa a ser "Nada de
+novo neste extrato", com Novas igual a zero, e o aviso "Nenhuma transação
+nova: todas as linhas deste arquivo já estavam no sistema."
+
+**Quando o arquivo é recusado**, a tela mostra "Arquivo não importado", o que
+aconteceu e "O que fazer". Os textos abaixo são os que o sistema gera
+(`a.csv`, `a.xlsx` etc. são o nome do arquivo enviado).
+
+| Mensagem | O que fazer |
+| --- | --- |
+| "O arquivo a.doc é do tipo .doc, que o sistema não lê." | Envie em .ofx, .ofc, .csv, .txt, .xlsx ou .pdf. O ideal é o OFX do internet banking. |
+| "O arquivo a.csv está vazio (0 bytes)." | Baixe o extrato de novo no internet banking e confira se o arquivo abre antes de enviar. |
+| "O arquivo a.csv tem 21,0 MB e o limite é 20 MB." | Baixe o extrato por períodos menores (um mês por vez) e envie um de cada vez. |
+| "a.csv: arquivo sem cabeçalho" ou "a.csv: não encontrei coluna de valor" | Exporte o extrato de novo em CSV com cabeçalho, com as colunas data, histórico e valor. |
+| "a.csv, linha 3: sem valor", "a.csv, linha 3: data inválida: '32/13/2026'" ou "a.csv, linha 3: valor monetário inválido: 'abc'" | Corrija a linha citada no arquivo e envie de novo, ou baixe o extrato novamente no banco. |
+| "O arquivo a.csv foi lido, mas não tem nenhuma transação." | Baixe o extrato de novo, escolhendo um período com movimentação, e confira o cabeçalho (data, histórico e valor). |
+| "a.ofx: transação 2 sem valor ou data" ou "O arquivo a.ofx está corrompido ou incompleto." | Baixe o OFX de novo no internet banking e envie o arquivo novo. |
+| "O arquivo a.xlsx não é uma planilha .xlsx válida." | Exporte a planilha de novo em formato .xlsx (Excel) ou use o OFX do banco. |
+| "a.xlsx: tem 2 planilhas. Envie um arquivo com uma única planilha de movimentação, para não misturar meses ou contas." | Envie um .xlsx com uma única planilha de movimentação (cabeçalho com data e valor), ou use o OFX do banco. |
+| "a.pdf: não reconheci o extrato Itaú (Entradas e Saídas)" ou "a.pdf: a soma dos movimentos não confere com o saldo impresso. Nada foi importado." | Só é aceito o extrato do Itaú no modelo Entradas e Saídas. Baixe o PDF de novo no internet banking, sem editar, e envie. |
+| "Não foi possível ler os caracteres do arquivo a.csv (codificação desconhecida)." | Salve o arquivo como UTF-8 ou exporte o extrato de novo no banco. |
+
+Para qualquer outro erro, o "O que fazer" é: "Confira se o arquivo é o extrato
+da empresa e envie de novo; se persistir, guarde o arquivo e avise o
+responsável pelo sistema."
+
+Na linha de comando (`motor_contabil.cli importar`), esta tela não é usada.
+
 ## Parametrização por empresa
 
 - `exemplos/plano_contas.csv`: `codigo;descricao;tipo;codigo_exportacao`.
@@ -119,7 +176,9 @@ pytest
 - `exemplos/regras.json`: a conta do banco e as regras (`padrao` é expressão
   regular sobre o histórico sem acentos, em maiúsculas).
 
-Todos os arquivos de exemplo são fictícios.
+Todos os arquivos de exemplo são fictícios. Para testar com um plano no
+formato do Fortes, com extrato em OFX, CSV e planilha e com o arquivo de
+importação do Fortes já gerado, veja `exemplos/fortes/LEIAME.md`.
 
 ## IA: como está configurada
 
@@ -161,7 +220,6 @@ suposição):
 3. Leitura de Excel e de outros formatos que aparecerem nos arquivos reais.
 4. Regras aprendidas na revisão: quando o revisor corrige a mesma conta várias
    vezes, sugerir uma nova regra para o contador aprovar.
-5. Separar a base de dados por empresa cliente.
 
 ## Integridade dos lotes
 
@@ -174,3 +232,140 @@ lançamentos novamente. Faça backup do banco e dos arquivos originais.
 Exportação, aprovação e descarte usam transação com bloqueio de escrita antes
 da consulta, evitando decisões sobre estados desatualizados em acessos simultâneos.
 Valores não finitos e frações de centavo são recusados, sem arredondamento silencioso.
+
+## Exportação para o Fortes
+
+`motor_contabil/exportador_fortes.py` gera o arquivo no leiaute de importação
+de lançamentos que o Fortes Contábil já aceitou no escritório:
+`data;debito;credito;valor;historico;;;;`, sem cabeçalho, em ASCII, com fim de
+linha CRLF, contas pelo código reduzido e histórico de até 118 caracteres
+terminado por uma marca que identifica o lançamento.
+
+```python
+from motor_contabil import ExportadorFortes, PlanoDeContas
+plano = PlanoDeContas.carregar_fortes("plano_exportado_do_fortes.csv")
+motor.exportar("lote.csv", ExportadorFortes(plano, prefixo_marca="NX"))
+```
+
+Se uma conta do lote não existir no plano, for sintética ou estiver sem código
+reduzido, o lote inteiro é recusado com a lista dos problemas, e nenhum
+lançamento é marcado como exportado. O leiaute foi conferido contra arquivos
+reais, mas a aceitação pelo Fortes de um lote gerado por este exportador ainda
+precisa ser testada com uma importação real.
+
+## Planilhas Excel (.xlsx)
+
+`motor_contabil/leitores/xlsx_extrato.py` lê as planilhas mensais de
+movimentação que os clientes enviam (título, cabeçalho DATA / LANÇAMENTO
+BANCÁRIO / DESCRIÇÃO / VALOR / CAIXA/BANCO e linha de total). Usa só a
+biblioteca padrão e lê o valor como o texto gravado no arquivo. Regras:
+
+- título DESPESAS acima do cabeçalho: todos os valores são saídas; RECEITAS:
+  entradas; sem título, vale o sinal;
+- o histórico junta o texto das colunas que não são data, valor ou caixa/banco;
+- linha só com números e sem data (total) é ignorada; linha com texto e sem
+  data é erro; movimento sem nenhum texto entra como "SEM HISTORICO NA
+  PLANILHA" e vai para revisão;
+- arquivo com mais de uma planilha, CAIXA/BANCO preenchida, valor negativo em
+  planilha de despesas ou fração de centavo são recusados com a linha.
+
+Uma planilha de despesas traz só as saídas. Ela serve para gerar lançamentos,
+mas não permite conferir o saldo do banco, que depende do extrato completo.
+
+## Regras sugeridas a partir do histórico
+
+`python -m motor_contabil.sugerir_regras` junta cada movimento com o
+lançamento que o escritório já importou no Fortes (mesma data, mesmo valor,
+banco na partida certa) e sugere uma regra só para o histórico que aparece ao
+menos duas vezes e foi lançado sempre na mesma conta. Contas passadas em
+`--nunca` (sócios, empréstimos, folha, guias de tributos) nunca viram regra.
+O arquivo gerado é uma sugestão para o contador revisar e contém nomes de
+favorecidos: guarde-o com os dados do cliente, fora do repositório.
+
+## Conferência do banco (conciliação)
+
+`motor_contabil/conciliacao.py` confronta o extrato completo com os
+lançamentos que movimentam a conta do banco nos arquivos já importados no
+Fortes: saldo em cada fim de mês e pareamento movimento a movimento (mesma
+data, mesmo valor, banco na partida certa). Saldo igual com sobras dos dois
+lados é tratado como não conciliado, porque são erros que se compensam.
+
+```bash
+python -m motor_contabil.conciliacao --extrato extrato_itau.pdf \
+    --importados lancamentos_importados.csv --banco 362
+```
+
+O extrato Itaú em PDF (`leitores/itau_pdf.py`, requer `pdfplumber`) é
+recusado inteiro se a soma dos movimentos de algum dia não der o saldo
+impresso pelo banco. Na interface, a conferência fica na seção 4.
+
+Limite atual: a contabilidade é representada pelos arquivos importados, não
+pelo razão emitido pelo Fortes. Lançamento apagado ou alterado à mão no Fortes
+não aparece aqui; para isso, compare também o saldo da conta no balancete.
+
+## Backup e restauração
+
+`motor_contabil/backup.py` copia a pasta de dados (bancos SQLite e arquivos)
+para outro dispositivo. Cada cópia é uma pasta `backup_AAAAMMDD_HHMMSS` com
+um manifesto de hashes; os bancos são copiados pela API de backup do SQLite,
+consistentes mesmo com o aplicativo aberto. Ficam a última cópia de cada um
+dos 30 dias mais recentes e a última de cada um dos 12 meses mais recentes.
+
+```bash
+python -m motor_contabil.backup fazer     --dados D:\dados_contabeis --destino E:\backups
+python -m motor_contabil.backup testar    --destino E:\backups   # restaura numa pasta temporária e confere
+python -m motor_contabil.backup situacao  --destino E:\backups   # sai com erro se a última cópia tem mais de 26 h
+python -m motor_contabil.backup restaurar --destino E:\backups --para D:\dados_restaurados
+```
+
+Restaurar só funciona numa pasta vazia: feche o aplicativo, restaure numa
+pasta nova, confira e só então troque a pasta de dados.
+
+**Agendar no Windows** (Prompt de Comando, ajustando os caminhos; roda todo
+dia às 18h e, se o computador estiver desligado nesse horário, na próxima vez
+que for ligado):
+
+```bat
+schtasks /Create /TN "Backup contabil" /SC DAILY /ST 18:00 /RL LIMITED ^
+  /TR "\"C:\caminho\.venv\Scripts\python.exe\" -m motor_contabil.backup fazer --dados D:\dados_contabeis --destino E:\backups"
+```
+
+Depois, em Agendador de Tarefas, abra a tarefa, marque "Executar a tarefa o
+mais cedo possível após uma inicialização agendada ter sido perdida" e defina
+"Iniciar em" como a pasta `automacao-contabil`. A barra lateral do aplicativo
+avisa quando a última cópia tem mais de 26 horas.
+
+O destino deve ser outro disco, um pendrive ou uma unidade de rede, e de
+preferência guardado fora da sala do computador. Teste a restauração antes do
+piloto e depois a cada três meses.
+
+## Dados separados por empresa
+
+Cada empresa cliente tem a sua pasta dentro da pasta de dados do escritório
+(`dados/` por padrão, fora do controle de versão):
+
+```
+dados/nx/empresa.json   nome, CNPJ, conta do banco, prefixo da marca, formato do plano
+dados/nx/plano.csv      plano de contas da empresa
+dados/nx/regras.json    regras de classificação da empresa
+dados/nx/motor.db       movimentos, lançamentos, lotes e trilha de auditoria
+dados/nx/arquivos/      extratos e planilhas lidos com sucesso, como chegaram (por mês)
+```
+
+Não há banco compartilhado: o motor de uma empresa só abre a pasta dela, e o
+controle de duplicidade é de cada empresa. No cadastro, o plano e as regras são
+validados juntos (conta do banco e conta de cada regra precisam existir no
+plano e ser analíticas), e CNPJ e prefixo da marca não podem se repetir. Ao
+receber um arquivo idêntico a um já guardado em outra empresa, o aplicativo
+avisa, porque provavelmente foi enviado na empresa errada.
+
+```bash
+python -m motor_contabil.cli --dados dados cadastrar-empresa nx --nome "N X ARAUJO LTDA" \
+    --cnpj 62.064.868/0001-02 --conta 362 --prefixo NX --plano plano_fortes.csv --regras regras.json
+python -m motor_contabil.cli --dados dados --empresa nx importar extrato.pdf
+python -m motor_contabil.cli --dados dados --empresa nx exportar lote.csv
+```
+
+Na interface, a empresa é escolhida na barra lateral, e o cadastro também pode
+ser feito por lá. O backup copia a pasta `dados/` inteira, com todas as
+empresas.
