@@ -248,8 +248,12 @@ try:
     # ------------------------------------------------------------------ exportar
     st.subheader("3. Exportar liberados")
     st.caption(
-        "Leiaute provisório (CSV genérico). Ainda não corresponde ao leiaute de nenhum "
-        "sistema contábil específico."
+        "Leiaute Fortes: o arquivo aceito na importação de lançamentos do Fortes Contábil "
+        "(escolha na barra lateral). CSV genérico: leiaute provisório, não corresponde a "
+        "nenhum sistema contábil."
+        if leiaute == "Fortes" else
+        "CSV genérico: leiaute provisório, não corresponde a nenhum sistema contábil. "
+        "Para o Fortes, escolha \"Fortes\" na barra lateral."
     )
     if st.button("Gerar arquivo de importação", disabled=contagem[Status.LIBERADO] == 0):
         try:

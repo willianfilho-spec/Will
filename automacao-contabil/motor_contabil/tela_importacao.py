@@ -74,10 +74,13 @@ def validar_envio(nome: str, conteudo: bytes) -> RelatorioImportacao | None:
     sufixo = Path(nome).suffix.lower()
     aceitas = ", ".join(EXTENSOES_ACEITAS)
     if sufixo not in EXTENSOES_ACEITAS:
-        tipo = f"do tipo {sufixo}" if sufixo else "sem extensão"
+        detalhe = (
+            f"O arquivo {nome} é do tipo {sufixo}, que o sistema não lê." if sufixo
+            else f"O arquivo {nome} está sem extensão, e o sistema não sabe que tipo de extrato é."
+        )
         return _recusa(
             "Arquivo não importado",
-            f"O arquivo {nome} é {tipo}, que o sistema não lê.",
+            detalhe,
             f"Envie o extrato em um destes formatos: {aceitas}. "
             "O ideal é o OFX baixado no internet banking.",
         )
@@ -143,6 +146,12 @@ def traduzir_erro(nome: str, erro: Exception) -> RelatorioImportacao:
                 "Corrija a data ou o valor citado (ou a linha indicada) e envie de novo, "
                 "ou baixe o extrato novamente no banco.",
             )
+        if sufixo == ".xlsx" or "planilha" in baixa or ".xlsx" in baixa:
+            return pronto(
+                detalhe,
+                "Envie um .xlsx com uma única planilha de movimentação (cabeçalho com data e valor), "
+                "ou use o OFX do banco.",
+            )
         if "sem cabeçalho" in baixa or "coluna" in baixa or "cabeçalho" in baixa or "colunas" in baixa:
             return pronto(
                 detalhe,
@@ -153,12 +162,6 @@ def traduzir_erro(nome: str, erro: Exception) -> RelatorioImportacao:
             return pronto(
                 detalhe,
                 "Baixe o OFX de novo no internet banking e envie o arquivo novo.",
-            )
-        if sufixo == ".xlsx" or "planilha" in baixa or ".xlsx" in baixa:
-            return pronto(
-                detalhe,
-                "Envie um .xlsx com uma única planilha de movimentação (cabeçalho com data e valor), "
-                "ou use o OFX do banco.",
             )
         if sufixo == ".pdf" or "pdf" in baixa or "saldo" in baixa or "itaú" in baixa:
             return pronto(

@@ -90,21 +90,27 @@ def ler_csv(
         # Linhas de saldo não são movimentação.
         if normalizar(historico).startswith(("SALDO", "S A L D O")):
             continue
-        if "valor" in colunas and (linha.get(colunas["valor"]) or "").strip():
-            valor = para_decimal(linha[colunas["valor"]])
-        else:
-            entrada = (linha.get(colunas.get("entrada", ""), "") or "").strip()
-            saida = (linha.get(colunas.get("saida", ""), "") or "").strip()
-            if entrada:
-                valor = abs(para_decimal(entrada))
-            elif saida:
-                valor = -abs(para_decimal(saida))
+        try:
+            if "valor" in colunas and (linha.get(colunas["valor"]) or "").strip():
+                valor = para_decimal(linha[colunas["valor"]])
             else:
-                raise ValueError(f"{caminho.name}, linha {numero}: sem valor")
+                entrada = (linha.get(colunas.get("entrada", ""), "") or "").strip()
+                saida = (linha.get(colunas.get("saida", ""), "") or "").strip()
+                if entrada:
+                    valor = abs(para_decimal(entrada))
+                elif saida:
+                    valor = -abs(para_decimal(saida))
+                else:
+                    raise ValueError(f"{caminho.name}, linha {numero}: sem valor")
+            data = _data(bruto_data)
+        except ValueError as erro:
+            if str(erro).startswith(caminho.name):
+                raise
+            raise ValueError(f"{caminho.name}, linha {numero}: {erro}") from erro
         transacoes.append(
             Transacao(
                 conta_bancaria=conta_bancaria,
-                data=_data(bruto_data),
+                data=data,
                 valor=valor,
                 historico=historico,
                 documento=(linha.get(colunas.get("documento", ""), "") or "").strip()

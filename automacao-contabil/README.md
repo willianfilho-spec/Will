@@ -110,6 +110,61 @@ Testes:
 pytest
 ```
 
+## Importar extrato na interface
+
+É a seção "1. Importar extrato" do aplicativo. Passos: escolha o arquivo,
+clique em "Processar extrato" e leia o resultado.
+
+**Formatos aceitos:** `.ofx` e `.ofc` (o melhor, baixado no internet banking),
+`.csv` e `.txt` com cabeçalho (colunas data, histórico e valor), `.xlsx` com
+uma única planilha e `.pdf` do Itaú no modelo Entradas e Saídas. O tamanho
+máximo é 20 MB por arquivo.
+
+**O arquivo é testado antes de ser guardado.** O sistema lê o arquivo numa
+cópia temporária. Só se a leitura der certo ele guarda o original em
+`dados/<empresa>/arquivos` e cria o lote. Arquivo recusado não é guardado e
+não cria lote.
+
+**Quando a importação dá certo, o resultado mostra:**
+
+- o título "Extrato importado" e uma frase com o total de transações lidas, as
+  novas e as já importadas antes;
+- os números: Lidas, Novas, Já importadas, Liberados, Pendentes e Bloqueados;
+- Entradas no arquivo e Saídas no arquivo, em reais (as saídas aparecem com
+  sinal de menos, por exemplo `-R$ 3.245,00`);
+- o período: de que dia a que dia vão as transações do arquivo;
+- avisos ("Atenção: ..."), por exemplo lançamentos pendentes ou bloqueados que
+  pedem revisão na seção 2, ou arquivo idêntico já importado antes;
+- "O que fazer", quando há uma próxima ação.
+
+**Reimportar o mesmo arquivo** não cria nada. O título passa a ser "Nada de
+novo neste extrato", com Novas igual a zero, e o aviso "Nenhuma transação
+nova: todas as linhas deste arquivo já estavam no sistema."
+
+**Quando o arquivo é recusado**, a tela mostra "Arquivo não importado", o que
+aconteceu e "O que fazer". Os textos abaixo são os que o sistema gera
+(`a.csv`, `a.xlsx` etc. são o nome do arquivo enviado).
+
+| Mensagem | O que fazer |
+| --- | --- |
+| "O arquivo a.doc é do tipo .doc, que o sistema não lê." | Envie em .ofx, .ofc, .csv, .txt, .xlsx ou .pdf. O ideal é o OFX do internet banking. |
+| "O arquivo a.csv está vazio (0 bytes)." | Baixe o extrato de novo no internet banking e confira se o arquivo abre antes de enviar. |
+| "O arquivo a.csv tem 21,0 MB e o limite é 20 MB." | Baixe o extrato por períodos menores (um mês por vez) e envie um de cada vez. |
+| "a.csv: arquivo sem cabeçalho" ou "a.csv: não encontrei coluna de valor" | Exporte o extrato de novo em CSV com cabeçalho, com as colunas data, histórico e valor. |
+| "a.csv, linha 3: sem valor", "a.csv, linha 3: data inválida: '32/13/2026'" ou "a.csv, linha 3: valor monetário inválido: 'abc'" | Corrija a linha citada no arquivo e envie de novo, ou baixe o extrato novamente no banco. |
+| "O arquivo a.csv foi lido, mas não tem nenhuma transação." | Baixe o extrato de novo, escolhendo um período com movimentação, e confira o cabeçalho (data, histórico e valor). |
+| "a.ofx: transação 2 sem valor ou data" ou "O arquivo a.ofx está corrompido ou incompleto." | Baixe o OFX de novo no internet banking e envie o arquivo novo. |
+| "O arquivo a.xlsx não é uma planilha .xlsx válida." | Exporte a planilha de novo em formato .xlsx (Excel) ou use o OFX do banco. |
+| "a.xlsx: tem 2 planilhas. Envie um arquivo com uma única planilha de movimentação, para não misturar meses ou contas." | Envie um .xlsx com uma única planilha de movimentação (cabeçalho com data e valor), ou use o OFX do banco. |
+| "a.pdf: não reconheci o extrato Itaú (Entradas e Saídas)" ou "a.pdf: a soma dos movimentos não confere com o saldo impresso. Nada foi importado." | Só é aceito o extrato do Itaú no modelo Entradas e Saídas. Baixe o PDF de novo no internet banking, sem editar, e envie. |
+| "Não foi possível ler os caracteres do arquivo a.csv (codificação desconhecida)." | Salve o arquivo como UTF-8 ou exporte o extrato de novo no banco. |
+
+Para qualquer outro erro, o "O que fazer" é: "Confira se o arquivo é o extrato
+da empresa e envie de novo; se persistir, guarde o arquivo e avise o
+responsável pelo sistema."
+
+Na linha de comando (`motor_contabil.cli importar`), esta tela não é usada.
+
 ## Parametrização por empresa
 
 - `exemplos/plano_contas.csv`: `codigo;descricao;tipo;codigo_exportacao`.
@@ -290,7 +345,7 @@ dados/nx/empresa.json   nome, CNPJ, conta do banco, prefixo da marca, formato do
 dados/nx/plano.csv      plano de contas da empresa
 dados/nx/regras.json    regras de classificação da empresa
 dados/nx/motor.db       movimentos, lançamentos, lotes e trilha de auditoria
-dados/nx/arquivos/      extratos e planilhas recebidos, como chegaram (por mês)
+dados/nx/arquivos/      extratos e planilhas lidos com sucesso, como chegaram (por mês)
 ```
 
 Não há banco compartilhado: o motor de uma empresa só abre a pasta dela, e o

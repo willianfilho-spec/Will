@@ -92,7 +92,14 @@ restauração a cada três meses.
 
 1. Escolha um mês da NX que ainda **não** foi lançado no Fortes. Importar um
    mês já lançado duplica lançamentos no Fortes.
-2. Anote a hora de início. Importe o extrato Itaú em PDF ou as planilhas do mês.
+2. Anote a hora de início. Importe o extrato Itaú em PDF ou as planilhas do mês
+   (seção 1, botão "Processar extrato"; até 20 MB por arquivo). No resultado,
+   confira: o título "Extrato importado"; o **Período**, que deve ser o mês
+   escolhido; **Lidas** e **Novas**, que num mês ainda não importado devem ser iguais; e
+   **Pendentes** e **Bloqueados**, que você vai revisar no passo seguinte. Se
+   aparecer "Arquivo não importado", leia o "O que fazer" na tela: nada foi
+   guardado nem criado. Se aparecer "Nada de novo neste extrato", o arquivo já
+   tinha sido importado.
 3. Revise os pendentes, aprove ou corrija, e exporte o lote no leiaute Fortes.
 4. Importe o lote no Fortes com "Desconsiderar Identificador" e "Utilizar
    Código Reduzido" marcados. Anote se alguma linha foi rejeitada.
