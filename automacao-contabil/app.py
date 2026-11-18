@@ -20,6 +20,9 @@ import streamlit as st
 from motor_contabil import BancoDeDados, ExportadorFortes, Motor, Status
 from motor_contabil import empresas
 from motor_contabil.conciliacao import confrontar, ler_importados, resumo_mensal
+from motor_contabil.tela_importacao import (
+    EXTENSOES_ACEITAS, TAMANHO_MAXIMO, RelatorioImportacao, formatar_moeda, processar_importacao,
+)
 
 
 def brl(valor: str) -> str:
@@ -141,9 +144,13 @@ except Exception as erro:  # configuração inválida: mostrar e parar
 try:
     # ------------------------------------------------------------------ importar
     st.subheader(f"1. Importar extrato · {empresa.nome}")
+    chave_relatorio = f"relatorio_importacao_{empresa.identificador}"
     arquivo = st.file_uploader(
         "Extrato OFX, CSV, planilha XLSX ou extrato Itaú em PDF",
-        type=["ofx", "ofc", "csv", "txt", "xlsx", "pdf"],
+        type=[e.lstrip(".") for e in EXTENSOES_ACEITAS],
+        help="Formatos aceitos: OFX/OFC (o melhor, baixado no internet banking), CSV/TXT com cabeçalho "
+        "(colunas data, histórico e valor), XLSX com uma única planilha e PDF do Itaú no modelo "
+        f"Entradas e Saídas. Tamanho máximo: {TAMANHO_MAXIMO // (1024 * 1024)} MB.",
     )
     if arquivo:
         conteudo = arquivo.getvalue()
@@ -153,13 +160,37 @@ try:
                 f"Confira se ele é mesmo de {empresa.nome} antes de processar."
             )
     if arquivo and st.button("Processar extrato", type="primary"):
-        original, repetido = empresas.guardar_original(empresa, arquivo.name, conteudo)
-        try:
-            resultado = motor.importar(original, empresa.conta_bancaria)
-            st.success("Extrato processado." + (" O arquivo já tinha sido recebido antes." if repetido else ""))
-            st.code(resultado.resumo(), language=None)
-        except Exception as erro:
-            st.error(f"Erro ao processar: {erro}")
+        st.session_state[chave_relatorio] = processar_importacao(
+            motor, empresa, arquivo.name, arquivo.getvalue()
+        )
+
+    relatorio: RelatorioImportacao | None = st.session_state.get(chave_relatorio)
+    if relatorio is not None:
+        if relatorio.ok:
+            st.success(relatorio.titulo)
+            st.write(relatorio.detalhe)
+            m1 = st.columns(6)
+            m1[0].metric("Lidas", relatorio.lidas)
+            m1[1].metric("Novas", relatorio.novas)
+            m1[2].metric("Já importadas", relatorio.ja_importadas)
+            m1[3].metric("Liberados", relatorio.liberados)
+            m1[4].metric("Pendentes", relatorio.pendentes)
+            m1[5].metric("Bloqueados", relatorio.bloqueados)
+            m2 = st.columns(2)
+            m2[0].metric("Entradas no arquivo", formatar_moeda(relatorio.total_entradas))
+            m2[1].metric("Saídas no arquivo", formatar_moeda(relatorio.total_saidas))
+            if relatorio.primeira_data and relatorio.ultima_data:
+                st.write(
+                    f"Período: de {relatorio.primeira_data.strftime('%d/%m/%Y')} "
+                    f"a {relatorio.ultima_data.strftime('%d/%m/%Y')}"
+                )
+            for aviso in relatorio.avisos:
+                st.warning(f"Atenção: {aviso}")
+            if relatorio.o_que_fazer:
+                st.info(f"O que fazer: {relatorio.o_que_fazer}")
+        else:
+            st.error(f"{relatorio.titulo}. {relatorio.detalhe}")
+            st.info(f"O que fazer: {relatorio.o_que_fazer}")
 
     # ------------------------------------------------------------------ conferir
     st.subheader("2. Conferir")
