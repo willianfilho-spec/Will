@@ -1,6 +1,6 @@
 # Projetos
 
-Atualizado em: 2026-11-17
+Atualizado em: 2026-11-18
 Um bloco por projeto: objetivo, local, estado, próximos passos. Estado vem de evidência (commit, teste, README); quando não houver, dizer "não verificado".
 
 ## Folha Clara (editor de PDF no navegador)
@@ -23,3 +23,7 @@ Um bloco por projeto: objetivo, local, estado, próximos passos. Estado vem de e
 ## Sistema de memória persistente
 - Local: `CLAUDE.md`, `memoria/`, `.claude/hooks/memoria.py`, `.claude/settings.json`, `.claude/skills/salvar-memoria/`.
 - [2026-11-17] Estado: implementado, testado em sessões novas e incorporado à `main` (P-002 concluída). Próximo passo: nenhum obrigatório; acompanhar se o lembrete do hook Stop ajuda ou incomoda — origem: esta sessão; confiança: alta
+
+## Fluxo de orquestração com subagentes
+- Local: seção "Orquestração" do `CLAUDE.md` e `.claude/agents/{tela,testes,documentacao}.md`, aqui e nos outros dois repositórios da conta (ver D-006).
+- [2026-11-18] Estado: implantado em branch, ainda fora da `main` (P-005); reconhecimento dos perfis pendente de sessão nova (P-004). Nenhuma demanda executada com o fluxo ainda — origem: esta sessão; confiança: alta

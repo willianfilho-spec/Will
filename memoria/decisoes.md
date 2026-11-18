@@ -1,6 +1,6 @@
 # Decisões
 
-Atualizado em: 2026-11-17
+Atualizado em: 2026-11-18
 Formato: ID, data, decisão, justificativa, alternativas, consequências, status (vigente | substituída por D-XXX). Nunca apagar; substituir.
 
 ## D-001 [2026-11-17] Memória vive no repositório git
@@ -34,3 +34,11 @@ Formato: ID, data, decisão, justificativa, alternativas, consequências, status
 - Decisão: registrar em `Human-Written Declaration` que `CLAUDE.md`, `memoria/` e `.claude/` são mantidos com auxílio de IA e ficam fora do compromisso de autoria humana.
 - Justificativa: manter a declaração verdadeira. Aprovado pelo usuário.
 - Status: vigente. Origem: pedido do usuário; confiança: alta.
+
+## D-006 [2026-11-18] Fluxo de orquestração implantado por repositório
+- Decisão: o fluxo "Opus coordena, subagentes executam" fica no `CLAUDE.md` de cada repositório, com três perfis em `.claude/agents/` (`tela`, `testes`, `documentacao`, `model: sonnet`). Implantado em `Will`, no repositório do dataset da APA Maracanã e no repositório privado do laudo de viabilidade. As frentes foram adaptadas: no laudo, "tela" é a apresentação do PDF; no dataset, a apresentação do Markdown no GitHub.
+- Isolamento: nenhum perfil fixa `isolation: worktree` no cabeçalho. O coordenador escolhe `isolation: "worktree"` por chamada, porque o worktree nasce do último commit e não leva alterações não commitadas.
+- Justificativa: cada sessão clona só os repositórios dela, e `~/.claude` é descartado (D-001); configuração por repositório é a única que persiste. Escolher o worktree por chamada evita subagente trabalhar numa base sem as mudanças locais.
+- Alternativas: skill compartilhada entre repositórios (não carrega fora do repositório onde está); worktree fixo nos perfis (risco de base desatualizada).
+- Consequências: atualizar o fluxo exige editar os três repositórios. Haiku entra só por `model: "haiku"` na chamada do `Agent`.
+- Status: vigente. Origem: pedido do usuário (modo IMPLANTAR); confiança: alta.
