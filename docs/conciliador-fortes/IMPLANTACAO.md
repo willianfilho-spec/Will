@@ -1,51 +1,96 @@
-# Implantação do web app
+# Implantação em outra plataforma
 
-> Os arquivos `Dockerfile`, `docker-compose.yml` e `Caddyfile` abaixo **não foram executados** neste ambiente
-> (não há Docker aqui). O servidor Python foi testado por `pytest` e no navegador; a parte de proxy/HTTPS não.
+O que foi **testado** e o que **não** foi está marcado em cada item. Antes de expor a clientes, leia `SEGURANCA.md`.
 
-## Demonstração local (sem HTTPS, só nesta máquina)
+## 1. A plataforma precisa ter (requisitos que decidem se serve)
+
+| Requisito | Por quê |
+|---|---|
+| **Disco persistente** (volume/disco montado) | os dados são SQLite + arquivos em pasta. Sem disco persistente, tudo some ao reiniciar |
+| **Uma única instância** (não escalar horizontalmente) | SQLite não é compartilhado entre servidores e o limite de requisições fica na memória do processo |
+| **Servidor de longa duração** (processo ou contêiner) | não serve para funções "serverless" (Vercel, Netlify, Cloud Functions, Lambda): não há disco persistente nem processo contínuo |
+| **HTTPS pela plataforma** | o app não termina TLS; os cookies são `Secure` |
+| Python 3.12 (ou 3.13) **ou** Docker | versões testadas |
+| Variável de ambiente `PORT` (a maioria das plataformas define) | o servidor lê `PORT`; padrão 8000 |
+
+Serve: VPS (Hetzner, DigitalOcean, Contabo, Oracle, AWS Lightsail), Docker em qualquer servidor, e PaaS que ofereça disco persistente
+(Render com disk, Railway com volume, Fly.io com volume, etc., conferindo o plano). Não serve: planos que apagam o disco a cada
+deploy e plataformas serverless.
+
+## 2. Variáveis de ambiente
+
+Modelo em `.env.example`. Principais:
+
+| Variável | Obrigatória | O que é |
+|---|---|---|
+| `CONCILIADOR_CHAVE` | sim | chave de criptografia dos arquivos (`python scripts/gerar_chave.py`). **Guarde uma cópia fora do backup dos dados. Perdê-la é perder os arquivos** |
+| `CONCILIADOR_DATA_DIR` | sim | pasta dos dados, no disco persistente (ex.: `/dados`) |
+| `CONCILIADOR_ADMIN_EMAIL`, `CONCILIADOR_ADMIN_SENHA` | só no 1º início | cria o primeiro administrador se ainda não houver usuários. A senha deve atender à política; é de uso único e deve ser trocada no 1º acesso. **Remova a SENHA da plataforma depois** |
+| `FORWARDED_ALLOW_IPS` | recomendado | IPs do proxy confiáveis para `X-Forwarded-For`. Use `*` só se o app não for acessível sem passar pelo proxy da plataforma |
+| `PORT` | a plataforma define | porta do servidor |
+
+O servidor **se recusa a subir sem `CONCILIADOR_CHAVE`**.
+
+## 3. Comando de início
 
 ```bash
-cd conciliador_fortes
-pip install -r requirements.txt
-python scripts/rodar_web.py --demo
+pip install -r requirements.txt            # só dependências de execução, versões fixadas
+python scripts/rodar_web.py --host 0.0.0.0 --atras-de-proxy
 ```
 
-Cria dados de exemplo em uma pasta temporária e sobe em `http://127.0.0.1:8000`. Logins de demonstração (senha
-`Demo-Conciliador-2026!`): `admin@demo.test`, `operador@demo.test`, `revisor@demo.test`, `cliente@demo.test`.
-O modo demo desliga o 2FA e o cookie `Secure`. **Nunca use `--demo` em produção.**
+Endereço de verificação de saúde (sem login, não expõe dados): `GET /saude` → `ok`.
+O arquivo `Procfile` já traz essa linha para plataformas que o usam.
 
-## Produção (resumo)
+## 4. Docker (não testado aqui, sem Docker no ambiente de construção)
 
-1. Máquina com disco cifrado e acesso restrito à pasta de dados.
-2. Gere e guarde a chave: `python scripts/gerar_chave.py` → defina `CONCILIADOR_CHAVE` (cofre/gerenciador de senhas).
-3. Pasta de dados fora do repositório: `CONCILIADOR_DATA_DIR=/var/lib/conciliador`.
-4. Crie o primeiro administrador: `python scripts/criar_admin.py` (pede nome, e-mail e senha; valida a política).
-5. Suba o servidor só em localhost e coloque um proxy com HTTPS na frente:
-   ```bash
-   python scripts/rodar_web.py --host 127.0.0.1 --port 8000
+```bash
+docker build -t conciliador conciliador_fortes
+docker run -d --name conciliador -p 8000:8000 \
+  -v conciliador_dados:/dados \
+  -e CONCILIADOR_CHAVE="$(python scripts/gerar_chave.py)" \
+  -e CONCILIADOR_ADMIN_EMAIL=voce@seudominio.com.br \
+  -e CONCILIADOR_ADMIN_SENHA='Troque-Esta-Senha-42!' \
+  conciliador
+```
+
+O `Dockerfile` usa Python 3.12, usuário sem privilégios, `HEALTHCHECK` em `/saude` e `/dados` como volume.
+Guarde o valor da chave: o exemplo acima a gera e **não a mostra**; gere antes, anote e passe o valor.
+
+## 5. Servidor próprio sem Docker (Linux, não testado aqui)
+
+1. `python3.12 -m venv venv && venv/bin/pip install -r requirements.txt`
+2. Defina as variáveis acima num arquivo `/etc/conciliador.env` (permissão 600).
+3. Serviço `systemd` (`/etc/systemd/system/conciliador.service`):
    ```
-   O script se recusa a subir sem `CONCILIADOR_CHAVE` (ou `--demo`).
-6. No primeiro acesso o administrador é levado a ativar o 2FA. Depois cria empresas, usuários e permissões em /admin.
-7. Faça backup (ver README) **e** copie a chave separadamente.
+   [Service]
+   User=conciliador
+   WorkingDirectory=/opt/conciliador_fortes
+   EnvironmentFile=/etc/conciliador.env
+   ExecStart=/opt/conciliador_fortes/venv/bin/python scripts/rodar_web.py --host 127.0.0.1 --port 8000 --atras-de-proxy
+   Restart=on-failure
+   ```
+4. Proxy com HTTPS na frente (exemplo Caddy, certificado automático; exige domínio apontado para o servidor):
+   ```
+   conciliador.seudominio.com.br {
+       reverse_proxy 127.0.0.1:8000
+   }
+   ```
+   Aqui deixe `FORWARDED_ALLOW_IPS=127.0.0.1`.
 
-### Proxy com HTTPS (exemplo Caddy, não testado aqui)
+## 6. Depois de subir
 
-```
-conciliador.seudominio.com.br {
-    reverse_proxy 127.0.0.1:8000
-}
-```
+1. Abra a URL, entre com o administrador, troque a senha e ative o 2FA (obrigatório).
+2. Remova `CONCILIADOR_ADMIN_SENHA` da plataforma.
+3. Em Administração: crie as empresas, os usuários e as permissões.
+4. Backup: copie a pasta de dados (o banco vai em claro; **cifre o destino**) e guarde a chave separada.
+   `python scripts/teste_restauracao.py --data-dir /dados` testa a restauração em pasta temporária.
+5. Faça a homologação com o Fortes (`homologacao/instrucoes-escritorio.md`) antes de usar com empresas reais.
 
-O Caddy obtém e renova o certificado sozinho (exige um domínio apontando para o servidor e as portas 80/443 abertas).
-Inicie o app com `--proxy-headers --forwarded-allow-ips 127.0.0.1` (o `rodar_web.py --atras-de-proxy` faz isso).
+## 7. Atualizar o sistema
 
-### Variáveis de ambiente
+Os bancos se migram sozinhos ao abrir (colunas novas são acrescentadas). Faça backup antes de atualizar o código.
 
-| Variável | Para quê |
-|---|---|
-| `CONCILIADOR_CHAVE` | chave mestra (base64, 32 bytes). Obrigatória em produção |
-| `CONCILIADOR_DATA_DIR` | pasta de dados |
-| `CONCILIADOR_EXIGIR_2FA` | `1` (padrão) exige 2FA da equipe; `0` só para testes |
-| `CONCILIADOR_HTTP_LOCAL` | `1` desliga o cookie `Secure` (só teste local sem HTTPS) |
-| `CONCILIADOR_MAX_UPLOAD` | limite de upload em bytes (padrão 20 MB) |
+## 8. Teste local sem instalar
+
+`python scripts/rodar_web.py --demo` (dados de mentira, sem HTTPS, sem 2FA; **nunca em produção**) ou o pacote Windows
+(`python scripts/montar_pacote.py`, ver `README.md`).

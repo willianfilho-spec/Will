@@ -17,9 +17,12 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 ap.add_argument("--host", default="127.0.0.1")
-ap.add_argument("--port", type=int, default=8000)
+ap.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")), help="padrão: variável PORT (plataformas) ou 8000")
 ap.add_argument("--demo", action="store_true")
-ap.add_argument("--atras-de-proxy", action="store_true", help="confia nos cabeçalhos do proxy em 127.0.0.1")
+ap.add_argument("--atras-de-proxy", action="store_true", help="confia nos cabeçalhos X-Forwarded-* do proxy")
+ap.add_argument("--ips-do-proxy", default=os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1"),
+                help="IPs de proxy confiáveis (padrão: variável FORWARDED_ALLOW_IPS ou 127.0.0.1). '*' só se o app NUNCA for "
+                     "acessível sem passar pelo proxy da plataforma")
 a = ap.parse_args()
 
 if a.demo:
@@ -43,7 +46,12 @@ if a.demo:
           "Senha de todos: Demo-Conciliador-2026!\n"
           "  admin@demo.test · operador@demo.test · revisor@demo.test · cliente@demo.test\n")
 from web.app import criar_app  # noqa: E402
+from web.inicializacao import criar_admin_inicial  # noqa: E402
+
+if not a.demo:
+    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    print("Inicialização:", criar_admin_inicial(config.DATA_DIR), flush=True)
 
 uvicorn.run(criar_app(config.DATA_DIR), host=a.host, port=a.port, log_level="info",
-            proxy_headers=a.atras_de_proxy, forwarded_allow_ips="127.0.0.1" if a.atras_de_proxy else None,
+            proxy_headers=a.atras_de_proxy, forwarded_allow_ips=a.ips_do_proxy if a.atras_de_proxy else None,
             server_header=False)

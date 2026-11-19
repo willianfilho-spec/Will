@@ -79,6 +79,16 @@ def criar_app(data_dir: Path | None = None, dica_login: str | None = None) -> Fa
     async def _val(request: Request, exc: RequestValidationError):
         return PlainTextResponse("Requisição inválida.", status_code=422)
 
+    @app.get("/saude", include_in_schema=False)
+    def saude():
+        """Verificação de saúde para a plataforma (sem login, sem dados). Confere que o banco central abre."""
+        from storage.database import conectar_central
+        try:
+            conectar_central(app.state.data_dir).close()
+        except Exception:  # noqa: BLE001
+            return PlainTextResponse("erro", status_code=503)
+        return PlainTextResponse("ok")
+
     # ---------------------------------------------------------------- login
     def _login_page(request: Request, erro: str | None = None, status: int = 200):
         token = secrets.token_urlsafe(24)

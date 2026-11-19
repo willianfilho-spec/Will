@@ -411,3 +411,34 @@ def test_web_20_erros_nao_vazam_detalhes(mundo):
     assert r.status_code == 404 and "Traceback" not in r.text and "sqlite" not in r.text.lower()
     r = ana.get("/e/alfa/revisao/mov/abc")
     assert r.status_code == 422 and "Traceback" not in r.text
+
+
+# ------------------------------------------------------------------ implantação
+
+def test_web_21_saude_sem_login_e_sem_dados(mundo):
+    r = novo(mundo).get("/saude")
+    assert r.status_code == 200 and r.text == "ok" and "alfa" not in r.text.lower()
+
+
+def test_web_22_admin_inicial_por_variavel_de_ambiente(tmp_path):
+    from web.inicializacao import criar_admin_inicial
+    d = tmp_path / "d"
+    assert "AVISO" in criar_admin_inicial(d, {})
+    assert "ERRO" in criar_admin_inicial(d, {"CONCILIADOR_ADMIN_EMAIL": "a@x.test", "CONCILIADOR_ADMIN_SENHA": "fraca"})
+    c = conectar_central(d)
+    assert c.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0] == 0
+    c.close()
+    env = {"CONCILIADOR_ADMIN_EMAIL": " Chefe@X.test ", "CONCILIADOR_ADMIN_SENHA": "Inicial-Forte-77!", "CONCILIADOR_ADMIN_NOME": "Chefe Geral"}
+    msg = criar_admin_inicial(d, env)
+    assert "criado" in msg and "Inicial-Forte-77!" not in msg  # a senha nunca é impressa
+    c = conectar_central(d)
+    u = c.execute("SELECT * FROM usuarios").fetchone()
+    c.close()
+    assert u["email"] == "chefe@x.test" and u["papel_global"] == "admin" and u["deve_trocar_senha"] == 1
+    assert "já existem" in criar_admin_inicial(d, env)  # não cria de novo nem sobrescreve
+    # e o administrador criado entra, mas é obrigado a trocar a senha e ativar o 2FA
+    app = criar_app(d)
+    cl = TestClient(app, base_url="https://testserver", follow_redirects=False)
+    tok = re.search(r'name="csrf_login" value="([^"]+)"', cl.get("/login").text).group(1)
+    assert cl.post("/login", data={"email": "chefe@x.test", "senha": "Inicial-Forte-77!", "csrf_login": tok}).status_code == 303
+    assert cl.get("/painel").headers["location"] == "/conta"

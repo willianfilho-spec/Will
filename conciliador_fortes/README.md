@@ -17,7 +17,7 @@ importação do Fortes Contábil. Duas interfaces sobre o mesmo núcleo e os mes
 
 ```bash
 cd conciliador_fortes
-pip install -r requirements.txt
+pip install -r requirements.txt   # só execução; para testes: requirements-dev.txt
 python scripts/rodar_web.py --demo
 ```
 
