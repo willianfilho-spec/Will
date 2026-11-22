@@ -10,6 +10,17 @@ contábeis revisados e prontos para importação, sem gerar duplicidades.
 > Fortes"); o CSV genérico continua provisório. Use com dados de clientes só no
 > computador do escritório, seguindo o `INSTALACAO.md`.
 
+## Objetivo do piloto
+
+O piloto (fase 1) existe para **testar o aplicativo em uso real antes de
+oferecê-lo como produto** a outros escritórios e empresas. Por isso, além de
+gerar os lançamentos, o sistema precisa provar o que fez: cada etapa analisada
+pelo motor e pela conferência do banco sai em **relatório PDF para análise e
+auditoria humana**, com quadro de revisão para o contador assinar. Os
+indicadores desses relatórios (quanto foi classificado por regra sem
+intervenção, quanto exigiu revisão, tempo gasto, se o banco fechou) são a
+evidência para decidir se o produto está pronto.
+
 ## O que faz e o que não faz
 
 | Faz | Não faz (ainda) |
@@ -20,6 +31,7 @@ contábeis revisados e prontos para importação, sem gerar duplicidades.
 | Sugere contas por IA, sempre como pendência | Liberar lançamento sugerido pela IA sem aprovação |
 | Bloqueia contas inexistentes, sintéticas e valores zero | Validar documentação comprobatória (ITG 2000) |
 | Registra quem aprovou, descartou ou exportou cada lançamento | Gerar arquivo no leiaute do Domínio, Alterdata etc. |
+| Gera relatórios em PDF do processamento e da conferência do banco, para revisão e auditoria | Assinar digitalmente os relatórios |
 
 A distinção da proposta continua valendo: **gerar lançamentos a partir do
 extrato não é conciliar**. A conciliação exige confrontar o extrato com os
@@ -369,3 +381,33 @@ python -m motor_contabil.cli --dados dados --empresa nx exportar lote.csv
 Na interface, a empresa é escolhida na barra lateral, e o cadastro também pode
 ser feito por lá. O backup copia a pasta `dados/` inteira, com todas as
 empresas.
+
+## Relatórios em PDF para revisão e auditoria
+
+`motor_contabil/relatorios.py` (requer `reportlab`) gera dois relatórios a
+partir do que o sistema registrou. Nenhum valor é recalculado por fora.
+
+**Relatório de processamento e revisão** (seção 5 da interface, por período):
+
+1. Resumo: transações, entradas e saídas; quantas foram classificadas por
+   regra sem intervenção, quantas foram revisadas por uma pessoa (e quantas
+   tiveram a conta corrigida) e quantas estão em aberto; quantidade e valor
+   por situação (exportado, liberado, pendente, bloqueado, descartado).
+2. Pendentes, com o motivo.
+3. Bloqueados, com o motivo.
+4. Descartados, com o motivo informado pelo revisor.
+5. Revisões feitas por pessoas: quem, quando e o que decidiu.
+6. Totais por conta de contrapartida (liberados e exportados), com o código
+   reduzido.
+7. Lotes de importação e exportação, com o SHA-256 de cada arquivo.
+8. Trilha de auditoria completa do período.
+
+**Relatório de conferência do banco** (botão na seção 4, depois de
+"Conferir"): resultado (conciliado ou não), saldo por mês, movimentos só no
+extrato, movimentos só na contabilidade e os limites da conferência.
+
+Os dois terminam com o quadro "Revisão humana" (aprovado, aprovado com
+ressalvas ou reprovado; observações; nome, CRC, data e assinatura) e um
+código de conferência: o SHA-256 dos dados usados. Dois relatórios com o
+mesmo código vieram dos mesmos dados. Gerar um relatório não altera nada;
+baixar o PDF registra o evento `relatorio_baixado` na trilha de auditoria.

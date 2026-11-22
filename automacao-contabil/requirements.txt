@@ -1,5 +1,7 @@
 streamlit>=1.40
 pytest>=8
+# relatórios em PDF para revisão e auditoria:
+reportlab>=4.2
 # opcional, só para a sugestão por IA:
 anthropic>=2.6
 # opcional, só para ler extrato do Itaú em PDF:

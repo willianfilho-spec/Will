@@ -8,6 +8,10 @@ como o trabalho é orquestrado.
 
 ## Contexto do projeto
 
+- Objetivo: o piloto testa o aplicativo em uso real para depois oferecê-lo
+  como produto. Toda função de análise (motor e conferência do banco) deve
+  produzir resultado verificável e relatório PDF para revisão e auditoria
+  humana (`motor_contabil/relatorios.py`).
 - Aplicação Python com interface Streamlit, rodando no computador do
   escritório (fase 1). Dados de cada empresa cliente ficam em `dados/<empresa>/`,
   fora do Git.

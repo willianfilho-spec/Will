@@ -9,6 +9,7 @@ pasta dentro da pasta de dados (ver motor_contabil/empresas.py).
 
 from __future__ import annotations
 
+import calendar
 import os
 import tempfile
 from datetime import date
@@ -20,6 +21,7 @@ import streamlit as st
 from motor_contabil import BancoDeDados, ExportadorFortes, Motor, Status
 from motor_contabil import empresas
 from motor_contabil.conciliacao import confrontar, ler_importados, resumo_mensal
+from motor_contabil import relatorios
 from motor_contabil.tela_importacao import (
     EXTENSOES_ACEITAS, TAMANHO_MAXIMO, RelatorioImportacao, formatar_moeda, processar_importacao,
 )
@@ -126,6 +128,25 @@ def registrar_download(caminho: str, responsavel: str, lote_id: int) -> None:
         banco.conexao.commit()
     finally:
         banco.fechar()
+
+
+def registrar_relatorio(caminho: str, responsavel: str, detalhe: str) -> None:
+    banco = BancoDeDados(caminho)
+    try:
+        banco.registrar_evento(responsavel, "relatorio_baixado", detalhe)
+        banco.conexao.commit()
+    finally:
+        banco.fechar()
+
+
+def oferecer_relatorio(chave: str, rotulo: str) -> None:
+    """Mostra o botão de download de um relatório já gerado e guardado na sessão."""
+    if pronto := st.session_state.get(chave):
+        nome, conteudo = pronto
+        st.download_button(
+            rotulo, conteudo, file_name=nome, mime="application/pdf", key=f"baixar-{chave}",
+            on_click=registrar_relatorio, args=(caminho_db, usuario, nome),
+        )
 
 
 def obter_motor() -> Motor:
@@ -340,6 +361,13 @@ try:
                   "Só na contabilidade": l.so_contabil} for l in linhas],
                 hide_index=True, use_container_width=True,
             )
+            st.session_state[f"rel_conc_{empresa.identificador}"] = (
+                f"conferencia_banco_{empresa.identificador}_{date.today():%Y%m%d}.pdf",
+                relatorios.relatorio_conciliacao(
+                    empresa.nome, empresa.cnpj, reduzido_banco.strip(), linhas, total, usuario,
+                    extrato_pdf.name, [a.name for a in importados], extrato.dias_conferidos,
+                    len(extrato.transacoes)),
+            )
             if all(l.diferenca == 0 for l in linhas) and not total.so_no_extrato \
                     and not total.so_na_contabilidade:
                 st.success(f"Conciliado: {total.pareados} movimentos pareados, saldo igual em todos os meses.")
@@ -356,6 +384,42 @@ try:
                 )
         except Exception as erro:
             st.error(f"Não foi possível conferir: {erro}")
+    oferecer_relatorio(f"rel_conc_{empresa.identificador}",
+                       "Baixar relatório da conferência (PDF, para revisão e auditoria)")
+
+    # ------------------------------------------------------------------ relatórios
+    st.subheader("5. Relatório de processamento e revisão (PDF)")
+    st.caption(
+        "Para análise e auditoria humana: volume importado, quanto foi classificado por regra sem "
+        "intervenção, revisões, pendências, bloqueios, descartes, totais por conta, lotes com hash e "
+        "trilha de auditoria. Termina com o quadro de revisão para o contador assinar."
+    )
+    maximo = motor.banco.conexao.execute("SELECT MAX(data) FROM transacoes").fetchone()[0]
+    if not maximo:
+        st.info("Importe um extrato para gerar o relatório.")
+    else:
+        ultimo = date.fromisoformat(maximo)
+        c1, c2 = st.columns(2)
+        inicio = c1.date_input("De", ultimo.replace(day=1), format="DD/MM/YYYY", key="rel-inicio")
+        fim_do_mes = ultimo.replace(day=calendar.monthrange(ultimo.year, ultimo.month)[1])
+        fim = c2.date_input("Até", fim_do_mes, format="DD/MM/YYYY", key="rel-fim")
+        if st.button("Gerar relatório", disabled=inicio > fim):
+            try:
+                dados_rel = relatorios.coletar_processamento(
+                    motor.banco.conexao, empresa.nome, empresa.cnpj, empresa.conta_bancaria,
+                    inicio, fim, motor.plano)
+                st.session_state[f"rel_proc_{empresa.identificador}"] = (
+                    f"processamento_{empresa.identificador}_{inicio:%Y%m%d}_{fim:%Y%m%d}.pdf",
+                    relatorios.relatorio_processamento(dados_rel, usuario),
+                )
+                ind = relatorios.calcular_indicadores(dados_rel)
+                st.success(
+                    f"Relatório gerado: {ind.total} transações, {ind.automaticos} classificadas por regra "
+                    f"sem intervenção ({ind.taxa_automatica:.0%}), {ind.em_aberto} em aberto."
+                )
+            except Exception as erro:
+                st.error(f"Não foi possível gerar o relatório: {erro}")
+        oferecer_relatorio(f"rel_proc_{empresa.identificador}", "Baixar relatório de processamento (PDF)")
 
 finally:
     motor.banco.fechar()

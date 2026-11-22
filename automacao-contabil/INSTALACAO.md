@@ -105,6 +105,11 @@ restauração a cada três meses.
    Código Reduzido" marcados. Anote se alguma linha foi rejeitada.
 5. Na seção 4 do aplicativo, confira o extrato contra os arquivos importados.
    O resultado esperado é "Conciliado", com diferença zero em todos os meses.
-6. Anote a hora de término e compare com o tempo do processo atual para o
+   Baixe o relatório da conferência em PDF (botão abaixo do resultado).
+6. Na seção 5, gere o relatório de processamento do mês e baixe o PDF. A
+   contadora responsável revisa os dois relatórios e assina o quadro "Revisão
+   humana". Guarde os PDFs assinados junto com a documentação do mês: são a
+   evidência do piloto para decidir se o aplicativo vira produto.
+7. Anote a hora de término e compare com o tempo do processo atual para o
    mesmo tipo de mês. A comparação só é justa a partir do segundo mês, quando
    as correções do primeiro já viraram regras.

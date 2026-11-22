@@ -14,7 +14,9 @@ pytest
 
 Todos os testes precisam passar antes de qualquer commit. O núcleo
 (`motor_contabil/`) usa só a biblioteca padrão do Python; não adicione
-dependências a ele sem necessidade clara.
+dependências a ele sem necessidade clara. Exceções, importadas só quando a
+função é usada: `pdfplumber` (extrato Itaú em PDF) e `reportlab`
+(relatórios em PDF).
 
 ## Regras que não podem ser quebradas
 
