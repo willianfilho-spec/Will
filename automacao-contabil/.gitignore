@@ -3,3 +3,9 @@ __pycache__/
 .pytest_cache/
 .venv/
 lancamentos*.csv
+dados/
+backups/
+implantacao/.env
+implantacao/config/
+implantacao/dados/
+implantacao/backups/

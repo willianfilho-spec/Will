@@ -1,0 +1,9 @@
+{
+ "modo": "cloudflare",
+ "dominio_equipe": "equilibra.cloudflareaccess.com",
+ "aud": "COLE-AQUI-O-APPLICATION-AUDIENCE-AUD-TAG",
+ "autorizados": {
+  "daiane@equilibracontabil.com.br": "Daiane Letícia Freire Azevedo"
+ },
+ "acesso_local_sem_login": false
+}

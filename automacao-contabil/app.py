@@ -3,11 +3,15 @@
     streamlit run app.py
 
 Roda na máquina do escritório. Nenhum dado sai do computador, a não ser que a
-opção de sugestão por IA seja ligada na barra lateral.
+opção de sugestão por IA seja ligada na barra lateral. Cada empresa tem a sua
+pasta dentro da pasta de dados (ver motor_contabil/empresas.py).
 """
 
 from __future__ import annotations
 
+import calendar
+import html
+import os
 import tempfile
 from datetime import date
 from decimal import Decimal
@@ -15,9 +19,13 @@ from pathlib import Path
 
 import streamlit as st
 
-from motor_contabil import BancoDeDados, ConjuntoDeRegras, Motor, PlanoDeContas, Status
-
-EXEMPLOS = Path(__file__).parent / "exemplos"
+from motor_contabil import BancoDeDados, ExportadorFortes, Motor, Status
+from motor_contabil import empresas
+from motor_contabil.conciliacao import confrontar, ler_importados, resumo_mensal
+from motor_contabil import acesso, relatorios
+from motor_contabil.tela_importacao import (
+    EXTENSOES_ACEITAS, TAMANHO_MAXIMO, RelatorioImportacao, formatar_moeda, processar_importacao,
+)
 
 
 def brl(valor: str) -> str:
@@ -38,22 +46,136 @@ def texto_literal(texto: str) -> str:
     return "".join("\\" + c if c in "\\`*_{}[]()<>#+-.!|$~" else c for c in texto)
 
 
-st.set_page_config(page_title="Conferência de lançamentos", layout="wide")
-st.title("Conferência de lançamentos")
-st.caption("Prova de conceito. Os lançamentos só saem do sistema depois de liberados.")
+st.set_page_config(page_title="Conciliador Fortes", layout="wide")
+st.markdown(
+    """
+    <style>
+    /* Números alinhados em colunas: valores, métricas e datas. */
+    [data-testid="stMetricValue"], .valor { font-variant-numeric: tabular-nums; }
+    .valor { font-weight: 600; text-align: right; white-space: nowrap; }
+    .valor.saida { color: #9f1239; }
+    .valor.entrada { color: #166534; }
+    .meta { color: #6b7280; font-size: 0.85rem; }
+    .partida { color: #374151; font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .partida code { font-size: 0.8rem; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+# Quem está usando: login Google pelo Cloudflare Access (acesso remoto) ou nome
+# digitado (acesso no próprio computador). Ver motor_contabil/acesso.py.
+try:
+    config_acesso = acesso.carregar_config(os.environ.get("MOTOR_CONTABIL_ACESSO"))
+    identidade = acesso.identificar(dict(st.context.headers), config_acesso)
+except (ValueError, acesso.AcessoNegado) as erro:
+    st.title("Conciliador Fortes")
+    st.error(str(erro))
+    st.stop()
+remoto = identidade is not None
+
+st.title("Conciliador Fortes")
+st.caption("Piloto interno · fase 1. Nenhum lançamento sai do sistema sem ter sido liberado.")
 
 with st.sidebar:
-    st.header("Configuração")
-    caminho_db = st.text_input("Banco de dados", "motor_contabil.db")
-    caminho_plano = st.text_input("Plano de contas (CSV)", str(EXEMPLOS / "plano_contas.csv"))
-    caminho_regras = st.text_input("Regras (JSON)", str(EXEMPLOS / "regras.json"))
-    usuario = st.text_input("Responsável pela revisão", "operador")
-    usar_ia = st.checkbox(
-        "Sugerir contas com IA",
-        value=False,
-        help="Envia apenas o histórico (CPF/CNPJ mascarados) e o sentido da operação. "
-        "Toda sugestão fica pendente de aprovação.",
-    )
+    # A ordem na tela segue o uso: primeiro o que muda todo dia, depois o que
+    # se configura uma vez. Os blocos são preenchidos fora dessa ordem porque a
+    # lista de empresas depende da pasta de dados.
+    bloco_empresa = st.container()
+    bloco_cadastro = st.container()
+    if remoto:
+        # Pelo acesso remoto, pastas e IA ficam como foram configuradas no
+        # computador do escritório e não podem ser trocadas pela tela.
+        pasta_dados = Path(os.environ.get("MOTOR_CONTABIL_DADOS", "dados"))
+        pasta_backup = os.environ.get("MOTOR_CONTABIL_BACKUP", "")
+        usar_ia = False
+    else:
+        with st.expander("Configurações deste computador"):
+            pasta_dados = Path(st.text_input(
+                "Pasta de dados do escritório", os.environ.get("MOTOR_CONTABIL_DADOS", "dados")
+            ))
+            pasta_backup = st.text_input(
+                "Pasta de backup",
+                os.environ.get("MOTOR_CONTABIL_BACKUP", ""),
+                help="Usada só para avisar quando a última cópia de segurança estiver atrasada.",
+            )
+            usar_ia = st.checkbox(
+                "Sugerir contas com IA",
+                value=False,
+                help="Envia apenas o histórico (CPF/CNPJ mascarados) e o sentido da operação. "
+                "Toda sugestão fica pendente de aprovação.",
+            )
+
+    try:
+        cadastradas = empresas.listar(pasta_dados)
+    except ValueError as erro:
+        bloco_empresa.error(str(erro))
+        st.stop()
+
+    with bloco_cadastro.expander("Cadastrar empresa", expanded=not cadastradas):
+        with st.form("cadastro", clear_on_submit=False):
+            novo_id = st.text_input("Identificador (pasta)", help="Ex.: nx. Letras minúsculas, números e hífen.")
+            novo_nome = st.text_input("Razão social")
+            novo_cnpj = st.text_input("CNPJ")
+            nova_conta = st.text_input("Conta bancária", help="Como o banco é identificado nos extratos; para o Fortes, o reduzido (ex.: 362).")
+            novo_prefixo = st.text_input("Prefixo da marca no histórico", max_chars=6, help="Ex.: NX")
+            novo_formato = st.radio("Plano de contas", ["Exportado do Fortes", "Exemplo do motor"], horizontal=True)
+            novo_plano = st.file_uploader("Plano de contas (CSV)", type=["csv", "txt"])
+            novas_regras = st.file_uploader("Regras (JSON)", type=["json"])
+            if st.form_submit_button("Cadastrar empresa", type="primary"):
+                if not (novo_plano and novas_regras):
+                    st.error("Envie o plano de contas e as regras.")
+                else:
+                    with tempfile.TemporaryDirectory() as pasta:
+                        caminho_p = Path(pasta) / "plano.csv"
+                        caminho_r = Path(pasta) / "regras.json"
+                        caminho_p.write_bytes(novo_plano.getvalue())
+                        caminho_r.write_bytes(novas_regras.getvalue())
+                        try:
+                            empresas.cadastrar(
+                                pasta_dados, novo_id.strip(), novo_nome, novo_cnpj, nova_conta,
+                                novo_prefixo.strip().upper(),
+                                "fortes" if novo_formato == "Exportado do Fortes" else "motor",
+                                caminho_p, caminho_r,
+                            )
+                            st.success("Empresa cadastrada.")
+                            st.rerun()
+                        except ValueError as erro:
+                            st.error(f"Não foi possível cadastrar: {erro}")
+
+    with bloco_empresa:
+        if not cadastradas:
+            st.info("Cadastre a primeira empresa para começar.")
+            st.stop()
+        empresa = st.selectbox(
+            "Empresa", cadastradas, format_func=lambda e: f"{e.nome} ({e.identificador})"
+        )
+        st.caption(f"CNPJ {empresa.cnpj} · banco {empresa.conta_bancaria} · marca {empresa.prefixo_marca}")
+        if remoto:
+            st.markdown(f"**{html.escape(identidade.nome)}**  \n{html.escape(identidade.email or '')}",
+                        unsafe_allow_html=True)
+            st.caption("Conectado com a conta Google. Este nome e e-mail vão para a trilha de "
+                       "auditoria e para os relatórios.")
+            usuario = identidade.para_auditoria
+        else:
+            nome_digitado = st.text_input(
+                "Responsável pela revisão", "operador",
+                help="Este nome aparece na trilha de auditoria e nos relatórios.",
+            )
+            usuario = (acesso.Identidade(nome_digitado, None, False).para_auditoria
+                       if config_acesso.remoto else nome_digitado)
+        leiaute = st.radio("Arquivo de exportação", ["Fortes", "CSV genérico"], horizontal=True)
+        if usar_ia:
+            st.warning("Sugestão por IA ligada: históricos serão enviados ao provedor de IA.")
+        if pasta_backup.strip():
+            from motor_contabil.backup import horas_desde_ultima
+
+            horas = horas_desde_ultima(pasta_backup.strip())
+            if horas is None:
+                st.error("Nenhuma cópia de segurança encontrada na pasta de backup.")
+            elif horas > 26:
+                st.error(f"Última cópia de segurança há {horas:.0f} horas. Confira o agendamento.")
+            else:
+                st.caption(f"Cópia de segurança em dia (há {horas:.1f} h).")
 
 
 def registrar_download(caminho: str, responsavel: str, lote_id: int) -> None:
@@ -66,22 +188,35 @@ def registrar_download(caminho: str, responsavel: str, lote_id: int) -> None:
         banco.fechar()
 
 
+def registrar_relatorio(caminho: str, responsavel: str, detalhe: str) -> None:
+    banco = BancoDeDados(caminho)
+    try:
+        banco.registrar_evento(responsavel, "relatorio_baixado", detalhe)
+        banco.conexao.commit()
+    finally:
+        banco.fechar()
+
+
+def oferecer_relatorio(chave: str, rotulo: str) -> None:
+    """Mostra o botão de download de um relatório já gerado e guardado na sessão."""
+    if pronto := st.session_state.get(chave):
+        nome, conteudo = pronto
+        st.download_button(
+            rotulo, conteudo, file_name=nome, mime="application/pdf", key=f"baixar-{chave}",
+            on_click=registrar_relatorio, args=(caminho_db, usuario, nome),
+        )
+
+
 def obter_motor() -> Motor:
     classificador = None
     if usar_ia:
         from motor_contabil.classificador_ia import ClassificadorClaude
 
         classificador = ClassificadorClaude()
-    plano = PlanoDeContas.carregar(caminho_plano)
-    regras = ConjuntoDeRegras.carregar(caminho_regras)
-    banco = BancoDeDados(caminho_db)
-    try:
-        return Motor(banco, plano, regras, classificador=classificador, usuario=usuario)
-    except Exception:
-        banco.fechar()
-        raise
+    return empresa.abrir_motor(usuario, classificador)
 
 
+caminho_db = str(empresa.caminho_banco)
 try:
     motor = obter_motor()
 except Exception as erro:  # configuração inválida: mostrar e parar
@@ -90,84 +225,163 @@ except Exception as erro:  # configuração inválida: mostrar e parar
 
 try:
     # ------------------------------------------------------------------ importar
-    st.subheader("1. Importar extrato")
-    col1, col2 = st.columns([3, 2])
-    arquivo = col1.file_uploader("Extrato OFX ou CSV", type=["ofx", "ofc", "csv", "txt"])
-    conta_bancaria = col2.text_input("Conta bancária (obrigatória para CSV)", "")
+    st.subheader(f"1. Importar extrato · {empresa.nome}")
+    chave_relatorio = f"relatorio_importacao_{empresa.identificador}"
+    arquivo = st.file_uploader(
+        "Extrato OFX, CSV, planilha XLSX ou extrato Itaú em PDF",
+        type=[e.lstrip(".") for e in EXTENSOES_ACEITAS],
+        help="Formatos aceitos: OFX/OFC (o melhor, baixado no internet banking), CSV/TXT com cabeçalho "
+        "(colunas data, histórico e valor), XLSX com uma única planilha e PDF do Itaú no modelo "
+        f"Entradas e Saídas. Tamanho máximo: {TAMANHO_MAXIMO // (1024 * 1024)} MB.",
+    )
+    if arquivo:
+        conteudo = arquivo.getvalue()
+        if outras := empresas.empresas_com_o_arquivo(pasta_dados, conteudo, empresa.identificador):
+            st.warning(
+                f"Este mesmo arquivo já foi recebido na empresa {', '.join(outras)}. "
+                f"Confira se ele é mesmo de {empresa.nome} antes de processar."
+            )
     if arquivo and st.button("Processar extrato", type="primary"):
-        with tempfile.TemporaryDirectory() as pasta:
-            destino = Path(pasta) / Path(arquivo.name).name  # só o nome, nunca um caminho
-            destino.write_bytes(arquivo.getvalue())
-            try:
-                resultado = motor.importar(destino, conta_bancaria or None)
-                st.success("Extrato processado.")
-                st.code(resultado.resumo(), language=None)
-            except Exception as erro:
-                st.error(f"Erro ao processar: {erro}")
+        st.session_state[chave_relatorio] = processar_importacao(
+            motor, empresa, arquivo.name, arquivo.getvalue()
+        )
 
-    # ------------------------------------------------------------------ conferir
-    st.subheader("2. Conferir")
+    relatorio: RelatorioImportacao | None = st.session_state.get(chave_relatorio)
+    if relatorio is not None:
+        if relatorio.ok:
+            st.success(relatorio.titulo)
+            st.write(relatorio.detalhe)
+            m1 = st.columns(6)
+            m1[0].metric("Lidas", relatorio.lidas)
+            m1[1].metric("Novas", relatorio.novas)
+            m1[2].metric("Já importadas", relatorio.ja_importadas)
+            m1[3].metric("Liberados", relatorio.liberados)
+            m1[4].metric("Pendentes", relatorio.pendentes)
+            m1[5].metric("Bloqueados", relatorio.bloqueados)
+            m2 = st.columns(2)
+            m2[0].metric("Entradas no arquivo", formatar_moeda(relatorio.total_entradas))
+            m2[1].metric("Saídas no arquivo", formatar_moeda(relatorio.total_saidas))
+            if relatorio.primeira_data and relatorio.ultima_data:
+                st.write(
+                    f"Período: de {relatorio.primeira_data.strftime('%d/%m/%Y')} "
+                    f"a {relatorio.ultima_data.strftime('%d/%m/%Y')}"
+                )
+            for aviso in relatorio.avisos:
+                st.warning(f"Atenção: {aviso}")
+            if relatorio.o_que_fazer:
+                st.info(f"O que fazer: {relatorio.o_que_fazer}")
+        else:
+            st.error(f"{relatorio.titulo}. {relatorio.detalhe}")
+            st.info(f"O que fazer: {relatorio.o_que_fazer}")
+
+    # ------------------------------------------------------------------ revisar
+    st.subheader("2. Revisar lançamentos")
     todos = motor.listar()
     contagem = {s: sum(1 for i in todos if i["status"] == s.value) for s in Status}
     m = st.columns(4)
-    m[0].metric("Liberados", contagem[Status.LIBERADO])
-    m[1].metric("Pendentes", contagem[Status.PENDENTE])
-    m[2].metric("Bloqueados", contagem[Status.BLOQUEADO])
-    m[3].metric("Exportados", contagem[Status.EXPORTADO])
+    m[0].metric("Pendentes", contagem[Status.PENDENTE], border=True,
+                help="Precisam de uma decisão: escolher a conta, aprovar ou descartar.")
+    m[1].metric("Bloqueados", contagem[Status.BLOQUEADO], border=True,
+                help="Conta inexistente ou sintética: corrija a conta para liberar.")
+    m[2].metric("Liberados", contagem[Status.LIBERADO], border=True,
+                help="Prontos para o arquivo do Fortes (seção 3).")
+    m[3].metric("Exportados", contagem[Status.EXPORTADO], border=True,
+                help="Já saíram num arquivo de importação e não podem mais ser alterados.")
 
-    filtro = st.radio(
-        "Mostrar", ["pendente", "bloqueado", "liberado", "exportado", "descartado"], horizontal=True
-    )
+    nomes_filtro = {
+        "pendente": "Pendentes", "bloqueado": "Bloqueados", "liberado": "Liberados",
+        "exportado": "Exportados", "descartado": "Descartados",
+    }
+    filtro = st.segmented_control(
+        "Mostrar", list(nomes_filtro), default="pendente", key="filtro-status",
+        format_func=lambda k: f"{nomes_filtro[k]} ({contagem[Status(k)]})",
+    ) or "pendente"
     itens = [i for i in todos if i["status"] == filtro]
-    contas = [c.codigo for c in motor.plano.analiticas()]
-    rotulos = {c.codigo: f"{c.codigo} - {c.descricao}" for c in motor.plano.analiticas()}
+    analiticas = motor.plano.analiticas()
+    contas = [c.codigo for c in analiticas]
+    rotulos = {c.codigo: f"{c.codigo} - {c.descricao}" for c in analiticas}
+
+    def nome_conta(codigo: str | None) -> str:
+        conta = motor.plano.get(codigo) if codigo else None
+        nome = f" {html.escape(conta.descricao)}" if conta else ""
+        return f"<code>{html.escape(codigo or '')}</code>{nome}"
 
     if not itens:
-        st.info("Nenhum lançamento nesta situação.")
+        vazio = {
+            "pendente": "Nada a revisar. Os lançamentos liberados já podem ir para o Fortes (seção 3).",
+            "bloqueado": "Nenhum lançamento bloqueado.",
+        }
+        st.info(vazio.get(filtro, f"Nenhum lançamento em \"{nomes_filtro[filtro]}\"."))
     for item in itens:
         with st.container(border=True):
-            a, b, c = st.columns([4, 2, 2])
-            a.markdown(
+            topo, valor = st.columns([5, 1.4])
+            topo.markdown(
                 f"**{texto_literal(item['historico_banco'])}**  \n"
-                f"{data_br(item['data'])} · {texto_literal(item['origem'])} linha {item['linha']}"
+                f"<span class='meta'>{data_br(item['data'])} · {html.escape(item['origem'])}, "
+                f"linha {item['linha']}</span>",
+                unsafe_allow_html=True,
             )
-            b.markdown(f"**{brl(item['valor'])}**")
-            c.markdown(f"D: `{item['conta_debito'] or '-'}`  \nC: `{item['conta_credito'] or '-'}`")
-            if item["motivos"]:
-                st.caption(texto_literal(item["motivos"]))
+            sentido = "saida" if Decimal(item["valor"]) < 0 else "entrada"
+            valor.markdown(
+                f"<div class='valor {sentido}'>{brl(item['valor'])}</div>", unsafe_allow_html=True
+            )
+            cor = "red" if filtro == "bloqueado" else "orange" if filtro == "pendente" else "gray"
+            for motivo in filter(None, (x.strip() for x in item["motivos"].split(";"))):
+                st.badge(motivo, color=cor)
+            if item["conta_debito"] and item["conta_credito"]:
+                st.markdown(
+                    f"<div class='partida'>Débito {nome_conta(item['conta_debito'])} · "
+                    f"Crédito {nome_conta(item['conta_credito'])}</div>",
+                    unsafe_allow_html=True,
+                )
             if filtro in ("pendente", "bloqueado", "liberado"):
                 atual = item["conta_contrapartida"]
-                x, y, z = st.columns([4, 1, 2])
+                x, y, z = st.columns([5, 1.2, 1.2], vertical_alignment="bottom")
                 escolhida = x.selectbox(
                     "Contrapartida", contas,
                     index=contas.index(atual) if atual in contas else None,
                     format_func=lambda k: rotulos[k], key=f"conta-{item['chave']}",
                     placeholder="Escolha a conta",
                 )
-                if y.button("Aprovar", key=f"ok-{item['chave']}", disabled=escolhida is None):
+                if y.button("Aprovar", key=f"ok-{item['chave']}", disabled=escolhida is None,
+                            type="primary" if filtro != "liberado" else "secondary",
+                            use_container_width=True):
                     try:
                         motor.aprovar(item["chave"], escolhida if escolhida != atual else None)
                         st.rerun()
                     except (ValueError, KeyError) as erro:
                         st.error(f"Não foi possível aprovar: {erro}")
-                motivo = z.text_input("Motivo do descarte", key=f"mot-{item['chave']}")
-                if z.button("Descartar", key=f"x-{item['chave']}", disabled=not motivo.strip()):
-                    try:
-                        motor.descartar(item["chave"], motivo)
-                        st.rerun()
-                    except (ValueError, KeyError) as erro:
-                        st.error(f"Não foi possível descartar: {erro}")
+                with z.popover("Descartar", use_container_width=True):
+                    st.caption("Use só para duplicidade ou movimento que não deve ser lançado. "
+                               "Fica registrado na trilha de auditoria.")
+                    motivo = st.text_input("Motivo do descarte", key=f"mot-{item['chave']}")
+                    if st.button("Confirmar descarte", key=f"x-{item['chave']}",
+                                 disabled=not motivo.strip()):
+                        try:
+                            motor.descartar(item["chave"], motivo)
+                            st.rerun()
+                        except (ValueError, KeyError) as erro:
+                            st.error(f"Não foi possível descartar: {erro}")
 
     # ------------------------------------------------------------------ exportar
-    st.subheader("3. Exportar liberados")
-    st.caption(
-        "Leiaute provisório (CSV genérico). Ainda não corresponde ao leiaute de nenhum "
-        "sistema contábil específico."
-    )
-    if st.button("Gerar arquivo de importação", disabled=contagem[Status.LIBERADO] == 0):
+    st.subheader("3. Gerar arquivo para o Fortes")
+    if leiaute == "Fortes":
+        st.caption(
+            "Arquivo no leiaute de importação de lançamentos do Fortes Contábil. No Fortes, "
+            "importe com \"Desconsiderar Identificador\" e \"Utilizar Código Reduzido\" marcados."
+        )
+    else:
+        st.warning("CSV genérico: leiaute provisório, não corresponde a nenhum sistema contábil. "
+                   "Para o Fortes, escolha \"Fortes\" na barra lateral.")
+    if st.button(f"Gerar arquivo de importação ({contagem[Status.LIBERADO]} liberados)",
+                 disabled=contagem[Status.LIBERADO] == 0, type="primary"):
         try:
             with tempfile.TemporaryDirectory() as pasta:
-                lote, n = motor.exportar(Path(pasta) / "lancamentos.csv")
+                exportador = (
+                    ExportadorFortes(motor.plano, empresa.prefixo_marca)
+                    if leiaute == "Fortes" else None
+                )
+                lote, n = motor.exportar(Path(pasta) / "lancamentos.csv", exportador)
             if n:
                 st.session_state["aviso_exportacao"] = f"Lote {lote} gerado com {n} lançamentos."
             st.rerun()
@@ -201,6 +415,106 @@ try:
             on_click=registrar_download,
             args=(caminho_db, usuario, lote["id"]),
         )
+
+    # ------------------------------------------------------------------ conferir o banco
+    st.subheader("4. Conferir o banco: extrato x contabilidade")
+    st.caption(
+        "Compara o extrato completo com os arquivos já importados no Fortes: saldo em cada "
+        "fim de mês e movimento a movimento. Só o extrato completo (com entradas e saldos) "
+        "permite essa conferência; a planilha de despesas não."
+    )
+    c1, c2 = st.columns(2)
+    extrato_pdf = c1.file_uploader("Extrato Itaú em PDF", type=["pdf"], key="conf-extrato")
+    importados = c2.file_uploader(
+        "Arquivos já importados no Fortes", type=["csv", "txt"], accept_multiple_files=True,
+        key="conf-importados",
+    )
+    reduzido_banco = empresa.conta_bancaria
+    if extrato_pdf and importados and reduzido_banco and st.button("Conferir", type="primary"):
+        from motor_contabil.leitores import ler_itau_pdf_completo
+
+        try:
+            with tempfile.TemporaryDirectory() as pasta:
+                caminho_pdf = Path(pasta) / Path(extrato_pdf.name).name
+                caminho_pdf.write_bytes(extrato_pdf.getvalue())
+                extrato = ler_itau_pdf_completo(caminho_pdf, reduzido_banco.strip())
+                aceitos = []
+                for arquivo_imp in importados:
+                    caminho_imp = Path(pasta) / Path(arquivo_imp.name).name
+                    caminho_imp.write_bytes(arquivo_imp.getvalue())
+                    aceitos += ler_importados(caminho_imp)
+            linhas = resumo_mensal(extrato.transacoes, extrato.saldos, aceitos, reduzido_banco.strip())
+            total = confrontar(extrato.transacoes, aceitos, reduzido_banco.strip())
+            st.write(
+                f"{len(extrato.transacoes)} movimentos no extrato; {extrato.dias_conferidos} saldos "
+                "diários conferidos com a soma dos movimentos."
+            )
+            st.dataframe(
+                [{"Mês": l.mes, "Fim": data_br(l.fim.isoformat()),
+                  "Extrato": brl(str(l.saldo_extrato)), "Contábil": brl(str(l.saldo_contabil)),
+                  "Diferença": brl(str(l.diferenca)), "Só no extrato": l.so_extrato,
+                  "Só na contabilidade": l.so_contabil} for l in linhas],
+                hide_index=True, use_container_width=True,
+            )
+            st.session_state[f"rel_conc_{empresa.identificador}"] = (
+                f"conferencia_banco_{empresa.identificador}_{date.today():%Y%m%d}.pdf",
+                relatorios.relatorio_conciliacao(
+                    empresa.nome, empresa.cnpj, reduzido_banco.strip(), linhas, total, usuario,
+                    extrato_pdf.name, [a.name for a in importados], extrato.dias_conferidos,
+                    len(extrato.transacoes)),
+            )
+            if all(l.diferenca == 0 for l in linhas) and not total.so_no_extrato \
+                    and not total.so_na_contabilidade:
+                st.success(f"Conciliado: {total.pareados} movimentos pareados, saldo igual em todos os meses.")
+            else:
+                st.error("Não conciliado. Movimentos sem par abaixo.")
+                st.dataframe(
+                    [{"Lado": "só no extrato", "Data": data_br(x.data.isoformat()),
+                      "Valor": brl(str(x.valor)), "Histórico": x.historico}
+                     for x in total.so_no_extrato]
+                    + [{"Lado": "só na contabilidade", "Data": data_br(x.data.isoformat()),
+                        "Valor": brl(str(x.valor)), "Histórico": f"{x.historico} ({x.origem}:{x.linha})"}
+                       for x in total.so_na_contabilidade],
+                    hide_index=True, use_container_width=True,
+                )
+        except Exception as erro:
+            st.error(f"Não foi possível conferir: {erro}")
+    oferecer_relatorio(f"rel_conc_{empresa.identificador}",
+                       "Baixar relatório da conferência (PDF, para revisão e auditoria)")
+
+    # ------------------------------------------------------------------ relatórios
+    st.subheader("5. Relatório de processamento e revisão")
+    st.caption(
+        "Para análise e auditoria humana: volume importado, quanto foi classificado por regra sem "
+        "intervenção, revisões, pendências, bloqueios, descartes, totais por conta, lotes com hash e "
+        "trilha de auditoria. Termina com o quadro de revisão para o contador assinar."
+    )
+    maximo = motor.banco.conexao.execute("SELECT MAX(data) FROM transacoes").fetchone()[0]
+    if not maximo:
+        st.info("Importe um extrato para gerar o relatório.")
+    else:
+        ultimo = date.fromisoformat(maximo)
+        c1, c2 = st.columns(2)
+        inicio = c1.date_input("De", ultimo.replace(day=1), format="DD/MM/YYYY", key="rel-inicio")
+        fim_do_mes = ultimo.replace(day=calendar.monthrange(ultimo.year, ultimo.month)[1])
+        fim = c2.date_input("Até", fim_do_mes, format="DD/MM/YYYY", key="rel-fim")
+        if st.button("Gerar relatório", disabled=inicio > fim, type="primary"):
+            try:
+                dados_rel = relatorios.coletar_processamento(
+                    motor.banco.conexao, empresa.nome, empresa.cnpj, empresa.conta_bancaria,
+                    inicio, fim, motor.plano)
+                st.session_state[f"rel_proc_{empresa.identificador}"] = (
+                    f"processamento_{empresa.identificador}_{inicio:%Y%m%d}_{fim:%Y%m%d}.pdf",
+                    relatorios.relatorio_processamento(dados_rel, usuario),
+                )
+                ind = relatorios.calcular_indicadores(dados_rel)
+                st.success(
+                    f"Relatório gerado: {ind.total} transações, {ind.automaticos} classificadas por regra "
+                    f"sem intervenção ({ind.taxa_automatica:.0%}), {ind.em_aberto} em aberto."
+                )
+            except Exception as erro:
+                st.error(f"Não foi possível gerar o relatório: {erro}")
+        oferecer_relatorio(f"rel_proc_{empresa.identificador}", "Baixar relatório de processamento (PDF)")
 
 finally:
     motor.banco.fechar()
