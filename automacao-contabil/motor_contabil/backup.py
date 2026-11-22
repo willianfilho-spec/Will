@@ -222,6 +222,40 @@ def horas_desde_ultima(destino: str | Path, agora: datetime | None = None) -> fl
     return ((agora or datetime.now()) - copias[-1].quando).total_seconds() / 3600
 
 
+def segundos_ate(hora: str, agora: datetime) -> float:
+    """Segundos até a próxima ocorrência de HH:MM (hoje, se ainda não passou)."""
+    from datetime import timedelta
+
+    h, m = (int(x) for x in hora.split(":"))
+    alvo = agora.replace(hour=h, minute=m, second=0, microsecond=0)
+    if alvo <= agora:
+        alvo += timedelta(days=1)
+    return (alvo - agora).total_seconds()
+
+
+def diario(dados: str | Path, destino: str | Path, hora: str = "21:00") -> None:
+    """Para servidor: faz uma cópia ao iniciar (se a última tiver mais de 24 h) e
+    depois todo dia no horário dado, testando a restauração a cada cópia.
+    Uma falha é registrada na saída e não interrompe as cópias seguintes."""
+    import time
+
+    def uma_copia() -> None:
+        try:
+            copia = fazer(dados, destino)
+            _, n = testar_restauracao(destino)
+            print(f"{datetime.now():%d/%m/%Y %H:%M} cópia {copia.pasta.name} criada e restauração "
+                  f"testada ({n} arquivos)", flush=True)
+        except Exception as erro:  # noqa: BLE001 - o laço não pode parar
+            print(f"{datetime.now():%d/%m/%Y %H:%M} ERRO no backup: {erro}", flush=True)
+
+    horas = horas_desde_ultima(destino) if Path(destino).exists() else None
+    if horas is None or horas > 24:
+        uma_copia()
+    while True:
+        time.sleep(segundos_ate(hora, datetime.now()))
+        uma_copia()
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Backup da pasta de dados do escritório.")
     sub = p.add_subparsers(dest="comando", required=True)
@@ -233,13 +267,19 @@ def main(argv: list[str] | None = None) -> int:
         s.add_argument("--destino", required=True)
         if nome == "situacao":
             s.add_argument("--max-horas", type=float, default=26)
+    s = sub.add_parser("diario")
+    s.add_argument("--dados", required=True)
+    s.add_argument("--destino", required=True)
+    s.add_argument("--hora", default="21:00", help="HH:MM, no fuso do computador")
     s = sub.add_parser("restaurar")
     s.add_argument("--destino", required=True)
     s.add_argument("--para", required=True)
     s.add_argument("--copia", help="nome da cópia; padrão: a mais recente")
     args = p.parse_args(argv)
     try:
-        if args.comando == "fazer":
+        if args.comando == "diario":
+            diario(args.dados, args.destino, args.hora)
+        elif args.comando == "fazer":
             copia = fazer(args.dados, args.destino)
             print(f"cópia criada e conferida: {copia.pasta}")
         elif args.comando == "verificar":

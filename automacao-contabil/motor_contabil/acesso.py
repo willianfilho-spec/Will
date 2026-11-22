@@ -18,6 +18,8 @@ No modo ``cloudflare``, quem abre pelo próprio computador do escritório
 (``localhost``) continua entrando sem login, com nome digitado e marcado como
 acesso local: o servidor só aceita conexões da própria máquina, então esse
 caminho não fica exposto. Acesso sem token vindo de outro endereço é recusado.
+Em servidor hospedado, ``"acesso_local_sem_login": false`` exige login também
+nesse caso: ninguém entra sem a conta Google.
 
 Exemplo de ``acesso.json``::
 
@@ -57,6 +59,7 @@ class ConfigAcesso:
     dominio_equipe: str = ""
     aud: str = ""
     autorizados: dict[str, str] = field(default_factory=dict)
+    acesso_local_sem_login: bool = True
 
     @property
     def remoto(self) -> bool:
@@ -89,8 +92,11 @@ def carregar_config(caminho: str | Path | None) -> ConfigAcesso:
     if modo not in ("local", "cloudflare"):
         raise ValueError(f"{caminho}: modo '{modo}' desconhecido; use 'local' ou 'cloudflare'.")
     autorizados = {str(k).strip().lower(): str(v).strip() for k, v in dados.get("autorizados", {}).items()}
+    local = dados.get("acesso_local_sem_login", True)
+    if not isinstance(local, bool):
+        raise ValueError(f"{caminho}: acesso_local_sem_login deve ser true ou false.")
     cfg = ConfigAcesso(modo, str(dados.get("dominio_equipe", "")).strip().lower(),
-                       str(dados.get("aud", "")).strip(), autorizados)
+                       str(dados.get("aud", "")).strip(), autorizados, local)
     if cfg.remoto:
         faltando = [n for n, v in (("dominio_equipe", cfg.dominio_equipe), ("aud", cfg.aud)) if not v]
         if faltando:
@@ -166,7 +172,7 @@ def identificar(headers: Mapping[str, str], cfg: ConfigAcesso,
         return None
     token = _cabecalho(headers, CABECALHO_TOKEN)
     if not token:
-        if _host_local(headers):
+        if cfg.acesso_local_sem_login and _host_local(headers):
             return None
         raise AcessoNegado("Acesso sem login. Entre pelo endereço do sistema com a conta Google "
                            "autorizada.")
@@ -215,7 +221,8 @@ def configurar(caminho: str | Path, entrada=input, saida=print) -> ConfigAcesso:
             saida("E-mail inválido; tente de novo.")
             continue
         autorizados[email] = _perguntar("Nome completo (aparece na auditoria): ", entrada) or email
-    dados = {"modo": "cloudflare", "dominio_equipe": equipe, "aud": aud, "autorizados": autorizados}
+    dados = {"modo": "cloudflare", "dominio_equipe": equipe, "aud": aud, "autorizados": autorizados,
+             "acesso_local_sem_login": atual.acesso_local_sem_login}
     temporario = caminho.with_suffix(".tmp")
     temporario.write_text(json.dumps(dados, ensure_ascii=False, indent=1), encoding="utf-8")
     try:

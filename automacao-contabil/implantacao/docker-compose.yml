@@ -1,0 +1,48 @@
+# Conciliador Fortes no servidor.
+#
+#   app         o sistema (sem porta aberta para a internet)
+#   tunel       Cloudflare Tunnel: publica o app no endereço da Equilibra;
+#               o Cloudflare Access exige login Google antes de chegar aqui
+#   backup      cópia diária dos dados, com teste de restauração
+#
+# Uso: ver GUIA_HOSPEDAGEM.pdf (ou implantacao/LEIAME.md).
+
+name: conciliador
+
+services:
+  app:
+    build: ..
+    image: conciliador-fortes:fase1
+    restart: unless-stopped
+    environment:
+      MOTOR_CONTABIL_ACESSO: /config/acesso.json
+    volumes:
+      - ./dados:/dados
+      - ./backups:/backups:ro
+      - ./config:/config:ro
+    networks: [interna]
+    # Sem "ports": o app só é alcançado pelo túnel. Para testar no próprio
+    # servidor, use: docker compose -f docker-compose.yml -f teste-local.yml up
+
+  tunel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?defina TUNNEL_TOKEN no arquivo .env}
+    depends_on: [app]
+    networks: [interna]
+
+  backup:
+    image: conciliador-fortes:fase1
+    restart: unless-stopped
+    command: ["python", "-m", "motor_contabil.backup", "diario",
+              "--dados", "/dados", "--destino", "/backups", "--hora", "${HORA_BACKUP:-21:00}"]
+    volumes:
+      - ./dados:/dados:ro
+      - ./backups:/backups
+    depends_on: [app]
+    network_mode: none
+
+networks:
+  interna:

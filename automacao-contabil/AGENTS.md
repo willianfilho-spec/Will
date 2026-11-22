@@ -74,7 +74,10 @@ em `testes/test_motor.py` que provem que a regra continua valendo.
 - No modo remoto (`acesso.py`), a identidade vem só de token do Cloudflare
   Access com assinatura conferida. Não aceite e-mail de cabeçalho sem token,
   não desligue a conferência de público (AUD) ou emissor e não libere acesso
-  sem token fora de `localhost`.
+  sem token fora de `localhost`. Em servidor hospedado,
+  `acesso_local_sem_login` fica `false`: ninguém entra sem token.
+- Servidor: `Dockerfile` e `implantacao/` (app sem porta exposta, túnel e
+  backup). Não publique a porta do app na internet.
 
 ## Dados
 

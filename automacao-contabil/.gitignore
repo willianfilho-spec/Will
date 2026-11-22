@@ -5,3 +5,7 @@ __pycache__/
 lancamentos*.csv
 dados/
 backups/
+implantacao/.env
+implantacao/config/
+implantacao/dados/
+implantacao/backups/

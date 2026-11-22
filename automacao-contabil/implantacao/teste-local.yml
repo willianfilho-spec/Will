@@ -1,0 +1,6 @@
+# Só para conferir no próprio servidor, sem túnel: abre o app em
+# http://127.0.0.1:8501 da máquina (não fica exposto na internet).
+services:
+  app:
+    ports:
+      - "127.0.0.1:8501:8501"

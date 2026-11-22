@@ -1,0 +1,12 @@
+.git
+**/__pycache__
+.pytest_cache
+.venv
+dados
+backups
+*.db
+*.sqlite
+implantacao/.env
+implantacao/config
+implantacao/dados
+implantacao/backups

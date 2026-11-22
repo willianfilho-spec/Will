@@ -192,3 +192,20 @@ def test_interface_com_login_usa_a_conta_google_na_auditoria(monkeypatch, tmp_pa
         "SELECT usuario FROM eventos WHERE acao='aprovado'").fetchone()[0]
     motor.banco.fechar()
     assert quem == "Daiane <daiane@equilibracontabil.com.br>"
+
+
+def test_servidor_hospedado_exige_login_ate_de_localhost(tmp_path):
+    cfg = ConfigAcesso("cloudflare", EQUIPE, AUD, {"daiane@equilibracontabil.com.br": "Daiane"}, False)
+    with pytest.raises(AcessoNegado, match="Acesso sem login"):
+        identificar(cab(host="localhost:8501"), cfg, PUBLICA)
+    assert identificar(cab(token(), host="localhost:8501"), cfg, PUBLICA).autenticado
+    arq = tmp_path / "acesso.json"
+    arq.write_text(json.dumps({"modo": "cloudflare", "dominio_equipe": EQUIPE, "aud": AUD,
+                               "autorizados": {"a@b.com": "A"}, "acesso_local_sem_login": False}),
+                   encoding="utf-8")
+    assert carregar_config(arq).acesso_local_sem_login is False
+    arq.write_text(json.dumps({"modo": "cloudflare", "dominio_equipe": EQUIPE, "aud": AUD,
+                               "autorizados": {"a@b.com": "A"}, "acesso_local_sem_login": "nao"}),
+                   encoding="utf-8")
+    with pytest.raises(ValueError, match="true ou false"):
+        carregar_config(arq)

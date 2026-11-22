@@ -437,3 +437,12 @@ assinado não basta.
 
 O passo a passo da Cloudflare e do Google está no `GUIA_ACESSO_REMOTO.pdf`
 do pacote de instalação (instalador `5_CONFIGURAR_ACESSO_REMOTO.bat`).
+
+## Hospedagem em servidor (equipe do escritório)
+
+`Dockerfile` e `implantacao/` colocam o sistema num servidor Linux com Docker:
+o app (sem porta aberta para a internet), o túnel da Cloudflare (login Google
+pelo Cloudflare Access) e um serviço de backup diário com teste de
+restauração (`python -m motor_contabil.backup diario`). No servidor,
+`acesso_local_sem_login` é `false`: ninguém entra sem login. Passo a passo,
+comparativo de provedores e operação em `implantacao/LEIAME.md`.

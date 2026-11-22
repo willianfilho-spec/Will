@@ -128,3 +128,13 @@ def test_situacao_avisa_copia_atrasada(dados, tmp_path):
     assert backup.main(["situacao", "--destino", str(destino)]) == 1
     backup.fazer(dados, destino)
     assert backup.main(["situacao", "--destino", str(destino)]) == 0
+
+
+def test_segundos_ate_o_proximo_horario():
+    from datetime import datetime
+
+    from motor_contabil.backup import segundos_ate
+
+    assert segundos_ate("21:00", datetime(2026, 11, 22, 20, 0)) == 3600
+    assert segundos_ate("21:00", datetime(2026, 11, 22, 21, 0)) == 24 * 3600
+    assert segundos_ate("03:30", datetime(2026, 11, 22, 21, 0)) == 6.5 * 3600
