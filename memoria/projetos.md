@@ -1,6 +1,6 @@
 # Projetos
 
-Atualizado em: 2026-11-17
+Atualizado em: 2026-11-22
 Um bloco por projeto: objetivo, local, estado, próximos passos. Estado vem de evidência (commit, teste, README); quando não houver, dizer "não verificado".
 
 ## Folha Clara (editor de PDF no navegador)
@@ -23,3 +23,7 @@ Um bloco por projeto: objetivo, local, estado, próximos passos. Estado vem de e
 ## Sistema de memória persistente
 - Local: `CLAUDE.md`, `memoria/`, `.claude/hooks/memoria.py`, `.claude/settings.json`, `.claude/skills/salvar-memoria/`.
 - [2026-11-17] Estado: implementado, testado em sessões novas e incorporado à `main` (P-002 concluída). Próximo passo: nenhum obrigatório; acompanhar se o lembrete do hook Stop ajuda ou incomoda — origem: esta sessão; confiança: alta
+
+## Scripts para Windows (login sem senha)
+- Local: `scripts/windows/remover-senha-windows.ps1` e `reverter-senha-windows.ps1`.
+- [2026-11-22] Estado: criados; NÃO testados em Windows (ambiente sem PowerShell). Conta local recebe senha vazia; conta Microsoft usa netplwiz em vez de senha em texto puro no Registro — origem: esta sessão; confiança: alta
