@@ -5,7 +5,28 @@ gatherUsageStats = false
 [server]
 # Só aceita conexões desta máquina.
 address = "localhost"
+# Mesmo limite que o sistema aplica (tela_importacao.TAMANHO_MAXIMO), para a
+# tela não anunciar 200 MB.
+maxUploadSize = 20
 
 [client]
 # Esconde o botão "Deploy" e opções de desenvolvedor.
 toolbarMode = "viewer"
+
+# Identidade da Equilibra: bordô como única cor de destaque, neutros quentes.
+[theme]
+base = "light"
+primaryColor = "#7a1f3d"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f6f3f1"
+textColor = "#1f2937"
+borderColor = "#e7e1dc"
+linkColor = "#7a1f3d"
+codeTextColor = "#374151"
+codeBackgroundColor = "#f1ece8"
+baseRadius = "6px"
+headingFontWeights = [700, 650, 600]
+metricValueFontSize = "1.75rem"
+
+[theme.sidebar]
+backgroundColor = "#f6f3f1"

@@ -10,6 +10,7 @@ pasta dentro da pasta de dados (ver motor_contabil/empresas.py).
 from __future__ import annotations
 
 import calendar
+import html
 import os
 import tempfile
 from datetime import date
@@ -45,21 +46,56 @@ def texto_literal(texto: str) -> str:
     return "".join("\\" + c if c in "\\`*_{}[]()<>#+-.!|$~" else c for c in texto)
 
 
-st.set_page_config(page_title="Conferência de lançamentos", layout="wide")
-st.title("Conferência de lançamentos")
-st.caption("Prova de conceito. Os lançamentos só saem do sistema depois de liberados.")
+st.set_page_config(page_title="Conciliador Fortes", layout="wide")
+st.markdown(
+    """
+    <style>
+    /* Números alinhados em colunas: valores, métricas e datas. */
+    [data-testid="stMetricValue"], .valor { font-variant-numeric: tabular-nums; }
+    .valor { font-weight: 600; text-align: right; white-space: nowrap; }
+    .valor.saida { color: #9f1239; }
+    .valor.entrada { color: #166534; }
+    .meta { color: #6b7280; font-size: 0.85rem; }
+    .partida { color: #374151; font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .partida code { font-size: 0.8rem; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+st.title("Conciliador Fortes")
+st.caption("Piloto interno · fase 1. Nenhum lançamento sai do sistema sem ter sido liberado.")
 
 with st.sidebar:
-    st.header("Configuração")
-    pasta_dados = Path(st.text_input(
-        "Pasta de dados do escritório", os.environ.get("MOTOR_CONTABIL_DADOS", "dados")
-    ))
+    # A ordem na tela segue o uso: primeiro o que muda todo dia, depois o que
+    # se configura uma vez. Os blocos são preenchidos fora dessa ordem porque a
+    # lista de empresas depende da pasta de dados.
+    bloco_empresa = st.container()
+    bloco_cadastro = st.container()
+    bloco_config = st.expander("Configurações deste computador")
+
+    with bloco_config:
+        pasta_dados = Path(st.text_input(
+            "Pasta de dados do escritório", os.environ.get("MOTOR_CONTABIL_DADOS", "dados")
+        ))
+        pasta_backup = st.text_input(
+            "Pasta de backup",
+            os.environ.get("MOTOR_CONTABIL_BACKUP", ""),
+            help="Usada só para avisar quando a última cópia de segurança estiver atrasada.",
+        )
+        usar_ia = st.checkbox(
+            "Sugerir contas com IA",
+            value=False,
+            help="Envia apenas o histórico (CPF/CNPJ mascarados) e o sentido da operação. "
+            "Toda sugestão fica pendente de aprovação.",
+        )
+
     try:
         cadastradas = empresas.listar(pasta_dados)
     except ValueError as erro:
-        st.error(str(erro))
+        bloco_empresa.error(str(erro))
         st.stop()
-    with st.expander("Cadastrar empresa", expanded=not cadastradas):
+
+    with bloco_cadastro.expander("Cadastrar empresa", expanded=not cadastradas):
         with st.form("cadastro", clear_on_submit=False):
             novo_id = st.text_input("Identificador (pasta)", help="Ex.: nx. Letras minúsculas, números e hífen.")
             novo_nome = st.text_input("Razão social")
@@ -69,7 +105,7 @@ with st.sidebar:
             novo_formato = st.radio("Plano de contas", ["Exportado do Fortes", "Exemplo do motor"], horizontal=True)
             novo_plano = st.file_uploader("Plano de contas (CSV)", type=["csv", "txt"])
             novas_regras = st.file_uploader("Regras (JSON)", type=["json"])
-            if st.form_submit_button("Cadastrar"):
+            if st.form_submit_button("Cadastrar empresa", type="primary"):
                 if not (novo_plano and novas_regras):
                     st.error("Envie o plano de contas e as regras.")
                 else:
@@ -89,35 +125,32 @@ with st.sidebar:
                             st.rerun()
                         except ValueError as erro:
                             st.error(f"Não foi possível cadastrar: {erro}")
-    if not cadastradas:
-        st.info("Cadastre a primeira empresa para começar.")
-        st.stop()
-    empresa = st.selectbox(
-        "Empresa", cadastradas, format_func=lambda e: f"{e.nome} ({e.identificador})"
-    )
-    st.caption(f"CNPJ {empresa.cnpj} · conta {empresa.conta_bancaria} · marca {empresa.prefixo_marca}")
-    leiaute = st.radio("Leiaute de exportação", ["Fortes", "CSV genérico"], horizontal=True)
-    usuario = st.text_input("Responsável pela revisão", "operador")
-    pasta_backup = st.text_input(
-        "Pasta de backup (para o aviso de cópia atrasada)",
-        os.environ.get("MOTOR_CONTABIL_BACKUP", ""),
-    )
-    if pasta_backup.strip():
-        from motor_contabil.backup import horas_desde_ultima
 
-        horas = horas_desde_ultima(pasta_backup.strip())
-        if horas is None:
-            st.error("Nenhuma cópia de segurança encontrada nessa pasta.")
-        elif horas > 26:
-            st.error(f"Última cópia de segurança há {horas:.0f} horas. Confira o agendamento.")
-        else:
-            st.caption(f"Última cópia de segurança há {horas:.1f} horas.")
-    usar_ia = st.checkbox(
-        "Sugerir contas com IA",
-        value=False,
-        help="Envia apenas o histórico (CPF/CNPJ mascarados) e o sentido da operação. "
-        "Toda sugestão fica pendente de aprovação.",
-    )
+    with bloco_empresa:
+        if not cadastradas:
+            st.info("Cadastre a primeira empresa para começar.")
+            st.stop()
+        empresa = st.selectbox(
+            "Empresa", cadastradas, format_func=lambda e: f"{e.nome} ({e.identificador})"
+        )
+        st.caption(f"CNPJ {empresa.cnpj} · banco {empresa.conta_bancaria} · marca {empresa.prefixo_marca}")
+        usuario = st.text_input(
+            "Responsável pela revisão", "operador",
+            help="Este nome aparece na trilha de auditoria e nos relatórios.",
+        )
+        leiaute = st.radio("Arquivo de exportação", ["Fortes", "CSV genérico"], horizontal=True)
+        if usar_ia:
+            st.warning("Sugestão por IA ligada: históricos serão enviados ao provedor de IA.")
+        if pasta_backup.strip():
+            from motor_contabil.backup import horas_desde_ultima
+
+            horas = horas_desde_ultima(pasta_backup.strip())
+            if horas is None:
+                st.error("Nenhuma cópia de segurança encontrada na pasta de backup.")
+            elif horas > 26:
+                st.error(f"Última cópia de segurança há {horas:.0f} horas. Confira o agendamento.")
+            else:
+                st.caption(f"Cópia de segurança em dia (há {horas:.1f} h).")
 
 
 def registrar_download(caminho: str, responsavel: str, lote_id: int) -> None:
@@ -216,70 +249,107 @@ try:
             st.error(f"{relatorio.titulo}. {relatorio.detalhe}")
             st.info(f"O que fazer: {relatorio.o_que_fazer}")
 
-    # ------------------------------------------------------------------ conferir
-    st.subheader("2. Conferir")
+    # ------------------------------------------------------------------ revisar
+    st.subheader("2. Revisar lançamentos")
     todos = motor.listar()
     contagem = {s: sum(1 for i in todos if i["status"] == s.value) for s in Status}
     m = st.columns(4)
-    m[0].metric("Liberados", contagem[Status.LIBERADO])
-    m[1].metric("Pendentes", contagem[Status.PENDENTE])
-    m[2].metric("Bloqueados", contagem[Status.BLOQUEADO])
-    m[3].metric("Exportados", contagem[Status.EXPORTADO])
+    m[0].metric("Pendentes", contagem[Status.PENDENTE], border=True,
+                help="Precisam de uma decisão: escolher a conta, aprovar ou descartar.")
+    m[1].metric("Bloqueados", contagem[Status.BLOQUEADO], border=True,
+                help="Conta inexistente ou sintética: corrija a conta para liberar.")
+    m[2].metric("Liberados", contagem[Status.LIBERADO], border=True,
+                help="Prontos para o arquivo do Fortes (seção 3).")
+    m[3].metric("Exportados", contagem[Status.EXPORTADO], border=True,
+                help="Já saíram num arquivo de importação e não podem mais ser alterados.")
 
-    filtro = st.radio(
-        "Mostrar", ["pendente", "bloqueado", "liberado", "exportado", "descartado"], horizontal=True
-    )
+    nomes_filtro = {
+        "pendente": "Pendentes", "bloqueado": "Bloqueados", "liberado": "Liberados",
+        "exportado": "Exportados", "descartado": "Descartados",
+    }
+    filtro = st.segmented_control(
+        "Mostrar", list(nomes_filtro), default="pendente", key="filtro-status",
+        format_func=lambda k: f"{nomes_filtro[k]} ({contagem[Status(k)]})",
+    ) or "pendente"
     itens = [i for i in todos if i["status"] == filtro]
-    contas = [c.codigo for c in motor.plano.analiticas()]
-    rotulos = {c.codigo: f"{c.codigo} - {c.descricao}" for c in motor.plano.analiticas()}
+    analiticas = motor.plano.analiticas()
+    contas = [c.codigo for c in analiticas]
+    rotulos = {c.codigo: f"{c.codigo} - {c.descricao}" for c in analiticas}
+
+    def nome_conta(codigo: str | None) -> str:
+        conta = motor.plano.get(codigo) if codigo else None
+        nome = f" {html.escape(conta.descricao)}" if conta else ""
+        return f"<code>{html.escape(codigo or '')}</code>{nome}"
 
     if not itens:
-        st.info("Nenhum lançamento nesta situação.")
+        vazio = {
+            "pendente": "Nada a revisar. Os lançamentos liberados já podem ir para o Fortes (seção 3).",
+            "bloqueado": "Nenhum lançamento bloqueado.",
+        }
+        st.info(vazio.get(filtro, f"Nenhum lançamento em \"{nomes_filtro[filtro]}\"."))
     for item in itens:
         with st.container(border=True):
-            a, b, c = st.columns([4, 2, 2])
-            a.markdown(
+            topo, valor = st.columns([5, 1.4])
+            topo.markdown(
                 f"**{texto_literal(item['historico_banco'])}**  \n"
-                f"{data_br(item['data'])} · {texto_literal(item['origem'])} linha {item['linha']}"
+                f"<span class='meta'>{data_br(item['data'])} · {html.escape(item['origem'])}, "
+                f"linha {item['linha']}</span>",
+                unsafe_allow_html=True,
             )
-            b.markdown(f"**{brl(item['valor'])}**")
-            c.markdown(f"D: `{item['conta_debito'] or '-'}`  \nC: `{item['conta_credito'] or '-'}`")
-            if item["motivos"]:
-                st.caption(texto_literal(item["motivos"]))
+            sentido = "saida" if Decimal(item["valor"]) < 0 else "entrada"
+            valor.markdown(
+                f"<div class='valor {sentido}'>{brl(item['valor'])}</div>", unsafe_allow_html=True
+            )
+            cor = "red" if filtro == "bloqueado" else "orange" if filtro == "pendente" else "gray"
+            for motivo in filter(None, (x.strip() for x in item["motivos"].split(";"))):
+                st.badge(motivo, color=cor)
+            if item["conta_debito"] and item["conta_credito"]:
+                st.markdown(
+                    f"<div class='partida'>Débito {nome_conta(item['conta_debito'])} · "
+                    f"Crédito {nome_conta(item['conta_credito'])}</div>",
+                    unsafe_allow_html=True,
+                )
             if filtro in ("pendente", "bloqueado", "liberado"):
                 atual = item["conta_contrapartida"]
-                x, y, z = st.columns([4, 1, 2])
+                x, y, z = st.columns([5, 1.2, 1.2], vertical_alignment="bottom")
                 escolhida = x.selectbox(
                     "Contrapartida", contas,
                     index=contas.index(atual) if atual in contas else None,
                     format_func=lambda k: rotulos[k], key=f"conta-{item['chave']}",
                     placeholder="Escolha a conta",
                 )
-                if y.button("Aprovar", key=f"ok-{item['chave']}", disabled=escolhida is None):
+                if y.button("Aprovar", key=f"ok-{item['chave']}", disabled=escolhida is None,
+                            type="primary" if filtro != "liberado" else "secondary",
+                            use_container_width=True):
                     try:
                         motor.aprovar(item["chave"], escolhida if escolhida != atual else None)
                         st.rerun()
                     except (ValueError, KeyError) as erro:
                         st.error(f"Não foi possível aprovar: {erro}")
-                motivo = z.text_input("Motivo do descarte", key=f"mot-{item['chave']}")
-                if z.button("Descartar", key=f"x-{item['chave']}", disabled=not motivo.strip()):
-                    try:
-                        motor.descartar(item["chave"], motivo)
-                        st.rerun()
-                    except (ValueError, KeyError) as erro:
-                        st.error(f"Não foi possível descartar: {erro}")
+                with z.popover("Descartar", use_container_width=True):
+                    st.caption("Use só para duplicidade ou movimento que não deve ser lançado. "
+                               "Fica registrado na trilha de auditoria.")
+                    motivo = st.text_input("Motivo do descarte", key=f"mot-{item['chave']}")
+                    if st.button("Confirmar descarte", key=f"x-{item['chave']}",
+                                 disabled=not motivo.strip()):
+                        try:
+                            motor.descartar(item["chave"], motivo)
+                            st.rerun()
+                        except (ValueError, KeyError) as erro:
+                            st.error(f"Não foi possível descartar: {erro}")
 
     # ------------------------------------------------------------------ exportar
-    st.subheader("3. Exportar liberados")
-    st.caption(
-        "Leiaute Fortes: o arquivo aceito na importação de lançamentos do Fortes Contábil "
-        "(escolha na barra lateral). CSV genérico: leiaute provisório, não corresponde a "
-        "nenhum sistema contábil."
-        if leiaute == "Fortes" else
-        "CSV genérico: leiaute provisório, não corresponde a nenhum sistema contábil. "
-        "Para o Fortes, escolha \"Fortes\" na barra lateral."
-    )
-    if st.button("Gerar arquivo de importação", disabled=contagem[Status.LIBERADO] == 0):
+    st.subheader("3. Gerar arquivo para o Fortes")
+    if leiaute == "Fortes":
+        st.caption(
+            "Arquivo no leiaute de importação de lançamentos do Fortes Contábil. No Fortes, "
+            "importe com \"Desconsiderar Identificador\" e \"Utilizar Código Reduzido\" marcados."
+        )
+    else:
+        st.warning("CSV genérico: leiaute provisório, não corresponde a nenhum sistema contábil. "
+                   "Para o Fortes, escolha \"Fortes\" na barra lateral.")
+    if st.button(f"Gerar arquivo de importação ({contagem[Status.LIBERADO]} liberados)",
+                 disabled=contagem[Status.LIBERADO] == 0, type="primary"):
         try:
             with tempfile.TemporaryDirectory() as pasta:
                 exportador = (
@@ -335,7 +405,7 @@ try:
         key="conf-importados",
     )
     reduzido_banco = empresa.conta_bancaria
-    if extrato_pdf and importados and reduzido_banco and st.button("Conferir"):
+    if extrato_pdf and importados and reduzido_banco and st.button("Conferir", type="primary"):
         from motor_contabil.leitores import ler_itau_pdf_completo
 
         try:
@@ -388,7 +458,7 @@ try:
                        "Baixar relatório da conferência (PDF, para revisão e auditoria)")
 
     # ------------------------------------------------------------------ relatórios
-    st.subheader("5. Relatório de processamento e revisão (PDF)")
+    st.subheader("5. Relatório de processamento e revisão")
     st.caption(
         "Para análise e auditoria humana: volume importado, quanto foi classificado por regra sem "
         "intervenção, revisões, pendências, bloqueios, descartes, totais por conta, lotes com hash e "
@@ -403,7 +473,7 @@ try:
         inicio = c1.date_input("De", ultimo.replace(day=1), format="DD/MM/YYYY", key="rel-inicio")
         fim_do_mes = ultimo.replace(day=calendar.monthrange(ultimo.year, ultimo.month)[1])
         fim = c2.date_input("Até", fim_do_mes, format="DD/MM/YYYY", key="rel-fim")
-        if st.button("Gerar relatório", disabled=inicio > fim):
+        if st.button("Gerar relatório", disabled=inicio > fim, type="primary"):
             try:
                 dados_rel = relatorios.coletar_processamento(
                     motor.banco.conexao, empresa.nome, empresa.cnpj, empresa.conta_bancaria,
