@@ -96,7 +96,10 @@ with st.sidebar:
     st.caption(f"CNPJ {empresa.cnpj} · conta {empresa.conta_bancaria} · marca {empresa.prefixo_marca}")
     leiaute = st.radio("Leiaute de exportação", ["Fortes", "CSV genérico"], horizontal=True)
     usuario = st.text_input("Responsável pela revisão", "operador")
-    pasta_backup = st.text_input("Pasta de backup (para o aviso de cópia atrasada)", "")
+    pasta_backup = st.text_input(
+        "Pasta de backup (para o aviso de cópia atrasada)",
+        os.environ.get("MOTOR_CONTABIL_BACKUP", ""),
+    )
     if pasta_backup.strip():
         from motor_contabil.backup import horas_desde_ultima
 
