@@ -15,8 +15,8 @@ pytest
 Todos os testes precisam passar antes de qualquer commit. O núcleo
 (`motor_contabil/`) usa só a biblioteca padrão do Python; não adicione
 dependências a ele sem necessidade clara. Exceções, importadas só quando a
-função é usada: `pdfplumber` (extrato Itaú em PDF) e `reportlab`
-(relatórios em PDF).
+função é usada: `pdfplumber` (extrato Itaú em PDF), `reportlab`
+(relatórios em PDF) e `PyJWT` (login pelo Cloudflare Access).
 
 ## Regras que não podem ser quebradas
 
@@ -68,6 +68,13 @@ em `testes/test_motor.py` que provem que a regra continua valendo.
   pelo Fortes; não a descreva como conferência do razão.
 - **Dados por empresa:** cada empresa tem pasta própria em `dados/`
   (`empresas.py`). Não crie banco compartilhado entre empresas.
+
+## Acesso
+
+- No modo remoto (`acesso.py`), a identidade vem só de token do Cloudflare
+  Access com assinatura conferida. Não aceite e-mail de cabeçalho sem token,
+  não desligue a conferência de público (AUD) ou emissor e não libere acesso
+  sem token fora de `localhost`.
 
 ## Dados
 

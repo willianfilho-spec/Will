@@ -411,3 +411,29 @@ ressalvas ou reprovado; observações; nome, CRC, data e assinatura) e um
 código de conferência: o SHA-256 dos dados usados. Dois relatórios com o
 mesmo código vieram dos mesmos dados. Gerar um relatório não altera nada;
 baixar o PDF registra o evento `relatorio_baixado` na trilha de auditoria.
+
+## Acesso remoto com login Google
+
+Opcional. O sistema continua no computador do escritório; um túnel da
+Cloudflare o publica num endereço da Equilibra e o Cloudflare Access exige
+login com a conta Google. `motor_contabil/acesso.py` (requer `PyJWT` com
+`cryptography`) confere em cada sessão o token enviado pela Cloudflare no
+cabeçalho `Cf-Access-Jwt-Assertion`: assinatura (chaves públicas da equipe),
+público (AUD), emissor e validade, e se o e-mail está na lista de
+autorizados. Só então aceita o e-mail. Um cabeçalho de e-mail sem token
+assinado não basta.
+
+- Configuração: `acesso.json`, indicado pela variável `MOTOR_CONTABIL_ACESSO`.
+  Sem o arquivo, o modo é local (como antes).
+- Assistente: `python -m motor_contabil.acesso configurar acesso.json` (pede
+  domínio da equipe, AUD e e-mails autorizados) e
+  `python -m motor_contabil.acesso verificar acesso.json`.
+- Com login, o nome e o e-mail da conta vão para a trilha de auditoria e para
+  os relatórios (`Nome <email>`); o campo "Responsável pela revisão" some, e
+  pasta de dados, backup e IA não podem ser trocados pela tela.
+- No próprio computador (`localhost`), o acesso continua sem login e fica
+  marcado como "acesso local, sem login". Acesso sem token vindo de outro
+  endereço é recusado sem mostrar dados.
+
+O passo a passo da Cloudflare e do Google está no `GUIA_ACESSO_REMOTO.pdf`
+do pacote de instalação (instalador `5_CONFIGURAR_ACESSO_REMOTO.bat`).

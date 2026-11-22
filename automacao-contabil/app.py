@@ -22,7 +22,7 @@ import streamlit as st
 from motor_contabil import BancoDeDados, ExportadorFortes, Motor, Status
 from motor_contabil import empresas
 from motor_contabil.conciliacao import confrontar, ler_importados, resumo_mensal
-from motor_contabil import relatorios
+from motor_contabil import acesso, relatorios
 from motor_contabil.tela_importacao import (
     EXTENSOES_ACEITAS, TAMANHO_MAXIMO, RelatorioImportacao, formatar_moeda, processar_importacao,
 )
@@ -62,6 +62,17 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+# Quem está usando: login Google pelo Cloudflare Access (acesso remoto) ou nome
+# digitado (acesso no próprio computador). Ver motor_contabil/acesso.py.
+try:
+    config_acesso = acesso.carregar_config(os.environ.get("MOTOR_CONTABIL_ACESSO"))
+    identidade = acesso.identificar(dict(st.context.headers), config_acesso)
+except (ValueError, acesso.AcessoNegado) as erro:
+    st.title("Conciliador Fortes")
+    st.error(str(erro))
+    st.stop()
+remoto = identidade is not None
+
 st.title("Conciliador Fortes")
 st.caption("Piloto interno · fase 1. Nenhum lançamento sai do sistema sem ter sido liberado.")
 
@@ -71,23 +82,28 @@ with st.sidebar:
     # lista de empresas depende da pasta de dados.
     bloco_empresa = st.container()
     bloco_cadastro = st.container()
-    bloco_config = st.expander("Configurações deste computador")
-
-    with bloco_config:
-        pasta_dados = Path(st.text_input(
-            "Pasta de dados do escritório", os.environ.get("MOTOR_CONTABIL_DADOS", "dados")
-        ))
-        pasta_backup = st.text_input(
-            "Pasta de backup",
-            os.environ.get("MOTOR_CONTABIL_BACKUP", ""),
-            help="Usada só para avisar quando a última cópia de segurança estiver atrasada.",
-        )
-        usar_ia = st.checkbox(
-            "Sugerir contas com IA",
-            value=False,
-            help="Envia apenas o histórico (CPF/CNPJ mascarados) e o sentido da operação. "
-            "Toda sugestão fica pendente de aprovação.",
-        )
+    if remoto:
+        # Pelo acesso remoto, pastas e IA ficam como foram configuradas no
+        # computador do escritório e não podem ser trocadas pela tela.
+        pasta_dados = Path(os.environ.get("MOTOR_CONTABIL_DADOS", "dados"))
+        pasta_backup = os.environ.get("MOTOR_CONTABIL_BACKUP", "")
+        usar_ia = False
+    else:
+        with st.expander("Configurações deste computador"):
+            pasta_dados = Path(st.text_input(
+                "Pasta de dados do escritório", os.environ.get("MOTOR_CONTABIL_DADOS", "dados")
+            ))
+            pasta_backup = st.text_input(
+                "Pasta de backup",
+                os.environ.get("MOTOR_CONTABIL_BACKUP", ""),
+                help="Usada só para avisar quando a última cópia de segurança estiver atrasada.",
+            )
+            usar_ia = st.checkbox(
+                "Sugerir contas com IA",
+                value=False,
+                help="Envia apenas o histórico (CPF/CNPJ mascarados) e o sentido da operação. "
+                "Toda sugestão fica pendente de aprovação.",
+            )
 
     try:
         cadastradas = empresas.listar(pasta_dados)
@@ -134,10 +150,19 @@ with st.sidebar:
             "Empresa", cadastradas, format_func=lambda e: f"{e.nome} ({e.identificador})"
         )
         st.caption(f"CNPJ {empresa.cnpj} · banco {empresa.conta_bancaria} · marca {empresa.prefixo_marca}")
-        usuario = st.text_input(
-            "Responsável pela revisão", "operador",
-            help="Este nome aparece na trilha de auditoria e nos relatórios.",
-        )
+        if remoto:
+            st.markdown(f"**{html.escape(identidade.nome)}**  \n{html.escape(identidade.email or '')}",
+                        unsafe_allow_html=True)
+            st.caption("Conectado com a conta Google. Este nome e e-mail vão para a trilha de "
+                       "auditoria e para os relatórios.")
+            usuario = identidade.para_auditoria
+        else:
+            nome_digitado = st.text_input(
+                "Responsável pela revisão", "operador",
+                help="Este nome aparece na trilha de auditoria e nos relatórios.",
+            )
+            usuario = (acesso.Identidade(nome_digitado, None, False).para_auditoria
+                       if config_acesso.remoto else nome_digitado)
         leiaute = st.radio("Arquivo de exportação", ["Fortes", "CSV genérico"], horizontal=True)
         if usar_ia:
             st.warning("Sugestão por IA ligada: históricos serão enviados ao provedor de IA.")

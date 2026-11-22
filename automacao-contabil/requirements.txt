@@ -2,6 +2,8 @@ streamlit>=1.40
 pytest>=8
 # relatórios em PDF para revisão e auditoria:
 reportlab>=4.2
+# acesso remoto com login Google (Cloudflare Access):
+PyJWT[crypto]>=2.8
 # opcional, só para a sugestão por IA:
 anthropic>=2.6
 # opcional, só para ler extrato do Itaú em PDF:
