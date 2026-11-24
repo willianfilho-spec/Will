@@ -4,7 +4,7 @@ Cópias sem alteração dos arquivos `dist`, obtidas do registro npm em 2026-10-
 
 | Pasta | Pacote | Versão | Licença | Arquivos |
 |---|---|---|---|---|
-| `pdfjs/` | [pdfjs-dist](https://github.com/mozilla/pdf.js) (Mozilla) | 6.4.299 | Apache-2.0 (`pdfjs/LICENSE`) | `pdf.min.mjs`, `pdf.worker.min.mjs`, `standard_fonts/` (licenças Foxit e Liberation na própria pasta), `cmaps/` |
+| `pdfjs/` | [pdfjs-dist](https://github.com/mozilla/pdf.js) (Mozilla) | 6.4.299 | Apache-2.0 (`pdfjs/LICENSE`) | `pdf.min.mjs`, `pdf.worker.min.mjs`, `standard_fonts/` (licenças Foxit e Liberation na própria pasta), `cmaps/`, `wasm/` (decodificadores JBIG2/CCITT, JPEG 2000 e perfis ICC; licenças `wasm/LICENSE_*`; incluído em 2026-11-24) |
 | `pdf-lib/` | [pdf-lib](https://github.com/Hopding/pdf-lib) | 1.17.1 | MIT (`pdf-lib/LICENSE.md`) | `pdf-lib.min.js` (UMD, expõe `window.PDFLib`) |
 
 Para atualizar: `npm i pdfjs-dist pdf-lib` numa pasta de rascunho e copie os mesmos arquivos.
