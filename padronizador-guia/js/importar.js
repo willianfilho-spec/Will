@@ -85,10 +85,12 @@ export async function importarPdf(buffer, progresso = () => {}) {
     const original = c3.toDataURL('image/jpeg', 0.82);
     page.cleanup();
 
-    paginas.push(classificar({ segs, imgs, tabs: [] }, n - 1, pdf.numPages, original));
+    const pgc = classificar({ segs, imgs, tabs: [] }, n - 1, pdf.numPages, original);
+    pgc.id = n;
+    paginas.push(pgc);
   }
   await tarefa.destroy();
-  return paginas;
+  return herdarSecao(paginas);
 }
 
 // Recorte praticamente de uma cor só (máscara, fundo branco): não é conteúdo.
@@ -147,7 +149,7 @@ export async function importarPptx(buffer, progresso = () => {}) {
   const E = A4.w / cx;                                   // EMU → pontos A4 (escala uniforme)
   const rels = await lerRels(zip, 'ppt/presentation.xml');
   const ids = desc(pres.documentElement, 'sldId').map((s) => rels.get(attrR(s, 'id'))).filter(Boolean);
-  const paginas = [];
+  const brutos = [];
   for (let n = 0; n < ids.length; n++) {
     progresso(n + 1, ids.length);
     const caminho = ids[n];
@@ -164,7 +166,7 @@ export async function importarPptx(buffer, progresso = () => {}) {
     };
     const aplicar = (tf, b) => ({ x: tf.ox + (b.x - tf.cox) * tf.sx, y: tf.oy + (b.y - tf.coy) * tf.sy, w: b.w * tf.sx, h: b.h * tf.sy });
 
-    const textoDoCorpo = (corpo, caixa, ph) => {
+    const textoDoCorpo = (corpo, caixa, ph, extra = {}) => {
       let y = caixa.y * E + 4;
       let numAuto = 0;
       for (const p of filhos(corpo, 'p')) {
@@ -185,7 +187,9 @@ export async function importarPptx(buffer, progresso = () => {}) {
         for (const linha of t.split('\n')) {
           if (!linha.trim()) continue;
           const estW = Math.min(w, linha.length * size * 0.5);
-          segs.push({ t: linha.trim(), x: caixa.x * E + 7, y, w: estW, size, bold: bold || ph === 'title' || ph === 'ctrTitle', ordem: ordem++ });
+          const linkRun = desc(p, 'hlinkClick').map((h) => srels.get(attrR(h, 'id'))).find(Boolean);
+          const link = extra.link ?? (linkRun ? ids.indexOf(linkRun) : -1);
+          segs.push({ t: linha.trim(), x: caixa.x * E + 7, y, w: estW, size, bold: bold || ph === 'title' || ph === 'ctrTitle', ordem: ordem++, link: link >= 0 ? link : null, nome: extra.nome || '' });
           y += Math.max(1, Math.ceil((linha.length * size * 0.5) / Math.max(40, w - 14))) * size * 1.2;
         }
       }
@@ -200,7 +204,10 @@ export async function importarPptx(buffer, progresso = () => {}) {
           const b = xfrmDe(spPr);
           const caixa = b ? aplicar(tf, b) : { x: 0, y: ordem * 2000, w: cx, h: 0 };
           const corpo = filho(el, 'txBody');
-          if (corpo) textoDoCorpo(corpo, caixa, ph);
+          const cNv = desc(filho(el, 'nvSpPr'), 'cNvPr')[0];
+          const hl = desc(cNv, 'hlinkClick')[0];
+          const alvoLink = hl ? srels.get(attrR(hl, 'id')) : null;
+          if (corpo) textoDoCorpo(corpo, caixa, ph, { nome: cNv?.getAttribute('name') || '', link: alvoLink ? ids.indexOf(alvoLink) : undefined });
         } else if (nome === 'pic') {
           const b = xfrmDe(filho(el, 'spPr'));
           const blip = desc(el, 'blip')[0];
@@ -237,9 +244,82 @@ export async function importarPptx(buffer, progresso = () => {}) {
     };
     const arvore = desc(doc.documentElement, 'spTree')[0];
     if (arvore) await visitar(arvore, { ox: 0, oy: 0, cox: 0, coy: 0, sx: 1, sy: 1 });
-    const pg = classificar({ segs, imgs, tabs }, n, ids.length, null);
-    pg.avisos.push(...avisos);
+    const oculto = doc.documentElement.getAttribute('show') === '0';
+    brutos.push({ segs, imgs, tabs, avisos, oculto, n });
+  }
+  const faq = consolidarFaq(brutos);
+  const paginas = [];
+  for (const b of brutos) {
+    if (faq.consumidos.has(b.n)) {
+      if (b.n === faq.inicio) paginas.push(...faq.paginas);
+      continue;
+    }
+    const pg = classificar(b, b.n, ids.length, null);
+    pg.id = b.n + 1;
+    pg.avisos.push(...b.avisos);
+    if (faq.indice === b.n) { pg.oculta = true; pg.avisos.unshift('Índice interativo do FAQ (só funciona no modo apresentação). Não incluído: as perguntas estão nas páginas de FAQ consolidadas.'); }
+    else if (b.oculto) { pg.oculta = true; pg.avisos.unshift('Slide oculto no PPTX: marcado como "Não incluir". Desmarque se ele deve entrar no PDF.'); }
     paginas.push(pg);
+  }
+  return herdarSecao(paginas);
+}
+
+// FAQ interativo (navegação por links no modo apresentação): cada slide repete abas,
+// botão de voltar e a lista de perguntas, mudando só a resposta. No PDF isso vira
+// páginas lineares por categoria, com a referência ao manual recalculada.
+function consolidarFaq(brutos) {
+  const vazio = { consumidos: new Set(), paginas: [], inicio: -1, indice: -1 };
+  const ehVoltar = (s) => /voltar ao (faq|[ií]ndice)/i.test(s.t);
+  const respostas = brutos.filter((b) => b.segs.some(ehVoltar));
+  if (respostas.length < 2) return vazio;
+  const cats = new Map();
+  const consumidos = new Set();
+  for (const b of respostas) {
+    const ss = b.segs.filter((s) => s.y > 62 && s.y < 806);
+    const cat = ss.filter((s) => !s.link && s.link !== 0).sort((a, c) => c.size - a.size)[0];
+    if (!cat) continue;
+    const yLista = Math.min(806, ...ss.filter((s) => /^perguntas( da categoria)?$/i.test(s.t.trim())).map((s) => s.y));
+    const ref = ss.find((s) => /ver no manual/i.test(s.t) && s.link != null);
+    const corpo = ss.filter((s) => s !== cat && s.y > cat.y + 8 && s.y < yLista && s.link == null && !ehVoltar(s)).sort((a, c) => a.y - c.y || a.x - c.x);
+    if (!corpo.length) continue;
+    const pergunta = corpo[0].t.trim();
+    const resposta = corpo.slice(1).map((s) => s.t.trim()).join('\n');
+    const naLista = ss.find((s) => s.link != null && s.t.replace(/^\d+\s+/, '').trim() === pergunta);
+    const num = naLista ? +(naLista.t.match(/^(\d+)/)?.[1] || 0) : 0;
+    const nome = cat.t.trim();
+    if (!cats.has(nome)) cats.set(nome, []);
+    cats.get(nome).push({ num, pergunta, resposta, ref: ref ? ref.link + 1 : null });
+    consumidos.add(b.n);
+  }
+  if (!consumidos.size) return vazio;
+  // Índice: slide visível que aponta para várias respostas e não tem "voltar".
+  const alvos = new Set([...consumidos]);
+  const indice = brutos.find((b) => !consumidos.has(b.n) && b.segs.filter((s) => alvos.has(s.link)).length >= 4);
+  const paginas = [...cats].map(([nome, qs]) => ({
+    tipo: 'conteudo', secao: 'FAQ | ' + nome.toUpperCase(), titulo: 'Perguntas frequentes', faq: '', alinhamento: 'esquerda',
+    blocos: qs.sort((a, c) => a.num - c.num).map((q) => ({
+      tipo: 'texto', rotulo: '', titulo: `${String(q.num).padStart(2, '0')}. ${q.pergunta}`,
+      texto: q.resposta + (q.ref ? `\nVer no manual: página {{pag:${q.ref}}}.` : ''),
+    })),
+    avisos: [`FAQ interativo consolidado: ${qs.length} pergunta(s) reunidas a partir de slides de navegação. Abas, botões e a lista repetida foram removidos.`],
+    confianca: 'alta', original: null,
+  }));
+  return { consumidos, paginas, inicio: Math.min(...consumidos), indice: indice ? indice.n : -1 };
+}
+
+// Página sem seção nem título logo após uma página de procedimento é continuação dela.
+export function herdarSecao(paginas) {
+  let ant = null;
+  for (const p of paginas) {
+    if (p.tipo !== 'conteudo') { ant = null; continue; }
+    const mesmoFaq = p.faq && p.faq === ant?.faq;
+    const pareceCont = !p.blocos?.some((b) => b.tipo === 'caminho') && p.blocos?.[0]?.tipo !== 'texto';
+    if (!p.secao && !p.titulo && ant?.secao && p.blocos?.length && (mesmoFaq || pareceCont)) {
+      p.secao = ant.secao; p.titulo = ant.titulo;
+      p.avisos = (p.avisos || []).filter((a) => !/^Seção e título não reconhecidos/.test(a));
+      p.avisos.unshift('Seção e título herdados da página anterior (continuação).');
+    }
+    if (!p.oculta) ant = p;
   }
   return paginas;
 }
@@ -390,8 +470,9 @@ function blocosLivres(segs, regiao, rotulo = '', centro = false) {
   const brutas = ls0.filter((s) => s.bold && s.t.length > 1 && !NUM.test(s.t) && !ehFonte(s.t));
   const ancoras = juntarAncoras(brutas);
   const ls = [...ls0.filter((s) => !brutas.includes(s)), ...ancoras];
-  if (ancoras.length && brutas.length < ls0.length) {
-    const { itens, resto, colunas } = itensAncorados(ancoras, ls.filter((s) => !ancoras.includes(s)), regiao);
+  const aa = ancoras.length ? itensAncorados(ancoras, ls.filter((s) => !ancoras.includes(s)), regiao) : null;
+  if (aa && (brutas.length < ls0.length || aa.colunas >= 2)) {
+    const { itens, resto, colunas } = aa;
     const ord = ordemLeitura(itens).map(({ a, meus }) => ({ t: a.t, d: refluir(meus) }));
     if (colunas >= 3 && !centro) return [{ tipo: 'tabela', rotulo, linhas: grade(ls, ancoras) }];
     const pre = resto.length ? [{ tipo: 'texto', rotulo, titulo: '', texto: refluir(resto) }] : [];
@@ -434,7 +515,7 @@ export function classificar({ segs: brutos, imgs, tabs }, indice, total, origina
     const n = sem(s.t);
     if (s.y < 62) {
       (s.t.match(/FAQ\s*\d+/gi) || []).forEach((f) => faq.push(f.toUpperCase().replace(/\s+/, ' ')));
-      if (/GUIA\s*SIGAA|^FAQ\s*\d+$/.test(n) || /^(FAQ\s*\d+\s*)+$/.test(n)) return false;
+      if (/GUIA\s*SIGAA/.test(n) || /^(FAQ\s*\d+\s*[›>»]?\s*)+$/.test(n)) return false;
     }
     if (s.y > 806) return false;
     if (s.y > 770 && (/^DIOAC \| PROEN/.test(n) || /^SUMARIO\b/.test(n) || /^\(SIGAA, ?\d{4}\)$/.test(n))) return false;
@@ -454,8 +535,8 @@ export function classificar({ segs: brutos, imgs, tabs }, indice, total, origina
   pool = emLinhas(pool);
   // Seção e título.
   let secao = '', titulo = '';
-  const grandeTopo = pool.some((s) => s.y < 140 && s.size >= 14);
-  const secSeg = grandeTopo ? null : pool.find((s) => s.y < 150 && (SECOES.some((x) => sem(s.t) === sem(x.nome)) || /^FAQ\s*\|/.test(sem(s.t))));
+  const cand = pool.find((s) => s.y < 150 && (SECOES.some((x) => sem(s.t) === sem(x.nome)) || /^FAQ\s*\|/.test(sem(s.t))));
+  const secSeg = cand && !pool.some((s) => s.y < cand.y - 4 && s.size >= Math.max(16, cand.size * 1.4)) ? cand : null;
   if (secSeg) {
     secao = secSeg.t.replace(/\s*\|\s*/g, ' | ');
     pool = pool.filter((s) => s !== secSeg);
@@ -519,7 +600,16 @@ export function classificar({ segs: brutos, imgs, tabs }, indice, total, origina
   });
   const regiaoDe = (x, y) => regs.filter((r) => x >= r.x0 && x < r.x1 && y >= r.y - 4 && y < r.y1).sort((a, b) => b.y - a.y)[0];
   const livres = [];
-  for (const s of pool) { const r = regiaoDe(s.x, s.y); if (r) r.segs.push(s); else livres.push(s); }
+  let soltos = 0;
+  for (const s of pool) {
+    const r = regiaoDe(s.x, s.y);
+    // Vizinho ao lado (sem sobrepor) protege o número (célula de tabela); texto por baixo dele não protege.
+    const aoLado = (o) => (o.x >= s.x + s.w - 1 && o.x - (s.x + s.w) < 120) || (o.x + o.w <= s.x + 1 && s.x - (o.x + o.w) < 120);
+    const sozinho = !pool.some((o) => o !== s && Math.abs(o.y - s.y) < s.size && aoLado(o));
+    if (NUM.test(s.t) && sozinho && (!r || r.tipo !== 'passos')) { soltos++; continue; }
+    if (r) r.segs.push(s); else livres.push(s);
+  }
+  if (soltos) avisos.push(`${soltos} número(s) solto(s) fora de uma lista de passos foram removidos (provável marcador de passo fora do lugar).`);
   const imgsLivres = [];
   for (const im of imagens) { const r = regiaoDe(im.x + Math.min(im.w, 40) / 2, im.y); if (r) r.imgs.push(im); else imgsLivres.push(im); }
   const blocoImg = (im, rotulo) => ({ tipo: 'imagem', rotulo, src: im.src, iw: im.iw, ih: im.ih, legenda: im.legenda || '' });

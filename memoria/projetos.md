@@ -16,6 +16,7 @@ Um bloco por projeto: objetivo, local, estado, próximos passos. Estado vem de e
 - Local: `padronizador-guia/` (app estática; reaproveita `editor-pdf/vendor/`); publicação em `/padronizador-guia/` via `pages.yml`.
 - Objetivo: importar versão desconfigurada do guia (PDF ou PPTX), reconhecer os componentes do modelo 2026 (seção, caminho, passos, quadros, cartões, telas, tabelas) e gerar PDF novo no padrão.
 - [2026-11-24] Estado: implementado e testado com Playwright no manual de 59 páginas e num PPTX desconfigurado de teste; branch `claude/brave-mayer-t6cn5d`, sem PR. Limitações: diagramas vetoriais não são capturados; leitura heurística exige revisão — origem: esta sessão; confiança: alta
+- [2026-11-24] Testado com o PPTX real "Comentários Aplicados" (75 slides, feito no Google Slides): seções reconhecidas, FAQ interativo (26 respostas em slides ocultos) consolidado em 4 páginas, 26/26 referências de página conferidas no PDF gerado. Saída: 55 páginas — origem: esta sessão; confiança: alta
 
 ## Assistente de análise normativa
 - Local: `assistente-analise-normativa.md` (prompt com formatos de saída por modo).

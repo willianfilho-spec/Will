@@ -164,7 +164,7 @@ function editorBloco(b, i, p) {
     }
     default:
       corpo.push(el('div', { class: 'linha' }, campo('Rótulo (opcional)', b, 'rotulo'), campo('Título (opcional)', b, 'titulo')),
-        campo('Texto (linhas com •, - ou 1. viram lista)', b, 'texto', 'textarea', { rows: 4 }));
+        campo('Texto (linhas com •, - ou 1. viram lista; {{pag:N}} vira o nº da página que veio do slide/página N)', b, 'texto', 'textarea', { rows: 4 }));
   }
   const mover = (d) => { const j = i + d; if (j < 0 || j >= p.blocos.length) return; [p.blocos[i], p.blocos[j]] = [p.blocos[j], p.blocos[i]]; alterou({ estrutura: true }); };
   return el('div', { class: 'bloco' },

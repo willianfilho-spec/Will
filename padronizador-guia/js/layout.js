@@ -443,10 +443,26 @@ function capa(p) {
 }
 
 // Diagrama um documento inteiro. Devolve [{origem, cmds, avisos}] com numeração já aplicada.
+// Referências {{pag:N}} (N = id da página de origem: nº do slide ou da página importada)
+// viram o número que essa página recebeu no PDF final; por isso são duas passadas.
+const REF = /\{\{pag:(\d+)\}\}/g;
 export function diagramar(doc) {
+  const temRef = (doc.paginas || []).some((p) => p.tipo === 'conteudo' && JSON.stringify(p.blocos || []).includes('{{pag:'));
+  if (!temRef) return diagramarCom(doc, null);
+  const mapa = new Map();
+  diagramarCom(doc, new Map()).forEach((s, i) => { const id = doc.paginas[s.origem]?.id; if (id != null && !mapa.has(id)) mapa.set(id, i + 1); });
+  return diagramarCom(doc, mapa);
+}
+
+function diagramarCom(doc, mapa) {
   const saida = [];
-  (doc.paginas || []).forEach((p, origem) => {
-    if (p.oculta) return;
+  (doc.paginas || []).forEach((p0, origem) => {
+    if (p0.oculta) return;
+    let p = p0, refsPerdidas = 0;
+    if (mapa && p0.tipo === 'conteudo') {
+      const js = JSON.stringify(p0.blocos || []);
+      if (js.includes('{{pag:')) p = { ...p0, blocos: JSON.parse(js.replace(REF, (_, id) => { const n = mapa.get(+id); if (n == null) { refsPerdidas++; return mapa.size ? '?' : '00'; } return String(n); })) };
+    }
     if (p.tipo === 'capa') { saida.push({ origem, cmds: capa(p), semRodape: true, avisos: [] }); return; }
     if (p.tipo === 'original') {
       const cmds = p.original ? [C.img(p.original, 0, 0, A4.w, A4.h)] : [];
@@ -456,6 +472,7 @@ export function diagramar(doc) {
     const centro = p.alinhamento === 'centro';
     let { c, y } = cabecalho(doc, p, false);
     let atual = { origem, cmds: c, avisos: [] };
+    if (refsPerdidas && mapa.size) atual.avisos.push(`${refsPerdidas} referência(s) de página apontam para página excluída ou não incluída (aparecem como "?").`);
     saida.push(atual);
     let topoPag = y;
     const nova = () => { const h = cabecalho(doc, p, true); atual = { origem, cmds: h.c, avisos: [] }; saida.push(atual); y = topoPag = h.y; };

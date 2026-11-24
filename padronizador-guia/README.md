@@ -39,6 +39,14 @@ Tudo é redesenhado a partir do conteúdo, não remendado sobre o original:
 | Telas do SIGAA | imagem na largura útil, rótulo e legenda "Fonte: (SIGAA, 2026)." |
 | Paginação | conteúdo que não cabe continua na página seguinte com "(continuação)"; imagens encolhem até 60% antes de mudar de página |
 
+## Tratamentos específicos de PPTX
+
+- **Slides ocultos** entram marcados como "Não incluir", com aviso. Desmarque se devem ir para o PDF.
+- **FAQ interativo** (slides de navegação com abas, botão "Voltar ao FAQ" e lista de perguntas repetida em cada slide) é consolidado em páginas lineares por categoria, em ordem numérica. O índice interativo fica fora do PDF, com aviso.
+- **Referências "Ver no manual · p. N"** que eram links para outro slide viram `{{pag:N}}` e são recalculadas na geração: se páginas anteriores se desdobrarem, o número acompanha. Uma referência para página excluída aparece como "?" e gera aviso.
+- **Números soltos** (marcadores de passo fora do lugar, sem nada na mesma linha e fora de "Como fazer") são removidos, com aviso.
+- Página sem seção nem título logo após um procedimento herda a seção e o título dele (continuação).
+
 ## Limitações conhecidas
 
 - **A leitura é heurística.** Ela reconhece os rótulos do modelo (Caminho no SIGAA, Como fazer, Quando usar, Observação, Regulamentação, Atenção, Tela do SIGAA…) e a posição dos elementos. Layouts muito diferentes do modelo, diagramas feitos com formas e tabelas desenhadas em PDF viram texto ou cartões e precisam de revisão.
