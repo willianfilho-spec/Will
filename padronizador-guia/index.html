@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Padronizador do Guia SIGAA</title>
+<link rel="icon" href="assets/logo60_sm.png">
+<link rel="stylesheet" href="estilo.css">
+<script src="../editor-pdf/vendor/pdf-lib/pdf-lib.min.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="marca"><img src="assets/logo60_sm.png" alt=""><div><small>DIOAC · PROEN · UFMA</small><h1>Padronizador do Guia SIGAA</h1></div></div>
+  <span class="sp"></span>
+  <label class="btn primario" title="Importa um PDF ou PPTX desconfigurado e reconstrói no padrão">Importar PDF ou PPTX<input id="arquivo" type="file" accept=".pdf,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden></label>
+  <label class="btn">Abrir projeto<input id="projeto" type="file" accept=".json,application/json" hidden></label>
+  <button class="btn" id="salvar" disabled>Salvar projeto</button>
+  <button class="btn" id="novo">Novo</button>
+  <button class="btn destaque" id="baixar" disabled>Baixar PDF padronizado</button>
+</header>
+<div id="status" role="status" aria-live="polite"></div>
+<div id="erro" role="alert"><span></span><button class="btn pq" id="fechaErro">Fechar</button></div>
+
+<main id="app">
+  <aside>
+    <details class="cfg">
+      <summary>Configurações do documento</summary>
+      <label class="campo">Texto do cabeçalho<input data-doc="cabecalho"></label>
+      <label class="campo">Rodapé (esquerda)<input data-doc="rodapeEsq"></label>
+      <label class="campo">Rodapé (centro)<input data-doc="rodapeMeio"></label>
+      <label class="campo">Rótulo do número da página<input data-doc="rodapeRot"></label>
+    </details>
+    <div class="cab-lista"><h2>Páginas</h2><button class="btn pq" id="addPag">+ Página</button></div>
+    <div id="lista"></div>
+  </aside>
+  <section class="editor" id="editor"></section>
+  <section class="previa">
+    <div class="barra-previa">
+      <span id="infoPrevia"></span>
+      <span class="sp"></span>
+      <label class="chk"><input type="checkbox" id="comparar"> Comparar com o original</label>
+    </div>
+    <div id="folhas"></div>
+  </section>
+</main>
+
+<section id="vazio">
+  <div class="caixa-vazio">
+    <img src="assets/logo60.png" alt="" width="150">
+    <h2>Padronize uma versão desconfigurada do guia</h2>
+    <p>Arraste aqui um <b>PDF</b> ou <b>PPTX</b> do Guia SIGAA (ou clique em <i>Importar</i>). A ferramenta lê o conteúdo, reconhece seções, caminhos, passos, quadros e telas, e redesenha tudo no padrão gráfico do manual de 2026: faixas do cabeçalho, selo dos 60 anos, cores por seção, espaçamentos e rodapé numerado.</p>
+    <p class="hint">Nada é enviado para servidor: o arquivo é processado neste navegador.</p>
+    <label class="btn primario grande">Escolher arquivo<input id="arquivo2" type="file" accept=".pdf,.pptx" hidden></label>
+  </div>
+</section>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

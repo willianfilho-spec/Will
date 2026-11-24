@@ -1,6 +1,6 @@
 # Projetos
 
-Atualizado em: 2026-11-17
+Atualizado em: 2026-11-24
 Um bloco por projeto: objetivo, local, estado, próximos passos. Estado vem de evidência (commit, teste, README); quando não houver, dizer "não verificado".
 
 ## Folha Clara (editor de PDF no navegador)
@@ -11,6 +11,11 @@ Um bloco por projeto: objetivo, local, estado, próximos passos. Estado vem de e
 ## Editor do Guia SIGAA
 - Local: `guia-sigaa-editor/`; publicação via `.github/workflows/pages.yml`.
 - [2026-11-17] Estado: entregue no PR #5 (commit 490a335, 2026-10-27). Situação atual da publicação no GitHub Pages: não verificada — origem: git log; confiança: média
+
+## Padronizador do Guia SIGAA
+- Local: `padronizador-guia/` (app estática; reaproveita `editor-pdf/vendor/`); publicação em `/padronizador-guia/` via `pages.yml`.
+- Objetivo: importar versão desconfigurada do guia (PDF ou PPTX), reconhecer os componentes do modelo 2026 (seção, caminho, passos, quadros, cartões, telas, tabelas) e gerar PDF novo no padrão.
+- [2026-11-24] Estado: implementado e testado com Playwright no manual de 59 páginas e num PPTX desconfigurado de teste; branch `claude/brave-mayer-t6cn5d`, sem PR. Limitações: diagramas vetoriais não são capturados; leitura heurística exige revisão — origem: esta sessão; confiança: alta
 
 ## Assistente de análise normativa
 - Local: `assistente-analise-normativa.md` (prompt com formatos de saída por modo).

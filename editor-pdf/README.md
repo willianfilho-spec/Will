@@ -26,6 +26,5 @@ Testes: `node tools/verificar-fluxos/verificar.mjs tools/verificar-fluxos/editor
 - O texto adicionado usa Helvetica (WinAnsi). Caracteres fora desse conjunto (emoji, alfabetos não latinos) viram `?` no PDF baixado.
 - Sem OCR: PDFs digitalizados não têm texto para extrair.
 - Não redimensiona anotações depois de criadas, não tem zoom e não abre PDFs com senha.
-- Imagens JPEG 2000/JBIG2 dentro do PDF podem não aparecer (os módulos WASM do pdf.js não foram incluídos).
 
 Bibliotecas: ver `vendor/LICENCAS.md`.
