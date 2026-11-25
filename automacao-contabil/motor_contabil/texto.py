@@ -54,6 +54,14 @@ _CPF_CNPJ = re.compile(
 )
 
 
+def normalizar_documento(documento: str | None) -> str:
+    """Retorna os dígitos de um CPF ou CNPJ informado no campo de documento."""
+    texto = documento.strip() if isinstance(documento, str) else ""
+    if texto.isascii() and _CPF_CNPJ.fullmatch(texto):
+        return re.sub(r"\D", "", texto)
+    return ""
+
+
 def mascarar_documentos(texto: str) -> str:
     """Remove CPF/CNPJ antes de enviar um histórico a um serviço externo."""
     return _CPF_CNPJ.sub("[DOC]", texto or "")

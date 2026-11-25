@@ -15,23 +15,23 @@ from motor_contabil.acesso import (  # noqa: E402
     AcessoNegado, ConfigAcesso, Identidade, carregar_config, identificar,
 )
 
-EQUIPE = "equilibra.cloudflareaccess.com"
+EQUIPE = "exemplo-invalido.cloudflareaccess.com"
 AUD = "aud-teste-123"
-CFG = ConfigAcesso("cloudflare", EQUIPE, AUD, {"daiane@equilibracontabil.com.br": "Daiane"})
+CFG = ConfigAcesso("cloudflare", EQUIPE, AUD, {"revisora@example.test": "Revisora"})
 CHAVE = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 OUTRA = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 PUBLICA = lambda token, cfg: CHAVE.public_key()  # noqa: E731
 APP = Path(__file__).resolve().parent.parent / "app.py"
 
 
-def token(email="daiane@equilibracontabil.com.br", aud=AUD, iss=f"https://{EQUIPE}",
+def token(email="revisora@example.test", aud=AUD, iss=f"https://{EQUIPE}",
           validade=600, chave=CHAVE):
     agora = int(time.time())
     return jwt.encode({"email": email, "aud": [aud], "iss": iss, "iat": agora, "exp": agora + validade},
                       chave, algorithm="RS256")
 
 
-def cab(tk=None, host="conciliador.equilibracontabil.com.br"):
+def cab(tk=None, host="conciliador.example.test"):
     h = {"Host": host}
     if tk:
         h["Cf-Access-Jwt-Assertion"] = tk
@@ -45,12 +45,12 @@ def test_sem_arquivo_e_modo_local():
 
 def test_token_valido_de_email_autorizado():
     ident = identificar(cab(token()), CFG, PUBLICA)
-    assert ident == Identidade("Daiane", "daiane@equilibracontabil.com.br", True)
-    assert ident.para_auditoria == "Daiane <daiane@equilibracontabil.com.br>"
+    assert ident == Identidade("Revisora", "revisora@example.test", True)
+    assert ident.para_auditoria == "Revisora <revisora@example.test>"
 
 
 def test_email_com_maiusculas_e_aceito():
-    assert identificar(cab(token("Daiane@EquilibraContabil.com.br")), CFG, PUBLICA).autenticado
+    assert identificar(cab(token("Revisora@example.test")), CFG, PUBLICA).autenticado
 
 
 @pytest.mark.parametrize("tk, trecho", [
@@ -59,7 +59,7 @@ def test_email_com_maiusculas_e_aceito():
     (lambda: token(iss="https://intruso.cloudflareaccess.com"), "confirmar o login"),
     (lambda: token(chave=OUTRA), "confirmar o login"),
     (lambda: "nao-e-um-token", "confirmar o login"),
-    (lambda: token("intruso@gmail.com"), "não está autorizada"),
+    (lambda: token("intruso@example.test"), "não está autorizada"),
 ])
 def test_token_recusado(tk, trecho):
     with pytest.raises(AcessoNegado, match=trecho):
@@ -79,7 +79,7 @@ def test_sem_token_no_proprio_computador_pede_nome(host):
 
 def test_cabecalho_falso_de_email_nao_basta():
     h = cab()
-    h["Cf-Access-Authenticated-User-Email"] = "daiane@equilibracontabil.com.br"
+    h["Cf-Access-Authenticated-User-Email"] = "revisora@example.test"
     with pytest.raises(AcessoNegado):
         identificar(h, CFG, PUBLICA)
 
@@ -101,11 +101,11 @@ def test_config_cloudflare_incompleta_e_recusada(tmp_path):
 def test_config_cloudflare_valida(tmp_path):
     arq = tmp_path / "acesso.json"
     arq.write_text(json.dumps({"modo": "cloudflare", "dominio_equipe": EQUIPE.upper(), "aud": AUD,
-                               "autorizados": {" Daiane@EquilibraContabil.com.br ": "Daiane"}}),
+                               "autorizados": {" Revisora@example.test ": "Revisora"}}),
                    encoding="utf-8")
     cfg = carregar_config(arq)
     assert cfg.remoto and cfg.dominio_equipe == EQUIPE
-    assert cfg.autorizados == {"daiane@equilibracontabil.com.br": "Daiane"}
+    assert cfg.autorizados == {"revisora@example.test": "Revisora"}
 
 
 def test_interface_remota_sem_login_nao_mostra_dados(monkeypatch, tmp_path):
@@ -114,7 +114,7 @@ def test_interface_remota_sem_login_nao_mostra_dados(monkeypatch, tmp_path):
 
     arq = tmp_path / "acesso.json"
     arq.write_text(json.dumps({"modo": "cloudflare", "dominio_equipe": EQUIPE, "aud": AUD,
-                               "autorizados": {"daiane@equilibracontabil.com.br": "Daiane"}}),
+                               "autorizados": {"revisora@example.test": "Revisora"}}),
                    encoding="utf-8")
     monkeypatch.setenv("MOTOR_CONTABIL_ACESSO", str(arq))
     monkeypatch.setenv("MOTOR_CONTABIL_DADOS", str(tmp_path / "dados"))
@@ -130,15 +130,15 @@ def test_assistente_grava_e_mantem_autorizados(tmp_path):
     from motor_contabil.acesso import configurar
 
     arq = tmp_path / "acesso.json"
-    respostas = iter([EQUIPE, AUD, "Daiane@EquilibraContabil.com.br", "Daiane", "nao-e-email",
-                      "luciana@equilibracontabil.com.br", "", ""])
+    respostas = iter([EQUIPE, AUD, "Revisora@example.test", "Revisora", "nao-e-email",
+                      "luciana@example.test", "", ""])
     cfg = configurar(arq, entrada=lambda _: next(respostas), saida=lambda *_: None)
-    assert cfg.autorizados == {"daiane@equilibracontabil.com.br": "Daiane",
-                               "luciana@equilibracontabil.com.br": "luciana@equilibracontabil.com.br"}
+    assert cfg.autorizados == {"revisora@example.test": "Revisora",
+                               "luciana@example.test": "luciana@example.test"}
     # Segunda rodada: Enter mantém equipe e AUD; remove a Luciana.
-    respostas = iter(["", "", "-luciana@equilibracontabil.com.br", ""])
+    respostas = iter(["", "", "-luciana@example.test", ""])
     cfg = configurar(arq, entrada=lambda _: next(respostas), saida=lambda *_: None)
-    assert cfg.aud == AUD and list(cfg.autorizados) == ["daiane@equilibracontabil.com.br"]
+    assert cfg.aud == AUD and list(cfg.autorizados) == ["revisora@example.test"]
 
 
 def test_assistente_nao_grava_configuracao_invalida(tmp_path):
@@ -151,7 +151,7 @@ def test_assistente_nao_grava_configuracao_invalida(tmp_path):
     assert not arq.exists() and not arq.with_suffix(".tmp").exists()
 
 
-def test_interface_com_login_usa_a_conta_google_na_auditoria(monkeypatch, tmp_path):
+def test_interface_com_login_identifica_responsavel_na_auditoria(monkeypatch, tmp_path):
     pytest.importorskip("streamlit")
     from streamlit.testing.v1 import AppTest
 
@@ -169,7 +169,7 @@ def test_interface_com_login_usa_a_conta_google_na_auditoria(monkeypatch, tmp_pa
 
     arq = tmp_path / "acesso.json"
     arq.write_text(json.dumps({"modo": "cloudflare", "dominio_equipe": EQUIPE, "aud": AUD,
-                               "autorizados": {"daiane@equilibracontabil.com.br": "Daiane"}}),
+                               "autorizados": {"revisora@example.test": "Revisora"}}),
                    encoding="utf-8")
     # O AppTest não envia cabeçalhos: simula o que a Cloudflare acrescenta a cada acesso.
     original = modulo.identificar
@@ -184,18 +184,18 @@ def test_interface_com_login_usa_a_conta_google_na_auditoria(monkeypatch, tmp_pa
     assert not at.exception
     assert not [t for t in at.sidebar.text_input if t.label == "Responsável pela revisão"]
     assert not [t for t in at.text_input if t.label == "Pasta de dados do escritório"]
-    assert any("Conectado com a conta Google" in c.value for c in at.sidebar.caption)
+    assert any("Seu nome e e-mail identificam suas ações no histórico e nos relatórios." == c.value for c in at.sidebar.caption)
     at.selectbox(key=f"conta-{pendente}").set_value("2.01.01.03.01.0010-4").run()
     at.button(key=f"ok-{pendente}").click().run()
     motor = emp.abrir_motor("x")
     quem = motor.banco.conexao.execute(
         "SELECT usuario FROM eventos WHERE acao='aprovado'").fetchone()[0]
     motor.banco.fechar()
-    assert quem == "Daiane <daiane@equilibracontabil.com.br>"
+    assert quem == "Revisora <revisora@example.test>"
 
 
 def test_servidor_hospedado_exige_login_ate_de_localhost(tmp_path):
-    cfg = ConfigAcesso("cloudflare", EQUIPE, AUD, {"daiane@equilibracontabil.com.br": "Daiane"}, False)
+    cfg = ConfigAcesso("cloudflare", EQUIPE, AUD, {"revisora@example.test": "Revisora"}, False)
     with pytest.raises(AcessoNegado, match="Acesso sem login"):
         identificar(cab(host="localhost:8501"), cfg, PUBLICA)
     assert identificar(cab(token(), host="localhost:8501"), cfg, PUBLICA).autenticado

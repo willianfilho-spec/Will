@@ -1,0 +1,19 @@
+<script>
+  (() => {
+    const aplicacao = document.querySelector(".stApp");
+    if (!aplicacao || aplicacao.dataset.cfTemaAtivo) return;
+
+    function sincronizarTema() {
+      const canais = getComputedStyle(aplicacao).backgroundColor.match(/\d+/g);
+      if (!canais || canais.length < 3) return;
+      const [r, g, b] = canais.map(Number);
+      const escuro = 0.2126 * r + 0.7152 * g + 0.0722 * b < 128;
+      document.documentElement.dataset.tema = escuro ? "escuro" : "claro";
+    }
+
+    const observador = new MutationObserver(sincronizarTema);
+    observador.observe(aplicacao, { attributes: true, attributeFilter: ["class", "style"] });
+    aplicacao.dataset.cfTemaAtivo = "sim";
+    sincronizarTema();
+  })();
+</script>

@@ -8,25 +8,72 @@ address = "localhost"
 # Mesmo limite que o sistema aplica (tela_importacao.TAMANHO_MAXIMO), para a
 # tela não anunciar 200 MB.
 maxUploadSize = 20
+enableStaticServing = true
 
 [client]
 # Esconde o botão "Deploy" e opções de desenvolvedor.
 toolbarMode = "viewer"
 
-# Identidade da Equilibra: bordô como única cor de destaque, neutros quentes.
+# Paletas dos controles nativos. Os componentes HTML usam interface/design.css.
 [theme]
-base = "light"
-primaryColor = "#7a1f3d"
-backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f6f3f1"
-textColor = "#1f2937"
-borderColor = "#e7e1dc"
-linkColor = "#7a1f3d"
-codeTextColor = "#374151"
-codeBackgroundColor = "#f1ece8"
+font = "IBM Plex Sans:sans-serif"
+codeFont = "IBM Plex Mono:monospace"
 baseRadius = "6px"
-headingFontWeights = [700, 650, 600]
-metricValueFontSize = "1.75rem"
+headingFontWeights = [700, 600, 600]
+headingFontSizes = ["40px", "28px", "20px"]
+metricValueFontSize = "28px"
+showSidebarBorder = true
 
-[theme.sidebar]
-backgroundColor = "#f6f3f1"
+[[theme.fontFaces]]
+family = "IBM Plex Sans"
+url = "app/static/fontes/ibm-plex-sans.ttf"
+weight = "100 700"
+
+[[theme.fontFaces]]
+family = "IBM Plex Mono"
+url = "app/static/fontes/ibm-plex-mono.ttf"
+weight = 400
+
+[theme.light]
+primaryColor = "#0F5A4A"
+backgroundColor = "#F6F5F1"
+secondaryBackgroundColor = "#EFEEE8"
+textColor = "#16201C"
+borderColor = "#D9D7CE"
+linkColor = "#0F5A4A"
+codeTextColor = "#16201C"
+codeBackgroundColor = "#EFEEE8"
+greenColor = "#17603A"
+greenBackgroundColor = "#E3F1E8"
+orangeColor = "#7A4B00"
+orangeBackgroundColor = "#FBEFD3"
+redColor = "#9B2A1F"
+redBackgroundColor = "#F9E1DE"
+blueColor = "#1F4A7A"
+blueBackgroundColor = "#E1E9F3"
+
+[theme.light.sidebar]
+backgroundColor = "#EFEEE8"
+secondaryBackgroundColor = "#FFFFFF"
+
+[theme.dark]
+primaryColor = "#4FB89C"
+backgroundColor = "#0F1512"
+secondaryBackgroundColor = "#1E2924"
+textColor = "#E9EEEA"
+borderColor = "#2C3A34"
+linkColor = "#4FB89C"
+codeTextColor = "#E9EEEA"
+codeBackgroundColor = "#1E2924"
+greenColor = "#8FD5A8"
+greenBackgroundColor = "#16311F"
+orangeColor = "#F0C46A"
+orangeBackgroundColor = "#3A2B0B"
+redColor = "#F3A59B"
+redBackgroundColor = "#3D1A16"
+blueColor = "#9CC3EE"
+blueBackgroundColor = "#162A40"
+
+[theme.dark.sidebar]
+backgroundColor = "#1E2924"
+secondaryBackgroundColor = "#17201C"

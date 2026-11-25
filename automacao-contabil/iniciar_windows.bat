@@ -1,12 +1,19 @@
 @echo off
-rem Abre a interface de conferencia no navegador deste computador.
-rem Ajuste a pasta de dados abaixo se ela nao for C:\Contabil\dados.
+setlocal
 cd /d "%~dp0"
-set MOTOR_CONTABIL_DADOS=C:\Contabil\dados
-if not exist ".venv\Scripts\python.exe" (
-  echo Ambiente nao instalado. Siga o passo 3 do INSTALACAO.md.
+if exist "runtime\python.exe" (
+  set "PYTHON=runtime\python.exe"
+  if not defined MOTOR_CONTABIL_DADOS set "MOTOR_CONTABIL_DADOS=%LOCALAPPDATA%\Conciliador Fortes\dados"
+) else (
+  set "PYTHON=.venv\Scripts\python.exe"
+  if not defined MOTOR_CONTABIL_DADOS set "MOTOR_CONTABIL_DADOS=C:\Contabil\dados"
+)
+if not exist "%PYTHON%" (
+  echo Extraia o ZIP inteiro ou instale o ambiente conforme INSTALACAO.md.
   pause
   exit /b 1
 )
-".venv\Scripts\python.exe" -m streamlit run app.py
-pause
+"%PYTHON%" -s -m streamlit run app.py --server.address localhost
+set "RESULTADO=%ERRORLEVEL%"
+if not "%RESULTADO%"=="0" pause
+exit /b %RESULTADO%

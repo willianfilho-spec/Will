@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import zipfile
+from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -177,6 +178,25 @@ def test_regras_sugeridas_funcionam_no_motor(tmp_path):
             assert plano.get(c.conta_contrapartida).codigo_exportacao == conta
         if "JOAO" in t.historico or "SOCIA" in t.historico:
             assert c.conta_contrapartida is None
+
+
+def test_sugere_raiz_so_se_todo_o_historico_concorda(tmp_path):
+    plano, pares = preparar(tmp_path)
+    movimento, _ = pares[0]
+    pares = [
+        (replace(movimento, historico="Fornecedor A", documento="00.123.456/0001-00"), "368"),
+        (replace(movimento, historico="Fornecedor B", documento="00123456000200"), "368"),
+        (replace(movimento, historico="Outro A", documento="00.456.789/0001-00"), "368"),
+        (replace(movimento, historico="Outro B", documento="00456789000200"), "368"),
+        (replace(movimento, historico="Outro C", documento="00456789000300",
+                 valor=abs(movimento.valor)), "375"),
+        (replace(movimento, historico="CPF A", documento="001.234.567-00"), "368"),
+        (replace(movimento, historico="CPF B", documento="00123456800"), "368"),
+    ]
+    regras, _ = sugerir(pares, plano, nunca={"375"})
+    assert [(r["raiz_cnpj"], r["sentido"], r["conta"]) for r in regras] == [
+        ("00123456", "saida", plano.por_reduzido("368").codigo),
+    ]
 
 
 def test_par_ambiguo_nao_e_usado(tmp_path):

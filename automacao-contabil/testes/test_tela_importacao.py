@@ -298,7 +298,7 @@ def _textos(elementos) -> list[str]:
 def test_c7a_sem_empresa_pede_cadastro(monkeypatch, tmp_path):
     at = _app(monkeypatch, tmp_path, com_empresa=False)
     assert not at.exception
-    assert any("Cadastre a primeira empresa" in t for t in _textos(at.sidebar.info))
+    assert any("Cadastre a primeira empresa na barra lateral" in t for t in _textos(at.info))
 
 
 def test_c7b_relatorio_de_sucesso_na_tela(monkeypatch, tmp_path):

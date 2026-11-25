@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -74,3 +75,77 @@ def test_filtro_sem_itens_mostra_estado_vazio(tela):
     at, _ = tela
     at.segmented_control(key="filtro-status").set_value("bloqueado").run()
     assert [i.value for i in at.info] == ["Nenhum lançamento bloqueado."]
+
+
+def test_busca_ignora_acentos_e_aceita_o_codigo_do_lancamento(tela):
+    at, pendentes = tela
+    registro = next(i for i in pendentes if "FUNCIONARIO EXEMPLO A" in i["historico_banco"])
+    unico = f"ok-{registro['chave']}"
+    busca = next(i for i in at.text_input if i.label == "Buscar lançamentos")
+    busca.set_value("funcionário exemplo a").run()
+    assert [b.key for b in at.button if b.label == "Aprovar"] == [unico]
+    busca = next(i for i in at.text_input if i.label == "Buscar lançamentos")
+    busca.set_value(registro["chave"][:12].upper()).run()
+    assert [b.key for b in at.button if b.label == "Aprovar"] == [unico]
+    exportacao = next(b for b in at.button if b.label.startswith("Gerar arquivo de importação"))
+    assert "(8 liberados)" in exportacao.label
+
+
+def test_competencia_e_paginacao_respeitam_a_selecao(tela, tmp_path):
+    at, _ = tela
+    extrato = tmp_path / "novembro.csv"
+    extrato.write_text(
+        "Data;Histórico;Valor\n" + "".join(
+            f"{dia:02}/11/2026;REVISAR EXEMPLO {dia};-10,00\n" for dia in range(1, 22)
+        ), encoding="utf-8",
+    )
+    [empresa] = empresas.listar(tmp_path / "dados")
+    motor = empresa.abrir_motor("revisora")
+    try:
+        assert motor.importar(extrato, "362").novas == 21
+    finally:
+        motor.banco.fechar()
+    at.run()
+    competencia = next(i for i in at.selectbox if i.label == "Competência")
+    competencia.set_value("2026-11").run()
+    assert len([b for b in at.button if b.label == "Aprovar"]) == 20
+    pagina = next(i for i in at.selectbox if i.label == "Página de lançamentos")
+    pagina.set_value(2).run()
+    assert len([b for b in at.button if b.label == "Aprovar"]) == 1
+    assert any("21 a 21 de 21" in c.value for c in at.caption)
+    competencia = next(i for i in at.selectbox if i.label == "Competência")
+    competencia.set_value("2026-10").run()
+    assert len([b for b in at.button if b.label == "Aprovar"]) == 5
+    assert not at.exception
+
+
+def test_conferencia_e_pdf_permanecem_ao_mudar_filtro(tela):
+    pytest.importorskip("pdfplumber")
+    pytest.importorskip("reportlab")
+    from reportlab.pdfgen.canvas import Canvas
+
+    at, _ = tela
+    buffer = BytesIO()
+    pdf = Canvas(buffer)
+    pdf.setFont("Helvetica", 9)
+    for y, data, historico, x, valor in [
+        (550, "30/09/2026", "SALDO ANTERIOR", 530, "0,00"),
+        (530, "01/10/2026", "RECEBIMENTO EXEMPLO", 460, "55,00"),
+        (510, "01/10/2026", "SALDO EM CONTA CORRENTE", 530, "55,00"),
+    ]:
+        pdf.drawString(40, y, data)
+        pdf.drawString(90, y, historico)
+        pdf.drawString(x, y, valor)
+    pdf.save()
+    extrato = next(w for w in at.file_uploader if w.label == "Extrato Itaú em PDF")
+    importados = next(w for w in at.file_uploader if w.label == "Arquivos já importados no Fortes")
+    extrato.set_value(("extrato-exemplo.pdf", buffer.getvalue(), "application/pdf"))
+    importados.set_value([("importado-exemplo.csv", b"01/10/2026;362;358;55,00;EXEMPLO;;;;\r\n", "text/csv")])
+    at.run()
+    next(b for b in at.button if b.label == "Conferir").click().run()
+    assert any("Conciliado: 1 movimento pareado" in s.value for s in at.success)
+    at.segmented_control(key="filtro-status").set_value("liberado").run()
+    assert any("Conciliado: 1 movimento pareado" in s.value for s in at.success)
+    assert any("extrato" in c.value and "importado" in c.value for c in at.caption)
+    assert any("Baixar relatório da conferência" in b.label for b in at.download_button)
+    assert not at.exception

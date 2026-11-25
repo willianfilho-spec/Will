@@ -10,9 +10,9 @@ histórico vira regra só quando:
 - essa conta existe no plano, é analítica e não está na lista de contas que
   exigem decisão do contador (sócios, empréstimos, lucros etc.).
 
-Histórico que já foi lançado em contas diferentes (por exemplo, o PIX ao mesmo
-funcionário ora como salário, ora como bonificação) não vira regra: depende de
-julgamento e vai para revisão.
+Histórico que já foi lançado em contas diferentes depende de julgamento.
+Uma raiz de CNPJ só vira sugestão se estiver associada à mesma conta em todo
+o histórico pareado, mesmo quando há entradas e saídas para a mesma raiz.
 
 O resultado é uma SUGESTÃO. As regras só passam a valer depois que o contador
 revisar o arquivo gerado. Ele contém nomes de favorecidos: guarde-o junto com
@@ -37,7 +37,7 @@ from .conciliacao import LancamentoAceito, ler_importados
 from .leitores import ler_extrato
 from .modelo import Transacao
 from .plano_contas import PlanoDeContas
-from .texto import normalizar
+from .texto import normalizar, normalizar_documento
 
 SEM_HISTORICO = "SEM HISTORICO NA PLANILHA"
 
@@ -76,18 +76,30 @@ def parear(transacoes: list[Transacao], aceitos: list[LancamentoAceito],
 
 def sugerir(pares: list[tuple[Transacao, str | None]], plano: PlanoDeContas,
             nunca: set[str], minimo: int = 2) -> tuple[list[dict], list[str]]:
-    por_chave: dict[tuple[str, str], list[str]] = defaultdict(list)
-    meses: dict[tuple[str, str], set[str]] = defaultdict(set)
+    por_chave: dict[tuple[str, str, str], list[str]] = defaultdict(list)
+    meses: dict[tuple[str, str, str], set[str]] = defaultdict(set)
+    contas_por_raiz: dict[str, set[str]] = defaultdict(set)
     for t, reduzido in pares:
-        if reduzido is None or t.historico == SEM_HISTORICO:
+        if reduzido is None:
             continue
-        k = (chave_historico(t.historico), t.sentido)
-        por_chave[k].append(reduzido)
-        meses[k].add(t.data.strftime("%Y-%m"))
+        mes = t.data.strftime("%Y-%m")
+        if t.historico != SEM_HISTORICO:
+            chave = ("padrao", chave_historico(t.historico), t.sentido)
+            por_chave[chave].append(reduzido)
+            meses[chave].add(mes)
+        documento = normalizar_documento(t.documento)
+        if len(documento) == 14:
+            raiz = documento[:8]
+            contas_por_raiz[raiz].add(reduzido)
+            chave = ("raiz_cnpj", raiz, t.sentido)
+            por_chave[chave].append(reduzido)
+            meses[chave].add(mes)
     regras, avisos = [], []
-    for (chave, sentido), contas in sorted(por_chave.items()):
+    for (criterio, chave, sentido), contas in sorted(por_chave.items()):
         distintas = set(contas)
         if len(contas) < minimo or len(distintas) > 1:
+            continue
+        if criterio == "raiz_cnpj" and len(contas_por_raiz[chave]) > 1:
             continue
         reduzido = contas[0]
         if reduzido in nunca:
@@ -98,12 +110,12 @@ def sugerir(pares: list[tuple[Transacao, str | None]], plano: PlanoDeContas,
             continue
         regras.append({
             "id": f"r{len(regras) + 1:03d}",
-            "padrao": padrao_de(chave),
+            criterio: padrao_de(chave) if criterio == "padrao" else chave,
             "sentido": sentido,
             "conta": conta.codigo,
             "historico": None,
             "evidencia": f"{len(contas)} lançamentos na conta {reduzido} ({conta.descricao}),"
-                         f" meses {', '.join(sorted(meses[(chave, sentido)]))}",
+                         f" meses {', '.join(sorted(meses[(criterio, chave, sentido)]))}",
         })
     return regras, avisos
 

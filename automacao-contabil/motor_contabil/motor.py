@@ -84,6 +84,7 @@ def montar_lancamento(
 
     if c.fonte == "ia":
         pendencias.append(f"sugestão da IA, requer aprovação ({c.observacao})")
+    pendencias.extend(c.motivos_revisao)
 
     historico = t.historico
     if c.historico_padrao:
@@ -172,8 +173,11 @@ class Motor:
                      f"{t.valor:.2f}", t.historico, t.documento, t.origem, t.linha, lote_id),
                 )
                 self._gravar_lancamento(lanc, classificacao.conta_contrapartida)
+                detalhe = f"{lanc.status.value}; fonte={lanc.fonte}"
+                if classificacao.criterio is not None:
+                    detalhe += f"; criterio={classificacao.criterio}"
                 self.banco.registrar_evento(
-                    self.usuario, "importado", f"{lanc.status.value}; fonte={lanc.fonte}",
+                    self.usuario, "importado", detalhe,
                     chave=chave, lote_id=lote_id,
                 )
                 resultado.novas += 1

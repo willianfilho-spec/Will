@@ -45,6 +45,8 @@ class Classificacao:
     historico_padrao: str | None
     fonte: str  # "regra:<id>", "ia", "manual" ou "nenhuma"
     observacao: str = ""
+    criterio: str | None = None
+    motivos_revisao: tuple[str, ...] = ()
 
 
 @dataclass

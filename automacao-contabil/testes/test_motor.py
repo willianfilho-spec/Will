@@ -11,6 +11,7 @@ import pytest
 from motor_contabil import BancoDeDados, ConjuntoDeRegras, Motor, PlanoDeContas, Status
 from motor_contabil.classificador_ia import ClassificadorClaude, Sugestao
 from motor_contabil.leitores import ler_csv, ler_ofx
+from motor_contabil.plano_contas import Conta
 from motor_contabil.texto import mascarar_documentos, para_decimal
 
 EXEMPLOS = Path(__file__).resolve().parent.parent / "exemplos"
@@ -39,6 +40,20 @@ def escrever_csv(caminho: Path, linhas: list[tuple[str, str, str]]) -> Path:
         w = csv.writer(f, delimiter=";")
         w.writerow(["Data", "Histórico", "Valor"])
         w.writerows(linhas)
+    return caminho
+
+
+def carregar_regras(caminho, regras):
+    caminho.write_text(json.dumps({"conta_banco": "1.1.1.02.001", "regras": regras}), encoding="utf-8")
+    return ConjuntoDeRegras.carregar(caminho)
+
+
+def extrato_com_documentos(caminho, movimentos):
+    with caminho.open("w", newline="", encoding="utf-8") as arquivo:
+        escritor = csv.writer(arquivo, delimiter=";")
+        escritor.writerow(["Data", "Histórico", "Valor", "Documento"])
+        for dia, (historico, documento) in enumerate(movimentos, start=1):
+            escritor.writerow([f"{dia:02d}/11/2026", historico, "-25,00", documento])
     return caminho
 
 
@@ -188,6 +203,121 @@ class IAFalsa:
 
     def sugerir(self, t, plano):
         return Sugestao(self.conta, "media", "teste")
+
+
+def test_classifica_filiais_e_historicos_diferentes_por_documento(motor, tmp_path):
+    motor.regras = carregar_regras(tmp_path / "regras.json", [
+        {"id": "filiais", "raiz_cnpj": "00123456", "conta": "2.1.1.01.001"},
+        {"id": "documento", "documento": "00.987.654/0001-00", "conta": "4.2.1.01.001"},
+        {"id": "cpf", "documento": "001.234.567-00", "conta": "4.2.1.04.001"},
+    ])
+    extrato = extrato_com_documentos(tmp_path / "extrato.csv", [
+        ("Filial A", "00.123.456/0001-00"),
+        ("Filial B", "00123456000200"),
+        ("Histórico A", "00987654000100"),
+        ("Histórico B", "00.987.654/0001-00"),
+        ("CPF com prefixo coincidente", "00123456700"),
+        ("Número do movimento", "101502"),
+    ])
+    assert motor.importar(extrato, CONTA_CSV).novas == 6
+    itens = motor.listar()
+    assert [(i["fonte"], i["conta_debito"], i["status"]) for i in itens] == [
+        ("regra:filiais", "2.1.1.01.001", "liberado"),
+        ("regra:filiais", "2.1.1.01.001", "liberado"),
+        ("regra:documento", "4.2.1.01.001", "liberado"),
+        ("regra:documento", "4.2.1.01.001", "liberado"),
+        ("regra:cpf", "4.2.1.04.001", "liberado"),
+        ("nenhuma", None, "pendente"),
+    ]
+    detalhes = motor.banco.conexao.execute(
+        "SELECT detalhe FROM eventos WHERE acao='importado' ORDER BY id"
+    ).fetchall()
+    assert [d["detalhe"].split("criterio=")[-1] for d in detalhes[:5]] == [
+        "raiz_cnpj", "raiz_cnpj", "documento", "documento", "documento",
+    ]
+
+
+@pytest.mark.parametrize("divergem", [False, True])
+def test_precedencia_e_conflito_independem_da_ordem(motor, tmp_path, divergem):
+    conta = "2.1.1.01.001"
+    regras = [
+        {"id": "a-padrao", "padrao": "^PAGAMENTO", "conta": conta, "historico": "PADRÃO"},
+        {"id": "b-raiz", "raiz_cnpj": "00123456", "conta": conta, "historico": "RAIZ"},
+        {"id": "c-doc", "documento": "00123456000100",
+         "conta": "4.2.1.01.001" if divergem else conta, "historico_padrao": "DOCUMENTO"},
+    ]
+    extrato = extrato_com_documentos(tmp_path / "extrato.csv", [
+        ("Pagamento Exemplo", "00.123.456/0001-00"),
+        ("Pagamento Filial", "00.123.456/0002-00"),
+    ])
+    primeiro = carregar_regras(tmp_path / "primeiro.json", regras)
+    motor.regras = carregar_regras(tmp_path / "invertido.json", list(reversed(regras)))
+    for transacao in ler_csv(extrato, CONTA_CSV):
+        assert primeiro.classificar(transacao) == motor.regras.classificar(transacao)
+
+    motor.classificador = IAFalsa(conta)
+    motor.importar(extrato, CONTA_CSV)
+    item, filial = motor.listar()
+    assert filial["fonte"] == "regra:b-raiz"
+    assert filial["historico"] == "RAIZ - Pagamento Filial"
+    if divergem:
+        assert item["status"] == "pendente"
+        assert item["conta_debito"] is None
+        assert item["motivos"] == "regras conflitantes: a-padrao, b-raiz, c-doc"
+    else:
+        assert item["status"] == "liberado"
+        assert item["fonte"] == "regra:c-doc"
+        assert item["historico"] == "DOCUMENTO - Pagamento Exemplo"
+
+
+@pytest.mark.parametrize("raiz", ["0123456", "012345678", "0123456a", 12345678])
+def test_raiz_invalida_pede_os_oito_primeiros_digitos(tmp_path, raiz):
+    with pytest.raises(ValueError, match="regra filial.*8 primeiros dígitos.*CNPJ"):
+        carregar_regras(tmp_path / "regras.json", [
+            {"id": "filial", "raiz_cnpj": raiz, "conta": "2.1.1.01.001"},
+        ])
+
+
+def test_regra_requer_revisao_com_conta_e_motivo(motor, tmp_path):
+    conta = "2.1.1.01.001"
+    motor.regras = carregar_regras(tmp_path / "regras.json", [
+        {"id": "doc", "documento": "00123456000100", "conta": conta},
+        {"id": "revisar", "padrao": "^PAGTO", "conta": conta, "forcar_pendente": True,
+         "motivo": "Confira a nota fiscal e confirme a conta."},
+    ])
+    extrato = extrato_com_documentos(tmp_path / "extrato.csv", [
+        ("Pagto a confirmar", "00123456000100"),
+    ])
+    motor.importar(extrato, CONTA_CSV)
+    [item] = motor.listar()
+    assert item["status"] == "pendente"
+    assert item["conta_debito"] == conta
+    assert item["fonte"] == "regra:doc"
+    assert "Confira a nota fiscal e confirme a conta." in item["motivos"]
+    assert motor.exportar(tmp_path / "exportacao_de_teste.csv") == (None, 0)
+
+
+def test_contrapartida_e_validada_pela_classificacao_completa(motor, tmp_path):
+    primeira, segunda = "2.01.01.01.01.0001-0", "2.01.01.01.01.0002-8"
+    banco = motor.plano.get(motor.regras.conta_banco)
+    motor.plano = PlanoDeContas([
+        banco,
+        Conta(primeira, "Fornecedores Diversos", True, "101"),
+        Conta(segunda, "Fornecedores Diversos", True, "102"),
+    ])
+    motor.regras = carregar_regras(tmp_path / "regras.json", [
+        {"id": "exata", "padrao": "^EXATA", "conta": segunda},
+        {"id": "descricao", "padrao": "^DESCRICAO", "conta": "Fornecedores Diversos"},
+    ])
+    extrato = extrato_com_documentos(tmp_path / "extrato.csv", [
+        ("Exata", ""), ("Descrição", ""),
+    ])
+    motor.importar(extrato, CONTA_CSV)
+    item_exato, item_descricao = motor.listar()
+    assert item_exato["status"] == "liberado"
+    assert item_exato["conta_debito"] == segunda
+    assert item_descricao["status"] == "bloqueado"
+    assert "não existe no plano" in item_descricao["motivos"]
 
 
 def test_sugestao_da_ia_nunca_libera_sozinha(tmp_path, plano, regras):
