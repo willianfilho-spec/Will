@@ -3,7 +3,7 @@ name: Publicar apps no GitHub Pages
 on:
   push:
     branches: [main]
-    paths: ['guia-sigaa-editor/**', 'editor-pdf/**', '.github/workflows/pages.yml']
+    paths: ['guia-sigaa-editor/**', 'editor-pdf/**', 'assistente-dioac/**', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 permissions:
@@ -30,6 +30,7 @@ jobs:
           mkdir _site
           cp -r guia-sigaa-editor/. _site/
           cp -r editor-pdf _site/editor-pdf
+          cp -r assistente-dioac _site/assistente-dioac
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

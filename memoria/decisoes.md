@@ -1,6 +1,6 @@
 # Decisões
 
-Atualizado em: 2026-11-17
+Atualizado em: 2026-11-26
 Formato: ID, data, decisão, justificativa, alternativas, consequências, status (vigente | substituída por D-XXX). Nunca apagar; substituir.
 
 ## D-001 [2026-11-17] Memória vive no repositório git
@@ -33,4 +33,11 @@ Formato: ID, data, decisão, justificativa, alternativas, consequências, status
 ## D-005 [2026-11-17] Exceção à declaração de autoria humana (encerra P-003)
 - Decisão: registrar em `Human-Written Declaration` que `CLAUDE.md`, `memoria/` e `.claude/` são mantidos com auxílio de IA e ficam fora do compromisso de autoria humana.
 - Justificativa: manter a declaração verdadeira. Aprovado pelo usuário.
+- Status: vigente. Origem: pedido do usuário; confiança: alta.
+
+## D-006 [2026-11-26] Assistente DIOAC publicado na íntegra no GitHub Pages
+- Decisão: publicar o Assistente DIOAC v3 completo (base com minuta do Calendário 2027 e documentos internos) em `assistente-dioac/`, servido pelo GitHub Pages deste repositório público. Decidido pelo usuário após aviso explícito dos riscos.
+- Justificativa: acesso por link público, sem login nem instalação.
+- Alternativas: edição pública só com atos oficiais (recomendada e recusada); link privado no claude.ai; arquivo único local.
+- Consequências: a base fica aberta e indexável. Substitui, para este app, a decisão de 25/11/2026 de mantê-lo fora do repositório. A política de D-002 continua valendo para `memoria/`.
 - Status: vigente. Origem: pedido do usuário; confiança: alta.

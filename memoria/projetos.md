@@ -25,7 +25,7 @@ Um bloco por projeto: objetivo, local, estado, próximos passos. Estado vem de e
 - [2026-11-17] Estado: implementado, testado em sessões novas e incorporado à `main` (P-002 concluída). Próximo passo: nenhum obrigatório; acompanhar se o lembrete do hook Stop ajuda ou incomoda — origem: esta sessão; confiança: alta
 
 ## Assistente DIOAC (busca local na base normativa da graduação)
-- Local: fora deste repositório, por decisão do usuário em 2026-11-25 (a base inclui documentos internos e o repositório é público). Entregue como pacote zip na sessão; não há cópia versionada.
+- Local: `assistente-dioac/index.html` (arquivo único), publicado no GitHub Pages (D-006, 2026-11-26). Até 2026-11-25 ficava fora do repositório (substituída por D-006). Código-fonte modular só no pacote zip.
 - [2026-11-25] Estado: v2 completado (pasta vendor com JSZip 3.10.1 e pdf.js 3.11.174), visual revisado e base na versão 2026-11-25.6; busca prioriza o ano/semestre citado; 13 testes de navegador aprovados (Playwright) — origem: esta sessão; confiança: alta
 - [2026-11-25] Acesso sem instalação: arquivo único Assistente-DIOAC.html (abre com dois cliques) e web app publicado como artefato privado no claude.ai (PDF gerado no navegador; downloads com confirmação). Nada publicado em repositório público — origem: pedido do usuário; confiança: alta
 - [2026-11-25] Versão 3 entregue (zip privado): consulta estruturada por dispositivo com redação aplicável por data, análise de casos em cinco temas com regras explícitas, editor de despacho/parecer/minuta/relatório e PDF pela impressão do navegador; base 2026-11-25.8; 59 de 59 verificações automáticas com a rede bloqueada. Envio à planilha passou a ser só por ação explícita — origem: esta sessão; confiança: alta
