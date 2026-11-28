@@ -1,6 +1,6 @@
 # Decisões
 
-Atualizado em: 2026-11-26
+Atualizado em: 2026-11-28
 Formato: ID, data, decisão, justificativa, alternativas, consequências, status (vigente | substituída por D-XXX). Nunca apagar; substituir.
 
 ## D-001 [2026-11-17] Memória vive no repositório git
@@ -40,4 +40,11 @@ Formato: ID, data, decisão, justificativa, alternativas, consequências, status
 - Justificativa: acesso por link público, sem login nem instalação.
 - Alternativas: edição pública só com atos oficiais (recomendada e recusada); link privado no claude.ai; arquivo único local.
 - Consequências: a base fica aberta e indexável. Substitui, para este app, a decisão de 25/11/2026 de mantê-lo fora do repositório. A política de D-002 continua valendo para `memoria/`.
+- Status: vigente. Origem: pedido do usuário; confiança: alta.
+
+## D-007 [2026-11-28] Graphify e plugin EGM instalados por script de setup do ambiente
+- Decisão: instalar o Graphify (`uv tool install graphifyy` + `graphify install`) e o plugin Elephant-Goldfish Model (`egm@egm`, marketplace `google/elephant-goldfish-model`) por script de setup do ambiente de nuvem pessoal "computador", não por arquivos do repositório.
+- Justificativa: os containers são descartáveis; o script reinstala as duas ferramentas em toda sessão nova sem alterar este repositório público.
+- Alternativas: instalar a cada sessão manualmente; criar um ambiente novo.
+- Consequências: comandos testados isoladamente nesta sessão (Graphify num projeto de exemplo, um revisor EGM num rascunho). O script completo não foi provado: só roda na próxima sessão com container novo. Conferir com `graphify --help` e `claude plugin list`. `/graphify .` e `graphify claude install` não foram rodados neste repositório.
 - Status: vigente. Origem: pedido do usuário; confiança: alta.
